@@ -18,7 +18,6 @@ async function handler(request) {
     options: { redirectTo: `${origin}/auth/callback` }
   });
 
-  // ✅ 핵심: Vercel Logs에서 이 3줄이 보여야 함
   console.log("[signin] origin =", origin);
   console.log("[signin] error =", error);
   console.log("[signin] data.url =", data?.url);
@@ -30,11 +29,9 @@ async function handler(request) {
   return NextResponse.redirect(data.url, { status: 303 });
 }
 
-export async function POST(request) {
+export async function GET(request) {
   return handler(request);
 }
-
-// ✅ 주소창 테스트용 (버튼 말고 직접 /auth/signin 들어가도 확인 가능)
-export async function GET(request) {
+export async function POST(request) {
   return handler(request);
 }
