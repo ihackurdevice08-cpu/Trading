@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function GET(request) {
-  const url = new URL(request.url);
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || url.origin;
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
 
-  // 응답 객체를 먼저 만들고, 여기에 쿠키를 setAll로 박아야 함 (PKCE 때문에 필수)
+  // IMPORTANT: set cookies on the SAME response we return
   const response = NextResponse.redirect(origin, { status: 303 });
 
   const supabase = createServerClient(
@@ -33,10 +32,11 @@ export async function GET(request) {
   });
 
   if (error || !data?.url) {
-    return NextResponse.redirect(`${origin}/?e=oauth_start`, { status: 303 });
+    response.headers.set("Location", `${origin}/?e=oauth_start_failed`);
+    return response;
   }
 
-  // 실제 목적지(구글 OAuth)로 Location만 갈아끼우면 됨
+  // Keep the same response (with cookies), only swap Location
   response.headers.set("Location", data.url);
   return response;
 }
