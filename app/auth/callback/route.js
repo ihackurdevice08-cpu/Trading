@@ -4,15 +4,16 @@ import { createServerClient } from "@supabase/ssr";
 export async function GET(request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || url.origin;
 
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL || url.origin;
+  // 기본: 성공 후 홈으로
+  const response = NextResponse.redirect(origin, { status: 303 });
 
   if (!code) {
-    return NextResponse.redirect(origin);
+    // code가 없으면 그냥 홈으로 (또는 에러 페이지로 바꿔도 됨)
+    response.headers.set("Location", `${origin}/?e=no_code`);
+    return response;
   }
-
-  const response = NextResponse.redirect(origin);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,7 +32,14 @@ export async function GET(request) {
     }
   );
 
-  await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
 
+  if (error) {
+    response.headers.set("Location", `${origin}/?e=exchange_failed`);
+    return response;
+  }
+
+  // 세션 쿠키 박힌 상태로 홈으로
+  response.headers.set("Location", origin);
   return response;
 }
