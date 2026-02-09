@@ -7,7 +7,7 @@
   },
   "style": {
     "scheme": "css-modules",
-    "defaultStyleCssFilePath": ""
+    "defaultStyleCssFilePath": "plasmic/plasmic__default_style.module.css"
   },
   "images": {
     "scheme": "public-files",
@@ -20,7 +20,71 @@
   },
   "srcDir": "components",
   "defaultPlasmicDir": "./plasmic",
-  "projects": [],
+  "projects": [
+    {
+      "projectId": "5tz2ZmHp5z9cRBR3D1tqVc",
+      "projectApiToken": "Ir55rypm9cdNckdIdbzcIh6aNqqdmIpQP5A7XlFIkaH319LPq1qT4OHDVLqouyxpQXD5Cxc2PWvL6UsaAcA",
+      "projectName": "ManCave",
+      "version": "latest",
+      "cssFilePath": "plasmic/man_cave/plasmic.module.css",
+      "components": [
+        {
+          "id": "VIIlU2j3CzWY",
+          "name": "Homepage",
+          "type": "managed",
+          "projectId": "5tz2ZmHp5z9cRBR3D1tqVc",
+          "renderModuleFilePath": "plasmic/man_cave/PlasmicHomepage.jsx",
+          "importSpec": {
+            "modulePath": "../app/page.jsx"
+          },
+          "cssFilePath": "plasmic/man_cave/PlasmicHomepage.module.css",
+          "scheme": "blackbox",
+          "componentType": "page",
+          "path": "/",
+          "rsc": {
+            "serverModulePath": "plasmic/man_cave/PlasmicHomepageServer.jsx",
+            "clientModulePath": "../app/page-client.jsx"
+          }
+        },
+        {
+          "id": "UL6-r99BsjyB",
+          "name": "AppShell",
+          "type": "managed",
+          "projectId": "5tz2ZmHp5z9cRBR3D1tqVc",
+          "renderModuleFilePath": "plasmic/man_cave/PlasmicAppShell.jsx",
+          "importSpec": {
+            "modulePath": "AppShell.jsx"
+          },
+          "cssFilePath": "plasmic/man_cave/PlasmicAppShell.module.css",
+          "scheme": "blackbox",
+          "componentType": "component"
+        }
+      ],
+      "icons": [],
+      "images": [],
+      "indirect": false,
+      "globalContextsFilePath": "",
+      "splitsProviderFilePath": "",
+      "styleTokensProviderFilePath": "plasmic/man_cave/PlasmicStyleTokensProvider.jsx",
+      "dataTokensFilePath": "",
+      "projectModuleFilePath": "plasmic/man_cave/plasmic.jsx",
+      "codeComponents": [
+        {
+          "id": "1V0SkT7muNqM",
+          "name": "PlasmicHead",
+          "displayName": "hostless-plasmic-head",
+          "componentImportPath": "@plasmicapp/react-web"
+        },
+        {
+          "id": "5yqPVXBCZpfl",
+          "name": "Fetcher",
+          "displayName": "plasmic-data-source-fetcher",
+          "componentImportPath": "@plasmicapp/react-web/lib/data-sources"
+        }
+      ],
+      "customFunctions": []
+    }
+  ],
   "globalVariants": {
     "variantGroups": []
   },

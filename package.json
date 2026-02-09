@@ -15,6 +15,8 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@plasmicapp/cli": "^0.1.356"
+    "@plasmicapp/cli": "^0.1.356",
+    "@types/react": "19.2.13",
+    "typescript": "5.9.3"
   }
 }
