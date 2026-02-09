@@ -23,7 +23,7 @@ export default async function Page() {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ marginTop: 0 }}>Trading OS v2</h1>
+      <h1 style={{ marginTop: 0 }}>Man Cave</h1>
 
       {!user ? (
         <form action="/auth/signin" method="post">
