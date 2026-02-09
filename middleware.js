@@ -21,9 +21,7 @@ export async function middleware(request) {
     }
   );
 
-  // 세션 갱신/쿠키 세팅
   await supabase.auth.getUser();
-
   return response;
 }
 
