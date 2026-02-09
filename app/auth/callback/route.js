@@ -5,8 +5,9 @@ export async function GET(request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
 
-  const origin = url.origin;
-  let response = NextResponse.redirect(origin, { status: 303 });
+const origin =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  url.origin;
 
   if (!code) return response;
 
