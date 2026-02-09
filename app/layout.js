@@ -1,4 +1,4 @@
-export const metadata = { title: "Trading OS v2" };
+export const metadata = { title: "Man Cave" };
 
 export default function RootLayout({ children }) {
   return (
