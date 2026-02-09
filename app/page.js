@@ -13,7 +13,7 @@ export default async function Page() {
           return cookieStore.getAll();
         },
         setAll() {
-          // server component에서는 set 불가 (middleware가 쿠키 세팅 처리)
+          // server component에서는 set 불가 (middleware/route에서 처리)
         }
       }
     }
@@ -26,17 +26,13 @@ export default async function Page() {
       <h1 style={{ marginTop: 0 }}>Man Cave</h1>
 
       {!user ? (
-        <form action="/auth/signin" method="post">
-          <button type="submit" style={btn}>
-            Google 로그인
-          </button>
-        </form>
+        <a href="/auth/signin" style={btn}>
+          Google 로그인
+        </a>
       ) : (
         <>
           <div style={{ marginBottom: 12 }}>로그인됨: {user.email}</div>
-          <form action="/auth/signout" method="post">
-            <button type="submit" style={btn}>로그아웃</button>
-          </form>
+          <a href="/auth/signout" style={btn}>로그아웃</a>
         </>
       )}
     </div>
@@ -44,9 +40,12 @@ export default async function Page() {
 }
 
 const btn = {
+  display: "inline-block",
   padding: "10px 14px",
   borderRadius: 10,
   border: "1px solid #ddd",
   background: "white",
-  cursor: "pointer"
+  cursor: "pointer",
+  textDecoration: "none",
+  color: "black"
 };
