@@ -1,31 +1,42 @@
-"use client";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-import { useState } from "react";
+export default async function Home() {
+  const cookieStore = cookies();
 
-export default function Home() {
-  const [loading, setLoading] = useState(false);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <main style={{ padding: 40 }}>
+        <h1>Man Cave</h1>
+        <a href="/auth/signin">
+          <button>Google 로그인</button>
+        </a>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: 40 }}>
-      <h1>Man Cave</h1>
+      <h1>환영합니다</h1>
+      <p>{user.email}</p>
 
-      <button
-        onClick={() => {
-          setLoading(true);
-          // fetch 하지 말고 "이동" 해야 한다 (OAuth는 브라우저 네비게이션 플로우)
-          window.location.href = "/auth/signin";
-        }}
-        disabled={loading}
-        style={{
-          padding: "10px 14px",
-          border: "1px solid #ccc",
-          borderRadius: 8,
-          cursor: "pointer",
-          opacity: loading ? 0.7 : 1,
-        }}
-      >
-        {loading ? "로딩..." : "Google 로그인"}
-      </button>
+      <a href="/auth/signout">
+        <button>로그아웃</button>
+      </a>
     </main>
   );
 }
