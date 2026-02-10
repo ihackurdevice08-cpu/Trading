@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppearance } from "../providers/AppearanceProvider";
+import FuturesTicker from "../widgets/FuturesTicker";
 import { supabaseBrowser } from "../../lib/supabase/browser";
 
 export default function AppLayout({ children }) {
