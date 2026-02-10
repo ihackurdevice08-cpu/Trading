@@ -1,125 +1,207 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppearance } from "../providers/AppearanceProvider";
-import BackgroundLayer from "../ui/BackgroundLayer";
-
-function NavItem({ href, label }) {
-  const pathname = usePathname();
-  const active = pathname === href;
-
-  return (
-    <Link
-      href={href}
-      style={{
-        padding: "10px 12px",
-        borderRadius: 10,
-        color: active ? "var(--text-primary)" : "var(--text-secondary)",
-        background: active ? "rgba(210,194,165,0.10)" : "transparent",
-        border: active ? "1px solid var(--line-hard)" : "1px solid transparent",
-        textDecoration: "none",
-        fontWeight: 700,
-        letterSpacing: 0.2,
-      }}
-    >
-      {label}
-    </Link>
-  );
-}
+import { supabaseBrowser } from "../../lib/supabase/browser";
 
 export default function AppLayout({ children }) {
-  const { appearance } = useAppearance();
-  const isTop = appearance.navLayout === "top";
+  const pathname = usePathname();
+  const { appearance, isAuthed } = useAppearance();
+  const [toast, setToast] = useState("");
+
+  const nav = useMemo(
+    () => [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/goals", label: "Goals" },
+      { href: "/settings", label: "Settings" },
+    ],
+    []
+  );
+
+  const showRefreshHere =
+    appearance.refreshPlacement === "global" ||
+    (appearance.refreshPlacement === "dashboard" && pathname?.startsWith("/dashboard"));
+
+  async function onRefresh() {
+    if (!isAuthed) {
+      setToast("로그인 후 Refresh를 이용하실 수 있습니다.");
+      return;
+    }
+    try {
+      setToast("동기화를 호출했습니다. 잠시만 기다려 주세요.");
+      const res = await fetch("/api/sync-now", { method: "POST" });
+      if (!res.ok) throw new Error("sync endpoint not ready");
+      setToast("요청이 접수되었습니다. 데이터는 곧 반영됩니다.");
+    } catch {
+      setToast("동기화 엔드포인트는 다음 단계에서 연결됩니다. (UI는 준비 완료)");
+    }
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  async function onLogout() {
+    const sb = supabaseBrowser();
+    await sb.auth.signOut();
+    setToast("안전하게 로그아웃되었습니다.");
+    setTimeout(() => setToast(""), 2500);
+  }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-main)", color: "var(--text-primary)", position: "relative" }}>
-      <BackgroundLayer />
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "var(--bg-main)",
+        color: "var(--text-primary)",
+        display: "grid",
+        gridTemplateRows: "56px 1fr",
+      }}
+    >
+      {/* Top Bar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          borderBottom: "1px solid var(--line-soft)",
+          background: "rgba(0,0,0,0.10)",
+          backdropFilter: "blur(10px)",
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>
+          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Private console for disciplined execution</div>
+        </div>
 
-      <div style={{ position: "relative", zIndex: 2 }}>
-        {isTop ? (
-          <>
-            <header
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {showRefreshHere ? (
+            <button
+              onClick={onRefresh}
               style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 10,
-                background: "rgba(18,17,15,0.72)",
-                backdropFilter: "blur(10px)",
-                borderBottom: "1px solid var(--line-soft)",
+                padding: "8px 10px",
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                background: "rgba(210,194,165,0.12)",
+                color: "var(--text-primary)",
+                fontWeight: 900,
+                cursor: "pointer",
               }}
             >
-              <div style={{ maxWidth: 1200, margin: "0 auto", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ fontWeight: 900, letterSpacing: 0.6, color: "var(--accent-main)" }}>Man Cave OS</div>
-                <nav style={{ display: "flex", gap: 10 }}>
-                  <NavItem href="/dashboard" label="Dashboard" />
-                  <NavItem href="/goals" label="Goals" />
-                  <NavItem href="/settings" label="Settings" />
-                </nav>
-              </div>
-            </header>
+              Refresh
+            </button>
+          ) : null}
 
-            <main style={{ padding: 18 }}>
-              <div style={{ maxWidth: 1200, margin: "0 auto" }}>{children}</div>
-            </main>
-          </>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "260px 1fr" }}>
-            <aside
+          {isAuthed ? (
+            <button
+              onClick={onLogout}
               style={{
-                position: "sticky",
-                top: 0,
-                height: "100vh",
-                borderRight: "1px solid var(--line-soft)",
-                background: "rgba(27,25,22,0.72)",
-                backdropFilter: "blur(10px)",
-                padding: 16,
+                padding: "8px 10px",
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                background: "transparent",
+                color: "var(--text-primary)",
+                fontWeight: 900,
+                cursor: "pointer",
               }}
             >
-              <div style={{ fontWeight: 900, letterSpacing: 0.6, color: "var(--accent-main)", marginBottom: 14 }}>Man Cave OS</div>
-              <nav style={{ display: "grid", gap: 10 }}>
-                <NavItem href="/dashboard" label="Dashboard" />
-                <NavItem href="/goals" label="Goals" />
-                <NavItem href="/settings" label="Settings" />
-              </nav>
-            </aside>
-
-            <main style={{ padding: 18 }}>
-              <div style={{ maxWidth: 1200, margin: "0 auto" }}>{children}</div>
-            </main>
-          </div>
-        )}
+              Logout
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                padding: "8px 10px",
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                background: "transparent",
+                color: "var(--text-primary)",
+                fontWeight: 900,
+                textDecoration: "none",
+              }}
+            >
+              Login
+            </Link>
+          )}
+        </div>
       </div>
 
-      <style jsx global>{`
-        :root{
-          --bg-main:#12110F;
-          --bg-panel:#1B1916;
-          --bg-card:#22201C;
-          --line-soft:#2E2B26;
-          --line-hard:#3B372F;
+      {/* Body */}
+      <div style={{ display: "grid", gridTemplateColumns: appearance.navLayout === "side" ? "240px 1fr" : "1fr" }}>
+        {appearance.navLayout === "side" ? (
+          <aside style={{ borderRight: "1px solid var(--line-soft)", padding: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>Navigation</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {nav.map((x) => {
+                const active = pathname?.startsWith(x.href);
+                return (
+                  <Link
+                    key={x.href}
+                    href={x.href}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid var(--line-soft)",
+                      background: active ? "rgba(210,194,165,0.14)" : "transparent",
+                      color: "var(--text-primary)",
+                      textDecoration: "none",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {x.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </aside>
+        ) : null}
 
-          --accent-main:#D2C2A5;
-          --accent-soft:#BFAF95;
-          --accent-dim:#9E917C;
+        <main style={{ padding: 16 }}>
+          {appearance.navLayout === "top" ? (
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+              {nav.map((x) => {
+                const active = pathname?.startsWith(x.href);
+                return (
+                  <Link
+                    key={x.href}
+                    href={x.href}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid var(--line-soft)",
+                      background: active ? "rgba(210,194,165,0.14)" : "transparent",
+                      color: "var(--text-primary)",
+                      textDecoration: "none",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {x.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
 
-          --text-primary:#F1ECE3;
-          --text-secondary:#C8C1B6;
-          --text-muted:#9C9589;
+          {toast ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                color: "var(--text-secondary)",
+                marginBottom: 12,
+              }}
+            >
+              {toast}
+            </div>
+          ) : null}
 
-          --status-great:#D2C2A5;
-          --status-good:#8FA3B8;
-          --status-slow:#D1A95F;
-          --status-stop:#C84B4B;
-        }
-        body{
-          margin:0;
-          background: var(--bg-main);
-          color: var(--text-primary);
-          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        }
-      `}</style>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

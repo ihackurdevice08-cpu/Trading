@@ -5,6 +5,7 @@ export type BgType = "none" | "image" | "video";
 export type BgFit = "cover" | "contain";
 
 export type OvertradeCountBasis = "close" | "open"; // default close
+export type RefreshPlacement = "global" | "dashboard"; // default global
 
 export type AppearanceSettings = {
   themeId: ThemeId;
@@ -17,14 +18,17 @@ export type AppearanceSettings = {
   bgBlurPx: number;
   bgDim: number;
 
-  // Dashboard rows (Row 1~4)
+  // Dashboard rows
   showRow1Status: boolean;
   showRow2AssetPerf: boolean;
   showRow3Behavior: boolean;
   showRow4Overtrade: boolean;
 
-  // Behavior / Rules (settings-driven; must never break)
-  overtradeCountBasis: OvertradeCountBasis; // close/open
+  // Rules
+  overtradeCountBasis: OvertradeCountBasis;
+
+  // Header
+  refreshPlacement: RefreshPlacement; // global/dashboard
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -44,4 +48,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   showRow4Overtrade: true,
 
   overtradeCountBasis: "close",
+
+  refreshPlacement: "global",
 };
