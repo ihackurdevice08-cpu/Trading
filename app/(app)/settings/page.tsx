@@ -169,7 +169,7 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
+        <button type="button"
           onClick={saveNow}
           disabled={busy}
           style={{
@@ -185,7 +185,7 @@ export default function SettingsPage() {
           {busy ? "Saving…" : "Save"}
         </button>
 
-        <button
+        <button type="button"
           onClick={manualSync}
           style={{
             padding: "10px 12px",
@@ -277,7 +277,7 @@ export default function SettingsPage() {
             />
           </div>
 
-          <button
+          <button type="button"
             onClick={saveBitgetAccount}
             disabled={apiBusy}
             style={{
@@ -327,7 +327,7 @@ export default function SettingsPage() {
 
       <Card title="Overtrade Count Basis" desc="기본은 CLOSE 기준입니다.">
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
+          <button type="button"
             onClick={() => patchAppearance({ overtradeCountBasis: "close" as any } as any)}
             style={{
               padding: "10px 12px",
@@ -341,7 +341,7 @@ export default function SettingsPage() {
           >
             CLOSE
           </button>
-          <button
+          <button type="button"
             onClick={() => patchAppearance({ overtradeCountBasis: "open" as any } as any)}
             style={{
               padding: "10px 12px",
