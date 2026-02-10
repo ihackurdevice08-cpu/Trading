@@ -41,6 +41,13 @@ export type AppearanceSettings = {
 
   // Header
   refreshPlacement: RefreshPlacement; // global/dashboard
+
+  bg?: {
+    enabled?: boolean;
+    fit?: "cover" | "contain";
+    url?: string | null;
+  };
+
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
