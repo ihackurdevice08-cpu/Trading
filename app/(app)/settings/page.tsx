@@ -1,799 +1,406 @@
 "use client";
 
-import { useState } from "react";
-import { useAppearance } from "../../../components/providers/AppearanceProvider";
+import React, { useMemo, useState } from "react";
+import { useAppearance } from "@/components/providers/AppearanceProvider";
+import { THEMES } from "@/lib/appearance/themes";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function Card({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <div style={{ border: "1px solid var(--line-soft)", borderRadius: 16, padding: 16, background: "rgba(0,0,0,0.12)" }}>
-      <div style={{ fontSize: 18, fontWeight: 900 }}>{title}</div>
-      {desc ? <div style={{ color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>{desc}</div> : null}
+    <div style={{ border: "1px solid var(--line-soft)", borderRadius: 18, background: "var(--panel)", padding: 16 }}>
+      <div style={{ fontWeight: 900, fontSize: 18 }}>{title}</div>
+      {desc ? <div style={{ color: "var(--text-muted)", marginTop: 6, lineHeight: 1.55 }}>{desc}</div> : null}
       <div style={{ marginTop: 14 }}>{children}</div>
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 13, fontWeight: 900, marginBottom: 8 }}>{children}</div>;
-}
-
-function RowToggle({
-  checked,
-  onChange,
-  title,
-  desc,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: 12,
-        alignItems: "flex-start",
-        padding: 12,
-        borderRadius: 14,
-        border: "1px solid var(--line-soft)",
-        background: "rgba(0,0,0,0.10)",
-      }}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 18, height: 18, marginTop: 2 }}
-      />
-      <div>
-        <div style={{ fontWeight: 900 }}>{title}</div>
-        <div style={{ color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>{desc}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
-  const { appearance, patchAppearance, isAuthed } = useAppearance();
-  const [busy, setBusy] = useState(false);
-  const [apiBusy, setApiBusy] = useState(false);
-  const [msg, setMsg] = useState("");
 
-  // Bitget API form
-  const [alias, setAlias] = useState("Main");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
+  /*__CORE_SETTINGS_RESTORED__*/
+  // =========================
+  // Core Settings (account-bound)
+  // =========================
+  const [core, setCore] = React.useState({
+    exchange_url: "",
+    ddari_url: "",
+    spotify_url: "",
+    docs_url: "",
+    sheets_url: "",
+    checklistText: "1H/4H 존 확인\n리스크% 확인\n진입 근거 2개 이상",
+    emergencySteps: "",
+    emergencyQuotes: "",
+  });
 
-  
-  async function manualSync() {
-    setMsg("Syncing…");
+  const loadCore = React.useCallback(async () => {
     try {
-      const res = await fetch("/api/sync-now", { method: "POST" });
-      const text = await res.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch {}
-      if (!res.ok) { setMsg(`Sync failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
-      setMsg((j && j.note) ? j.note : "Sync done.");
-    } catch (e) {
-      setMsg(`Sync failed: ${e?.message || e}`);
-    }
-  }
+      const r = await fetch("/api/settings", { cache: "no-store" });
+      const j = await r.json();
+      if (!j?.ok) return;
+      const d = j.data || {};
+      const checklist = Array.isArray(d.checklist) ? d.checklist : [];
+      const emergency = d.emergency || {};
+      const steps = Array.isArray(emergency.steps) ? emergency.steps : [];
+      const quotes = Array.isArray(emergency.quotes) ? emergency.quotes : [];
 
+      setCore((p) => ({
+        ...p,
+        exchange_url: d.exchange_url || "",
+        ddari_url: d.ddari_url || "",
+        spotify_url: d.spotify_url || "",
+        docs_url: d.docs_url || "",
+        sheets_url: d.sheets_url || "",
+        checklistText: checklist.length ? checklist.join("\n") : p.checklistText,
+        emergencySteps: steps.join("\n"),
+        emergencyQuotes: quotes.join("\n"),
+      }));
+    } catch {}
+  }, []);
 
-  
-  async function saveNow() {
-    setBusy(true);
+  const saveCore = React.useCallback(async () => {
     setMsg("Saving…");
     try {
-      const res = await fetch("/api/settings", {
+      const checklist = core.checklistText.split("\n").map((x) => x.trim()).filter(Boolean);
+      const steps = core.emergencySteps.split("\n").map((x) => x.trim()).filter(Boolean);
+      const quotes = core.emergencyQuotes.split("\n").map((x) => x.trim()).filter(Boolean);
+
+      const r = await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appearance }),
-      });
-      const text = await res.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch {}
-      if (!res.ok) { setMsg(`Save failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
-      setMsg((j && j.note) ? j.note : "Saved.");
-    } catch (e) {
-      setMsg(`Save failed: ${e?.message || e}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-
-  async function saveBitgetAccount() {
-    setMsg("");
-    const sb = supabaseBrowser();
-    const { data } = await sb.auth.getUser();
-    const user_id = data?.user?.id;
-
-    if (!user_id) {
-      setMsg("로그인이 필요합니다.");
-      return;
-    }
-    if (!alias || !apiKey || !apiSecret || !passphrase) {
-      setMsg("Alias / API Key / Secret / Passphrase를 모두 입력하세요.");
-      return;
-    }
-
-    setApiBusy(true);
-    setMsg("Registering Bitget account…");
-    try {
-      const r = await fetch("/api/exchange-accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          user_id,
-          exchange: "bitget",
-          alias,
-          apiKey,
-          apiSecret,
-          passphrase,
+          exchange_url: core.exchange_url,
+          ddari_url: core.ddari_url,
+          spotify_url: core.spotify_url,
+          docs_url: core.docs_url,
+          sheets_url: core.sheets_url,
+          checklist,
+          emergency: { steps, quotes },
         }),
       });
 
-      const text = await r.text();
-      let j: any = null;
-      try { j = JSON.parse(text); } catch {}
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "request error");
+      setMsg("Saved. (account-bound)");
+    } catch (e) {
+      setMsg(`Save failed: ${e?.message || e}`);
+    }
+  }, [core]);
 
-      if (!r.ok || !j?.ok) {
-        setMsg(`Register failed (${r.status}): ${j?.error || text}`);
+  React.useEffect(() => {
+    loadCore();
+  }, [loadCore]);
+
+
+
+  const { appearance, patchAppearance, patchBg, isAuthed, saveToCloud } = useAppearance();
+  const [msg, setMsg] = useState<string>("");
+
+  const field = useMemo(
+    () => ({
+      display: "grid",
+      gap: 6,
+      padding: 12,
+      borderRadius: 16,
+      border: "1px solid var(--line-soft)",
+      background: "var(--panel2)",
+    }),
+    []
+  );
+
+  const label = useMemo(() => ({ fontWeight: 900, fontSize: 13, color: "var(--text-muted)" }), []);
+  const input = useMemo(
+    () => ({
+      width: "100%",
+      padding: "10px 12px",
+      borderRadius: 12,
+      border: "1px solid var(--line-hard)",
+      background: "rgba(255,255,255,0.78)",
+      color: "rgba(0,0,0,0.88)",
+      fontWeight: 900,
+      outline: "none",
+    }),
+    []
+  );
+
+  const saveNow = async () => {
+    try {
+      setMsg("저장 중…");
+      await saveToCloud();
+      setMsg("저장 완료. (계정에 귀속)");
+    } catch (e: any) {
+      setMsg(`저장 실패: ${e?.message || e}`);
+    }
+  };
+
+  const uploadMedia = async (file: File) => {
+    try {
+      setMsg("업로드 중…");
+      const sb = supabaseBrowser();
+      const { data: sess } = await sb.auth.getSession();
+      const uid = sess.session?.user?.id;
+      if (!uid) {
+        setMsg("로그인이 필요합니다.");
         return;
       }
 
-      await manualSync();
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      const isVideo = file.type.startsWith("video/");
+      const type = isVideo ? "video" : "image";
 
-      setApiKey("");
-      setApiSecret("");
-      setPassphrase("");
+      const path = `${uid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext || (isVideo ? "mp4" : "jpg")}`;
+
+      const { error: upErr } = await sb.storage.from("mancave-media").upload(path, file, {
+        upsert: true,
+        cacheControl: "3600",
+        contentType: file.type || undefined,
+      });
+      if (upErr) throw upErr;
+
+      const { data: pub } = sb.storage.from("mancave-media").getPublicUrl(path);
+      const url = pub.publicUrl;
+
+      patchBg({ enabled: true, type: type as any, url });
+      setMsg("업로드 완료. 저장 중…");
+      await saveToCloud();
+      setMsg("적용 완료. (계정에 귀속)");
     } catch (e: any) {
-      setMsg(`Register failed: ${e?.message || "unknown error"}`);
-    } finally {
-      setApiBusy(false);
+      setMsg(`업로드 실패: ${e?.message || e}`);
     }
-  }
+  };
+
+  const deleteMedia = async () => {
+    try {
+      setMsg("배경 제거 중…");
+      patchBg({ type: "none" as any, url: null });
+      await saveToCloud();
+      setMsg("배경 제거 완료.");
+    } catch (e: any) {
+      setMsg(`배경 제거 실패: ${e?.message || e}`);
+    }
+  };
+
+  const koThemeDesc = "테마/배경/레이아웃 등 취향 설정은 로그인한 계정에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.";
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>Settings</div>
-        <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
-          필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>설정</div>
+          <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
+            필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveNow(); }}
-          disabled={busy}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid var(--line-hard)",
-            background: "rgba(210,194,165,0.12)",
-            color: "var(--text-primary)",
-            fontWeight: 900,
-            cursor: "pointer",
-          }}
-        >
-          {busy ? "Saving…" : "Save"}
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); manualSync(); }}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid var(--line-soft)",
-            background: "transparent",
-            color: "var(--text-primary)",
-            fontWeight: 900,
-            cursor: "pointer",
-          }}
-        >
-          Refresh (수동 동기화)
-        </button>
-      </div>
-
-      {msg ? (
-        <div style={{ padding: 12, borderRadius: 12, border: "1px solid var(--line-soft)", color: "var(--text-secondary)" }}>
-          {msg}
-        </div>
-      ) : null}
-
-      <Card title="Bitget API 연결" desc="현재는 Bitget만 지원합니다. 등록 즉시 동기화를 시작합니다.">
-        <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <Label>Account Alias</Label>
-            <input
-              value={alias}
-              onChange={(e) => setAlias(e.target.value)}
-              placeholder="Main / Prop / Sub ..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
-
-          <div>
-            <Label>API Key</Label>
-            <input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="bitget api key"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
-
-          <div>
-            <Label>API Secret</Label>
-            <input
-              value={apiSecret}
-              onChange={(e) => setApiSecret(e.target.value)}
-              placeholder="bitget api secret"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
-
-          <div>
-            <Label>Passphrase</Label>
-            <input
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              placeholder="bitget passphrase"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveBitgetAccount(); }}
-            disabled={apiBusy}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-hard)",
-              background: "rgba(210,194,165,0.16)",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-              width: "fit-content",
-            }}
-          >
-            {apiBusy ? "Registering…" : "Register & Sync now"}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button type="button" onClick={saveNow} style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line-soft)", background: "rgba(210,194,165,0.14)", fontWeight: 900 }}>
+            저장
           </button>
         </div>
-      </Card>
+      </div>
+
+      <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{msg || " "}</div>
 
       
-      <Card
-        title="Trading State & Safety Rules"
-        desc="모든 값은 로그인한 계정에 저장됩니다. 다른 기기에서 로그인해도 동일하게 유지됩니다."
-      >
+      <Card title="핵심 설정 (계정 귀속)" desc="모든 설정은 기기/브라우저가 아니라 로그인한 계정에 저장됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.">
         <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <Label>Manual Trading State</Label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {["auto","Great","Good","Slow Down","Stop"].map((x) => (
-                <button
-                  key={x}
-                  type="button"
-                  onClick={() => patchAppearance({ manualTradingState: x } as any)}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid var(--line-soft)",
-                    background: (appearance as any).manualTradingState === x ? "rgba(210,194,165,0.14)" : "transparent",
-                    color: "var(--text-primary)",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  {x}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>
-              auto는 향후 API/거래 데이터 기반 자동판단으로 전환됩니다.
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>거래소 URL</div>
+              <input value={core.exchange_url} onChange={(e)=>setCore(p=>({ ...p, exchange_url: e.target.value }))} style={{ width:"100%", padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:900, outline:"none" }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>따리 URL</div>
+              <input value={core.ddari_url} onChange={(e)=>setCore(p=>({ ...p, ddari_url: e.target.value }))} style={{ width:"100%", padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:900, outline:"none" }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Spotify URL</div>
+              <input value={core.spotify_url} onChange={(e)=>setCore(p=>({ ...p, spotify_url: e.target.value }))} style={{ width:"100%", padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:900, outline:"none" }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Google Docs URL</div>
+              <input value={core.docs_url} onChange={(e)=>setCore(p=>({ ...p, docs_url: e.target.value }))} style={{ width:"100%", padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:900, outline:"none" }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Google Sheets URL</div>
+              <input value={core.sheets_url} onChange={(e)=>setCore(p=>({ ...p, sheets_url: e.target.value }))} style={{ width:"100%", padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:900, outline:"none" }} />
+            </label>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-            <div>
-              <Label>Slow Down after consecutive wins</Label>
-              <input
-                value={String((appearance as any).slowDownAfterWins ?? 4)}
-                onChange={(e) => patchAppearance({ slowDownAfterWins: Number(e.target.value || 0) } as any)}
-                placeholder="4"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>연승 과열 시 속도 조절 기준</div>
-            </div>
+          <label style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Trade Gate 체크리스트 (줄바꿈=항목)</div>
+            <textarea value={core.checklistText} onChange={(e)=>setCore(p=>({ ...p, checklistText: e.target.value }))} style={{ minHeight: 110, padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:700, outline:"none", resize:"vertical" }} />
+          </label>
 
-            <div>
-              <Label>Stop after consecutive losses</Label>
-              <input
-                value={String((appearance as any).stopAfterLosses ?? 3)}
-                onChange={(e) => patchAppearance({ stopAfterLosses: Number(e.target.value || 0) } as any)}
-                placeholder="3"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>연패 시 즉시 중단 기준</div>
-            </div>
-
-            <div>
-              <Label>Overtrade window (minutes)</Label>
-              <input
-                value={String((appearance as any).overtradeWindowMin ?? 60)}
-                onChange={(e) => patchAppearance({ overtradeWindowMin: Number(e.target.value || 0) } as any)}
-                placeholder="60"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>기본 60분 (1시간)</div>
-            </div>
-
-            <div>
-              <Label>Allowed trades in window</Label>
-              <input
-                value={String((appearance as any).overtradeMaxTrades ?? 2)}
-                onChange={(e) => patchAppearance({ overtradeMaxTrades: Number(e.target.value || 0) } as any)}
-                placeholder="2"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>2회 초과분부터 카운팅</div>
-            </div>
-
-            <div>
-              <Label>Max risk % (placeholder)</Label>
-              <input
-                value={String((appearance as any).maxRiskPct ?? 1)}
-                onChange={(e) => patchAppearance({ maxRiskPct: Number(e.target.value || 0) } as any)}
-                placeholder="1.0"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>현재는 UI/구조만. 계산은 API 연결 후</div>
-            </div>
-
-            <div>
-              <Label>Avg loss danger % (placeholder)</Label>
-              <input
-                value={String((appearance as any).avgLossDangerPct ?? 2)}
-                onChange={(e) => patchAppearance({ avgLossDangerPct: Number(e.target.value || 0) } as any)}
-                placeholder="2.0"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.08)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>현재는 UI/구조만. 계산은 API 연결 후</div>
-            </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>비상버튼 프로토콜 Steps (줄바꿈)</div>
+              <textarea value={core.emergencySteps} onChange={(e)=>setCore(p=>({ ...p, emergencySteps: e.target.value }))} style={{ minHeight: 110, padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:700, outline:"none", resize:"vertical" }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>비상버튼 Quotes (줄바꿈)</div>
+              <textarea value={core.emergencyQuotes} onChange={(e)=>setCore(p=>({ ...p, emergencyQuotes: e.target.value }))} style={{ minHeight: 110, padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-hard)", background:"rgba(255,255,255,0.75)", color:"rgba(0,0,0,0.88)", fontWeight:700, outline:"none", resize:"vertical" }} />
+            </label>
           </div>
 
-          <div style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>
-            Save를 누르면 계정에 저장됩니다. 새로고침/다른 기기에서도 동일하게 적용됩니다.
+          <div style={{ display:"flex", gap: 10, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}>
+            <button type="button" onClick={saveCore} style={{ padding:"10px 12px", borderRadius:12, border:"1px solid var(--line-soft)", background:"rgba(210,194,165,0.14)", fontWeight:900 }}>
+              Core 설정 저장
+            </button>
+            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+              {msg || " "}
+            </div>
           </div>
         </div>
       </Card>
 
-<Card title="Dashboard Rows" desc="대시보드에 표시할 Row를 선택합니다. 기본은 Row4 ON 입니다.">
-        <div style={{ display: "grid", gap: 10 }}>
-          <RowToggle
-            checked={(appearance as any).showRow1Status}
-            onChange={(v) => patchAppearance({ showRow1Status: v } as any)}
-            title="Row 1 — Status"
-            desc="Great / Good / Slow down / Stop"
-          />
-          <RowToggle
-            checked={(appearance as any).showRow2AssetPerf}
-            onChange={(v) => patchAppearance({ showRow2AssetPerf: v } as any)}
-            title="Row 2 — Asset & Performance"
-            desc="자산 곡선 + 성과 지표"
-          />
-          <RowToggle
-            checked={(appearance as any).showRow3Behavior}
-            onChange={(v) => patchAppearance({ showRow3Behavior: v } as any)}
-            title="Row 3 — Behavior"
-            desc="홀드시간/진입간격/거래빈도/연승연패"
-          />
-          <RowToggle
-            checked={(appearance as any).showRow4Overtrade}
-            onChange={(v) => patchAppearance({ showRow4Overtrade: v } as any)}
-            title="Row 4 — Overtrade Monitor"
-            desc="최근 1시간 과다거래 감시"
-          />
-        </div>
-      </Card>
-
-      <Card title="Overtrade Count Basis" desc="기본은 CLOSE 기준입니다.">
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => patchAppearance({ overtradeCountBasis: "close" as any } as any)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: (appearance as any).overtradeCountBasis === "close" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            CLOSE
-          </button>
-          <button
-            type="button"
-            onClick={() => patchAppearance({ overtradeCountBasis: "open" as any } as any)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: (appearance as any).overtradeCountBasis === "open" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            OPEN
-          </button>
-        </div>
-      </Card>
-      {/* =====================================================
-          Appearance & Atmosphere (account-bound)
-          ===================================================== */}
-      <Card title="Appearance & Atmosphere" desc="모든 취향 설정은 로그인한 계정에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.">
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Appearance & Atmosphere</div>
-            <div style={{ color: "var(--text-muted)", marginTop: 6, lineHeight: 1.6 }}>
-              모든 취향 설정은 <b>로그인한 계정</b>에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.
-            </div>
-          </div>
-          <div style={{ color: "rgba(0,0,0,0.55)", fontSize: 12 }}>
-            Hotel-grade calm, private-console clarity.
-          </div>
-        </div>
-
-        <div style={{ height: 12 }} />
-
+<Card title="Appearance & Atmosphere" desc={koThemeDesc}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-          <label style={{ 
-  display: "grid",
-  gap: 6,
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid var(--line-soft)",
-  background: "rgba(210,194,165,0.10)"
-}}>
-            <div style={{ 
-  fontSize: 12,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-  color: "var(--text-muted)"
-}}>Theme</div>
+          <label style={field}>
+            <div style={label}>테마</div>
             <select
               value={appearance.themeId}
-              onChange={(e) => patchAppearance({ themeId: e.target.value } as any)}
-              style={{ 
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid var(--line-hard)",
-  background: "rgba(255,255,255,0.75)",
-  color: "rgba(0,0,0,0.88)",
-  fontWeight: 900,
-  outline: "none"
-}}
+              onChange={(e) => patchAppearance({ themeId: e.target.value as any })}
+              style={input as any}
             >
-              <option value="linen">Linen Suite</option>
-              <option value="resort">Desert Resort</option>
-              <option value="noir">Noir Executive</option>
-              <option value="ivory">Ivory Gallery</option>
-              <option value="sandstone">Sandstone Lounge</option>
+              {THEMES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
             </select>
+            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+              {THEMES.find((t) => t.id === appearance.themeId)?.desc || ""}
+            </div>
           </label>
 
-          <label style={{ 
-  display: "grid",
-  gap: 6,
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid var(--line-soft)",
-  background: "rgba(210,194,165,0.10)"
-}}>
-            <div style={{ 
-  fontSize: 12,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-  color: "var(--text-muted)"
-}}>Navigation Layout</div>
+          <label style={field}>
+            <div style={label}>네비게이션 레이아웃</div>
             <select
               value={appearance.navLayout}
-              onChange={(e) => patchAppearance({ navLayout: e.target.value } as any)}
-              style={{ 
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid var(--line-hard)",
-  background: "rgba(255,255,255,0.75)",
-  color: "rgba(0,0,0,0.88)",
-  fontWeight: 900,
-  outline: "none"
-}}
+              onChange={(e) => patchAppearance({ navLayout: e.target.value as any })}
+              style={input as any}
             >
-              <option value="top">Top (horizontal)</option>
-              <option value="side">Side (vertical)</option>
+              <option value="top">Top (가로)</option>
+              <option value="side">Side (세로)</option>
             </select>
+            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+              상단 가로/좌측 세로 메뉴를 선택합니다.
+            </div>
           </label>
 
-          <label style={{ 
-  display: "grid",
-  gap: 6,
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid var(--line-soft)",
-  background: "rgba(210,194,165,0.10)"
-}}>
-            <div style={{ 
-  fontSize: 12,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-  color: "var(--text-muted)"
-}}>Cover Mode</div>
+          <label style={field}>
+            <div style={label}>커버 모드</div>
             <select
               value={(appearance.bg?.fit || "cover") as any}
-              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), fit: e.target.value } } as any)}
-              style={{ 
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid var(--line-hard)",
-  background: "rgba(255,255,255,0.75)",
-  color: "rgba(0,0,0,0.88)",
-  fontWeight: 900,
-  outline: "none"
-}}
+              onChange={(e) => patchBg({ fit: e.target.value as any })}
+              style={input as any}
             >
-              <option value="cover">Cover</option>
-              <option value="contain">Contain</option>
+              <option value="cover">Cover (화면 채움)</option>
+              <option value="contain">Contain (원본 비율 유지)</option>
             </select>
-          </label>
-        </div>
-
-        <div style={{ height: 12 }} />
-
-        <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={!!appearance.bg?.enabled}
-            onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), enabled: e.target.checked } } as any)}
-          />
-          <div>
-            <div style={{ fontWeight: 900 }}>Background enabled</div>
-            <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
-              (업로드 기능은 Storage bucket 구성 후 활성화)
-            </div>
-          </div>
-        </label>
-      </Card>
-      <Card
-        title="Background Media Upload"
-        desc="이미지/영상 배경을 계정에 귀속해 저장합니다. 다른 기기에서도 동일하게 유지됩니다."
-      >
-        <div style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Type</div>
-            <select
-              value={appearance.bgType}
-              onChange={(e) => patchAppearance({ bgType: e.target.value as any })}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-hard)",
-                background: "rgba(255,255,255,0.75)",
-                color: "rgba(0,0,0,0.88)",
-                fontWeight: 900,
-              }}
-            >
-              <option value="none">None</option>
-              <option value="image">Image</option>
-              <option value="video">Video</option>
-            </select>
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Fit</div>
-            <select
-              value={appearance.bgFit}
-              onChange={(e) => patchAppearance({ bgFit: e.target.value as any })}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-hard)",
-                background: "rgba(255,255,255,0.75)",
-                color: "rgba(0,0,0,0.88)",
-                fontWeight: 900,
-              }}
-            >
-              <option value="cover">Cover</option>
-              <option value="contain">Contain</option>
-            </select>
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Opacity</div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={appearance.bgOpacity}
-              onChange={(e) => patchAppearance({ bgOpacity: Number(e.target.value) })}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Blur(px)</div>
-            <input
-              type="range"
-              min="0"
-              max="24"
-              step="1"
-              value={appearance.bgBlurPx}
-              onChange={(e) => patchAppearance({ bgBlurPx: Number(e.target.value) })}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Dim</div>
-            <input
-              type="range"
-              min="0"
-              max="0.9"
-              step="0.01"
-              value={appearance.bgDim}
-              onChange={(e) => patchAppearance({ bgDim: Number(e.target.value) })}
-            />
-          </label>
-
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Upload (Supabase Storage)</div>
-            <input
-              type="file"
-              accept="image/*,video/*"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                try {
-                  const sb = supabaseBrowser();
-                  const { data } = await sb.auth.getSession();
-                  if (!data.session?.user?.id) { alert("Login required"); return; }
-
-                  const ext = (f.name.split(".").pop() || "bin").toLowerCase();
-                  const path = `${data.session.user.id}/bg.${ext}`;
-
-                  const up = await sb.storage.from("mancave-media").upload(path, f, { upsert: true });
-                  if (up.error) { alert(up.error.message); return; }
-
-                  const pub = sb.storage.from("mancave-media").getPublicUrl(path);
-                  const url = pub.data.publicUrl;
-
-                  // 업로드한 파일 유형에 따라 타입 자동 세팅
-                  const isVideo = f.type.startsWith("video/");
-                  patchAppearance({
-                    bgUrl: url,
-                    bgType: isVideo ? "video" : "image",
-                  });
-                  alert("Uploaded");
-                } catch (err: any) {
-                  alert(err?.message || String(err));
-                }
-              }}
-            />
             <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-              업로드 후 URL이 저장되고, App 전체 배경에 즉시 반영됩니다.
+              원본 그대로 보이게 하려면 Contain 을 권장합니다.
             </div>
-          </div>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Or paste URL</div>
-            <input
-              type="text"
-              value={appearance.bgUrl || ""}
-              onChange={(e) => patchAppearance({ bgUrl: e.target.value })}
-              placeholder="https://..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-hard)",
-                background: "rgba(255,255,255,0.75)",
-                color: "rgba(0,0,0,0.88)",
-                fontWeight: 900,
-                outline: "none",
-              }}
-            />
           </label>
         </div>
+
+        <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <label style={field}>
+              <div style={label}>불투명도(Opacity)</div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bg.opacity}
+                onChange={(e) => patchBg({ opacity: Number(e.target.value) })}
+              />
+              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{appearance.bg.opacity.toFixed(2)}</div>
+            </label>
+
+            <label style={field}>
+              <div style={label}>Dim (어둡게)</div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bg.dim}
+                onChange={(e) => patchBg({ dim: Number(e.target.value) })}
+              />
+              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{appearance.bg.dim.toFixed(2)}</div>
+            </label>
+
+            <label style={field}>
+              <div style={label}>Blur (흐림)</div>
+              <input
+                type="range"
+                min={0}
+                max={30}
+                step={1}
+                value={appearance.bg.blurPx}
+                onChange={(e) => patchBg({ blurPx: Number(e.target.value) })}
+              />
+              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{appearance.bg.blurPx}px</div>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <label style={{ display: "inline-flex", gap: 10, alignItems: "center", fontWeight: 900 }}>
+              <input
+                type="checkbox"
+                checked={appearance.bg.enabled}
+                onChange={(e) => patchBg({ enabled: e.target.checked })}
+              />
+              배경 활성화
+            </label>
+
+            <div style={{ flex: 1 }} />
+
+            <button
+              type="button"
+              onClick={deleteMedia}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                background: "transparent",
+                fontWeight: 900,
+                cursor: "pointer",
+              }}
+            >
+              배경 제거
+            </button>
+
+            <label
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid var(--line-soft)",
+                background: "rgba(210,194,165,0.14)",
+                fontWeight: 900,
+                cursor: "pointer",
+              }}
+            >
+              배경 업로드 (이미지/영상)
+              <input
+                type="file"
+                accept="image/*,video/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadMedia(f);
+                }}
+              />
+            </label>
+          </div>
+
+          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+            업로드는 Supabase Storage bucket <b>mancave-media</b> 가 필요합니다. (아래 SQL을 실행하면 됩니다)
+          </div>
+        </div>
       </Card>
-
-
-
-
     </div>
   );
 }
