@@ -57,6 +57,7 @@ function RowToggle({
 
 export default function SettingsPage() {
 
+  
   async function manualSync() {
     setMsg("Syncing…");
     try {
@@ -67,22 +68,27 @@ export default function SettingsPage() {
 
       const res = await fetch("/api/sync-now", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${token}` },
       });
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) {
-        setMsg(`Sync failed (${res.status}): ${j?.error || "unknown"}`);
+      const text = await res.text();
+      let j = null;
+      try { j = JSON.parse(text); } catch {}
+
+      if (!res.ok) {
+        setMsg(`Sync failed (${res.status}): ${(j && j.error) ? j.error : text}`);
         return;
       }
-      setMsg(j?.note || "Sync requested");
+      setMsg((j && j.note) ? j.note : "Sync done.");
     } catch (e) {
-      setMsg("Sync failed");
+      setMsg("Sync failed: request error");
     }
   }
 
 
 
+
+  
   async function saveNow() {
     setBusy(true);
     setMsg("Saving…");
@@ -96,23 +102,27 @@ export default function SettingsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ appearance })
+        body: JSON.stringify({ appearance }),
       });
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) {
-        setMsg(`Save failed (${res.status}): ${j?.error || "unknown"}`);
+      const text = await res.text();
+      let j = null;
+      try { j = JSON.parse(text); } catch {}
+
+      if (!res.ok) {
+        setMsg(`Save failed (${res.status}): ${(j && j.error) ? j.error : text}`);
         return;
       }
-      setMsg(j?.note || "Saved");
+      setMsg((j && j.note) ? j.note : "Saved.");
     } catch (e) {
-      setMsg("Save failed");
+      setMsg("Save failed: request error");
     } finally {
       setBusy(false);
     }
   }
+
 
 
   const { appearance, patchAppearance, isAuthed, saveToCloud } = useAppearance();
