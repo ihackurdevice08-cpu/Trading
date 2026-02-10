@@ -1,9 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_APPEARANCE, type AppearanceSettings } from "../../lib/appearance/types";
-import { THEMES } from "../../lib/appearance/themes";
-import { supabaseBrowser } from "../../lib/supabase/browser";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+import { DEFAULT_APPEARANCE, type AppearanceSettings } from "@/lib/appearance/types";
+import { ensureUserSettings } from "@/lib/db/ensureUserSettings";
 
 type Ctx = {
   appearance: AppearanceSettings;
@@ -14,86 +14,71 @@ type Ctx = {
 
 const AppearanceContext = createContext<Ctx | null>(null);
 
-function applyTokens(appearance: AppearanceSettings) {
-  const t = THEMES[appearance.themeId].tokens;
-  const r = document.documentElement.style;
-
-  r.setProperty("--bg-main", t.bgMain);
-  r.setProperty("--bg-panel", t.bgPanel);
-  r.setProperty("--bg-card", t.bgCard);
-  r.setProperty("--line-soft", t.lineSoft);
-  r.setProperty("--line-hard", t.lineHard);
-
-  r.setProperty("--accent-main", t.accentMain);
-  r.setProperty("--accent-soft", t.accentSoft);
-  r.setProperty("--accent-dim", t.accentDim);
-
-  r.setProperty("--text-primary", t.textPrimary);
-  r.setProperty("--text-secondary", t.textSecondary);
-  r.setProperty("--text-muted", t.textMuted);
-
-  r.setProperty("--status-great", t.statusGreat);
-  r.setProperty("--status-good", t.statusGood);
-  r.setProperty("--status-slow", t.statusSlow);
-  r.setProperty("--status-stop", t.statusStop);
-}
-
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const [isAuthed, setIsAuthed] = useState(false);
 
+  const skipAutoSaveOnce = useRef(false);
   const debounceTimer = useRef<any>(null);
-  const skipAutoSaveOnce = useRef(false); // prevents autosave when we just loaded from cloud
 
-  // local load
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("manCaveAppearance");
-      if (raw) setAppearance({ ...DEFAULT_APPEARANCE, ...JSON.parse(raw) });
-    } catch {}
-  }, []);
-
-  // apply + local save
-  useEffect(() => {
-    applyTokens(appearance);
-    try {
-      localStorage.setItem("manCaveAppearance", JSON.stringify(appearance));
-    } catch {}
-  }, [appearance]);
-
-  async function loadFromCloud() {
-    const sb = supabaseBrowser();
-    const { data } = await sb.auth.getSession();
-    const uid = data.session?.user?.id;
-    setIsAuthed(Boolean(uid));
-    if (!uid) return;
-
-    const { data: row } = await sb
-      .from("user_settings")
-      .select("appearance")
-      .eq("user_id", uid)
-      .maybeSingle();
-
-    if (row?.appearance) {
-      skipAutoSaveOnce.current = true;
-      setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
-    }
-  }
-
-  // auth + cloud load
+  // 1) Auth/session 감지 + user_settings row 보장 + cloud load
   useEffect(() => {
     const sb = supabaseBrowser();
 
-    loadFromCloud();
+    const boot = async () => {
+      const { data } = await sb.auth.getSession();
+      const session = data.session;
 
-    const { data: sub } = sb.auth.onAuthStateChange(async (_evt, session) => {
-      const uid = session?.user?.id;
-      setIsAuthed(Boolean(uid));
-      if (uid) await loadFromCloud();
+      if (!session?.user?.id) {
+        setIsAuthed(false);
+        return;
+      }
+
+      setIsAuthed(true);
+
+      // ✅ 핵심: 항상 row 보장 (없으면 생성)
+      await ensureUserSettings(sb, session.user.id);
+
+      // cloud 로드
+      const { data: row } = await sb
+        .from("user_settings")
+        .select("appearance")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (row?.appearance) {
+        skipAutoSaveOnce.current = true;
+        setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
+      }
+    };
+
+    boot().catch(() => {});
+
+    const { data: sub } = sb.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user?.id) {
+        setIsAuthed(false);
+        return;
+      }
+
+      setIsAuthed(true);
+
+      await ensureUserSettings(sb, session.user.id);
+
+      const { data: row } = await sb
+        .from("user_settings")
+        .select("appearance")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (row?.appearance) {
+        skipAutoSaveOnce.current = true;
+        setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
+      }
     });
 
-    return () => sub.subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const patchAppearance = (patch: Partial<AppearanceSettings>) =>
@@ -105,20 +90,20 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     const uid = data.session?.user?.id;
     if (!uid) return;
 
+    // ✅ row 보장 후 upsert (절대 안 깨짐)
+    await ensureUserSettings(sb, uid);
     await sb.from("user_settings").upsert({ user_id: uid, appearance }, { onConflict: "user_id" });
   };
 
-  // AUTO SAVE (debounced)
+  // 2) Authed 상태면 autosave (debounced)
   useEffect(() => {
     if (!isAuthed) return;
 
-    // if we just loaded from cloud, don't immediately write back
     if (skipAutoSaveOnce.current) {
       skipAutoSaveOnce.current = false;
       return;
     }
 
-    // debounce
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       saveToCloud().catch(() => {});
@@ -130,7 +115,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appearance, isAuthed]);
 
-  const value = useMemo(() => ({ appearance, patchAppearance, isAuthed, saveToCloud }), [appearance, isAuthed]);
+  const value = useMemo(
+    () => ({ appearance, patchAppearance, isAuthed, saveToCloud }),
+    [appearance, isAuthed]
+  );
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }
