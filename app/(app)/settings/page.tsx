@@ -61,14 +61,9 @@ export default function SettingsPage() {
   async function manualSync() {
     setMsg("Syncing…");
     try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const token = data?.session?.access_token;
-      if (!token) { setMsg("Login required"); return; }
-
       const res = await fetch("/api/sync-now", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
+        headers: {
       });
 
       const text = await res.text();
@@ -93,17 +88,9 @@ export default function SettingsPage() {
     setBusy(true);
     setMsg("Saving…");
     try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const token = data?.session?.access_token;
-      if (!token) { setMsg("Login required"); return; }
-
       const res = await fetch("/api/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appearance }),
       });
 
