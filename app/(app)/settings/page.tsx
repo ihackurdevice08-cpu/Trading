@@ -17,6 +17,23 @@ const Label = ({ children }: any) => (
   <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>{children}</div>
 );
 
+function RowToggle({ checked, onChange, title, desc }: any) {
+  return (
+    <label style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 10, alignItems: "start", cursor: "pointer" }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ marginTop: 3 }}
+      />
+      <div>
+        <div style={{ fontWeight: 900 }}>{title}</div>
+        <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{desc}</div>
+      </div>
+    </label>
+  );
+}
+
 export default function SettingsPage() {
   const { appearance, patchAppearance, isAuthed, saveToCloud } = useAppearance();
   const [busy, setBusy] = useState(false);
@@ -269,6 +286,42 @@ export default function SettingsPage() {
                 style={{ width: "100%" }}
               />
             </div>
+          </div>
+        </div>
+      </Field>
+
+      <Field
+        title="Dashboard Layout"
+        desc="Dashboard에서 어떤 Row를 항상 보일지 선택합니다. 실전용이라면 4번(Overtrade)만 켜두는 걸 추천."
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <RowToggle
+            checked={appearance.showRow1Status}
+            onChange={(v: boolean) => patchAppearance({ showRow1Status: v })}
+            title="Row 1 — Status Strip"
+            desc="지금 상태(GREAT/GOOD/SLOW/STOP) + 핵심 요약 지표를 맨 위에 표시."
+          />
+          <RowToggle
+            checked={appearance.showRow2AssetPerf}
+            onChange={(v: boolean) => patchAppearance({ showRow2AssetPerf: v })}
+            title="Row 2 — Asset & Performance"
+            desc="자산 곡선 + 성과 지표(Profit Factor, Avg/Max Win/Loss 등). 리뷰용."
+          />
+          <RowToggle
+            checked={appearance.showRow3Behavior}
+            onChange={(v: boolean) => patchAppearance({ showRow3Behavior: v })}
+            title="Row 3 — Behavior"
+            desc="홀드시간/진입간격/거래빈도/연승연패 등 ‘행동’ 기반 모니터."
+          />
+          <RowToggle
+            checked={appearance.showRow4Overtrade}
+            onChange={(v: boolean) => patchAppearance({ showRow4Overtrade: v })}
+            title="Row 4 — Overtrade Monitor (기본 ON)"
+            desc="최근 1시간 과다거래 감시. 실전 중 가장 중요."
+          />
+
+          <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+            * 변경 후 Save를 누르면(로그인 시) 계정에 저장되어 다른 기기에서도 동일하게 보입니다.
           </div>
         </div>
       </Field>
