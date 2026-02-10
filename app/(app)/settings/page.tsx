@@ -81,7 +81,7 @@ export default function SettingsPage() {
       }
       setMsg((j && j.note) ? j.note : "Sync done.");
     } catch (e) {
-      setMsg("Sync failed: request error");
+      setMsg(`Sync failed: ${e?.message || e}`); console.error("Sync failed", e);
     }
   }
 
@@ -117,7 +117,7 @@ export default function SettingsPage() {
       }
       setMsg((j && j.note) ? j.note : "Saved.");
     } catch (e) {
-      setMsg("Save failed: request error");
+      setMsg(`Save failed: ${e?.message || e}`); console.error("Save failed", e);
     } finally {
       setBusy(false);
     }
