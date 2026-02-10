@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_APPEARANCE, type AppearanceSettings } from "../../lib/appearance/types";
 import { THEMES } from "../../lib/appearance/themes";
 import { supabaseBrowser } from "../../lib/supabase/browser";
@@ -42,6 +42,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const [isAuthed, setIsAuthed] = useState(false);
 
+  const debounceTimer = useRef<any>(null);
+  const skipAutoSaveOnce = useRef(false); // prevents autosave when we just loaded from cloud
+
   // local load
   useEffect(() => {
     try {
@@ -58,39 +61,39 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     } catch {}
   }, [appearance]);
 
-  // auth + cloud load (optional)
+  async function loadFromCloud() {
+    const sb = supabaseBrowser();
+    const { data } = await sb.auth.getSession();
+    const uid = data.session?.user?.id;
+    setIsAuthed(Boolean(uid));
+    if (!uid) return;
+
+    const { data: row } = await sb
+      .from("user_settings")
+      .select("appearance")
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (row?.appearance) {
+      skipAutoSaveOnce.current = true;
+      setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
+    }
+  }
+
+  // auth + cloud load
   useEffect(() => {
     const sb = supabaseBrowser();
 
-    sb.auth.getSession().then(async ({ data }) => {
-      const uid = data.session?.user?.id;
-      setIsAuthed(Boolean(uid));
-      if (!uid) return;
-
-      const { data: row } = await sb
-        .from("user_settings")
-        .select("appearance")
-        .eq("user_id", uid)
-        .maybeSingle();
-
-      if (row?.appearance) setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
-    });
+    loadFromCloud();
 
     const { data: sub } = sb.auth.onAuthStateChange(async (_evt, session) => {
       const uid = session?.user?.id;
       setIsAuthed(Boolean(uid));
-      if (!uid) return;
-
-      const { data: row } = await sb
-        .from("user_settings")
-        .select("appearance")
-        .eq("user_id", uid)
-        .maybeSingle();
-
-      if (row?.appearance) setAppearance({ ...DEFAULT_APPEARANCE, ...row.appearance });
+      if (uid) await loadFromCloud();
     });
 
     return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const patchAppearance = (patch: Partial<AppearanceSettings>) =>
@@ -104,6 +107,28 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
     await sb.from("user_settings").upsert({ user_id: uid, appearance }, { onConflict: "user_id" });
   };
+
+  // AUTO SAVE (debounced)
+  useEffect(() => {
+    if (!isAuthed) return;
+
+    // if we just loaded from cloud, don't immediately write back
+    if (skipAutoSaveOnce.current) {
+      skipAutoSaveOnce.current = false;
+      return;
+    }
+
+    // debounce
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      saveToCloud().catch(() => {});
+    }, 800);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appearance, isAuthed]);
 
   const value = useMemo(() => ({ appearance, patchAppearance, isAuthed, saveToCloud }), [appearance, isAuthed]);
 
