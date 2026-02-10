@@ -7,6 +7,9 @@ export type BgFit = "cover" | "contain";
 export type OvertradeCountBasis = "close" | "open"; // default close
 export type RefreshPlacement = "global" | "dashboard"; // default global
 
+export type TradingState = "Great" | "Good" | "Slow Down" | "Stop";
+export type ManualTradingState = "auto" | TradingState;
+
 export type AppearanceSettings = {
   themeId: ThemeId;
   navLayout: NavLayout;
@@ -24,8 +27,17 @@ export type AppearanceSettings = {
   showRow3Behavior: boolean;
   showRow4Overtrade: boolean;
 
-  // Rules
-  overtradeCountBasis: OvertradeCountBasis;
+  // Rules (계정 귀속 / cloud synced)
+  overtradeCountBasis: OvertradeCountBasis; // close/open
+  overtradeWindowMin: number;              // default 60
+  overtradeMaxTrades: number;              // default 2 (초과분 카운팅)
+
+  slowDownAfterWins: number;               // default 4
+  stopAfterLosses: number;                 // default 3
+  manualTradingState: ManualTradingState;  // auto | Great | Good | Slow Down | Stop
+
+  maxRiskPct: number;                      // default 1.0 (placeholder)
+  avgLossDangerPct: number;                // default 2.0 (placeholder)
 
   // Header
   refreshPlacement: RefreshPlacement; // global/dashboard
@@ -42,12 +54,22 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   bgBlurPx: 10,
   bgDim: 0.45,
 
-  showRow1Status: false,
-  showRow2AssetPerf: false,
-  showRow3Behavior: false,
+  // ✅ 지금 단계 Row 뼈대 확인용: 기본 ON
+  showRow1Status: true,
+  showRow2AssetPerf: true,
+  showRow3Behavior: true,
   showRow4Overtrade: true,
 
   overtradeCountBasis: "close",
+  overtradeWindowMin: 60,
+  overtradeMaxTrades: 2,
+
+  slowDownAfterWins: 4,
+  stopAfterLosses: 3,
+  manualTradingState: "auto",
+
+  maxRiskPct: 1.0,
+  avgLossDangerPct: 2.0,
 
   refreshPlacement: "global",
 };

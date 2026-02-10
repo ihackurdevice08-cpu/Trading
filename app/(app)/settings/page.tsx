@@ -298,7 +298,156 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Dashboard Rows" desc="대시보드에 표시할 Row를 선택합니다. 기본은 Row4 ON 입니다.">
+      
+      <Card
+        title="Trading State & Safety Rules"
+        desc="모든 값은 로그인한 계정에 저장됩니다. 다른 기기에서 로그인해도 동일하게 유지됩니다."
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <Label>Manual Trading State</Label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {["auto","Great","Good","Slow Down","Stop"].map((x) => (
+                <button
+                  key={x}
+                  type="button"
+                  onClick={() => patchAppearance({ manualTradingState: x } as any)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid var(--line-soft)",
+                    background: (appearance as any).manualTradingState === x ? "rgba(210,194,165,0.14)" : "transparent",
+                    color: "var(--text-primary)",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>
+              auto는 향후 API/거래 데이터 기반 자동판단으로 전환됩니다.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+            <div>
+              <Label>Slow Down after consecutive wins</Label>
+              <input
+                value={String((appearance as any).slowDownAfterWins ?? 4)}
+                onChange={(e) => patchAppearance({ slowDownAfterWins: Number(e.target.value || 0) } as any)}
+                placeholder="4"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>연승 과열 시 속도 조절 기준</div>
+            </div>
+
+            <div>
+              <Label>Stop after consecutive losses</Label>
+              <input
+                value={String((appearance as any).stopAfterLosses ?? 3)}
+                onChange={(e) => patchAppearance({ stopAfterLosses: Number(e.target.value || 0) } as any)}
+                placeholder="3"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>연패 시 즉시 중단 기준</div>
+            </div>
+
+            <div>
+              <Label>Overtrade window (minutes)</Label>
+              <input
+                value={String((appearance as any).overtradeWindowMin ?? 60)}
+                onChange={(e) => patchAppearance({ overtradeWindowMin: Number(e.target.value || 0) } as any)}
+                placeholder="60"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>기본 60분 (1시간)</div>
+            </div>
+
+            <div>
+              <Label>Allowed trades in window</Label>
+              <input
+                value={String((appearance as any).overtradeMaxTrades ?? 2)}
+                onChange={(e) => patchAppearance({ overtradeMaxTrades: Number(e.target.value || 0) } as any)}
+                placeholder="2"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>2회 초과분부터 카운팅</div>
+            </div>
+
+            <div>
+              <Label>Max risk % (placeholder)</Label>
+              <input
+                value={String((appearance as any).maxRiskPct ?? 1)}
+                onChange={(e) => patchAppearance({ maxRiskPct: Number(e.target.value || 0) } as any)}
+                placeholder="1.0"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>현재는 UI/구조만. 계산은 API 연결 후</div>
+            </div>
+
+            <div>
+              <Label>Avg loss danger % (placeholder)</Label>
+              <input
+                value={String((appearance as any).avgLossDangerPct ?? 2)}
+                onChange={(e) => patchAppearance({ avgLossDangerPct: Number(e.target.value || 0) } as any)}
+                placeholder="2.0"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: "rgba(0,0,0,0.08)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "var(--text-muted)", fontSize: 12 }}>현재는 UI/구조만. 계산은 API 연결 후</div>
+            </div>
+          </div>
+
+          <div style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>
+            Save를 누르면 계정에 저장됩니다. 새로고침/다른 기기에서도 동일하게 적용됩니다.
+          </div>
+        </div>
+      </Card>
+
+<Card title="Dashboard Rows" desc="대시보드에 표시할 Row를 선택합니다. 기본은 Row4 ON 입니다.">
         <div style={{ display: "grid", gap: 10 }}>
           <RowToggle
             checked={(appearance as any).showRow1Status}
