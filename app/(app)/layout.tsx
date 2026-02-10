@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppLayout from "../../components/layout/AppLayout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -27,7 +28,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     check().catch(() => router.replace("/login"));
 
     const { data: sub } = sb.auth.onAuthStateChange((_evt, session) => {
-      // 세션이 끊기면 즉시 로그인으로
       if (!session && pathname?.startsWith("/")) {
         router.replace("/login");
       }
@@ -41,5 +41,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   if (!ready) return null;
 
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <AppearanceProvider>
+      <AppLayout>{children}</AppLayout>
+    </AppearanceProvider>
+  );
 }
