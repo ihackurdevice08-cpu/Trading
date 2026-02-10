@@ -1,5 +1,5 @@
-import PageClient from "./page-client";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <PageClient />;
+  redirect("/dashboard");
 }
