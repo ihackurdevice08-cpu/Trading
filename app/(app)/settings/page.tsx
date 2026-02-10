@@ -56,6 +56,65 @@ function RowToggle({
 }
 
 export default function SettingsPage() {
+
+  async function manualSync() {
+    setMsg("Syncing…");
+    try {
+      const sb = supabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) { setMsg("Login required"); return; }
+
+      const res = await fetch("/api/sync-now", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j?.ok === false) {
+        setMsg(`Sync failed (${res.status}): ${j?.error || "unknown"}`);
+        return;
+      }
+      setMsg(j?.note || "Sync requested");
+    } catch (e) {
+      setMsg("Sync failed");
+    }
+  }
+
+
+
+  async function saveNow() {
+    setBusy(true);
+    setMsg("Saving…");
+    try {
+      const sb = supabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) { setMsg("Login required"); return; }
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ appearance })
+      });
+
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j?.ok === false) {
+        setMsg(`Save failed (${res.status}): ${j?.error || "unknown"}`);
+        return;
+      }
+      setMsg(j?.note || "Saved");
+    } catch (e) {
+      setMsg("Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
   const { appearance, patchAppearance, isAuthed, saveToCloud } = useAppearance();
   const [busy, setBusy] = useState(false);
   const [apiBusy, setApiBusy] = useState(false);
