@@ -81,8 +81,15 @@ export default function SettingsPage() {
   }
 
   async function manualSync() {
+    const sb = supabaseBrowser();
+    const { data } = await sb.auth.getSession();
+    const accessToken = data?.session?.access_token;
+
     try {
-      const res = await fetch("/api/sync-now", { method: "POST" });
+      const res = await fetch("/api/sync-now", {
+        method: "POST",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
       const j = await res.json();
       alert(j?.note || "Sync requested");
     } catch {
