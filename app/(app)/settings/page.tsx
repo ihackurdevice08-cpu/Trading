@@ -67,74 +67,44 @@ export default function SettingsPage() {
   const [apiSecret, setApiSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
 
+  
   async function manualSync() {
     setMsg("Syncing…");
     try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const token = data?.session?.access_token;
-      if (!token) {
-        setMsg("Login required");
-        return;
-      }
-
-      const res = await fetch("/api/sync-now", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const res = await fetch("/api/sync-now", { method: "POST" });
       const text = await res.text();
-      let j: any = null;
+      let j = null;
       try { j = JSON.parse(text); } catch {}
-
-      if (!res.ok) {
-        setMsg(`Sync failed (${res.status}): ${(j && j.error) ? j.error : text}`);
-        return;
-      }
+      if (!res.ok) { setMsg(`Sync failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
       setMsg((j && j.note) ? j.note : "Sync done.");
-    } catch (e: any) {
+    } catch (e) {
       setMsg(`Sync failed: ${e?.message || e}`);
-      console.error("Sync failed", e);
     }
   }
 
+
+  
   async function saveNow() {
     setBusy(true);
     setMsg("Saving…");
     try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const token = data?.session?.access_token;
-      if (!token) {
-        setMsg("Login required");
-        return;
-      }
-
       const res = await fetch("/api/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appearance }),
       });
-
       const text = await res.text();
-      let j: any = null;
+      let j = null;
       try { j = JSON.parse(text); } catch {}
-
-      if (!res.ok) {
-        setMsg(`Save failed (${res.status}): ${(j && j.error) ? j.error : text}`);
-        return;
-      }
+      if (!res.ok) { setMsg(`Save failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
       setMsg((j && j.note) ? j.note : "Saved.");
-    } catch (e: any) {
+    } catch (e) {
       setMsg(`Save failed: ${e?.message || e}`);
-      console.error("Save failed", e);
     } finally {
       setBusy(false);
     }
   }
+
 
   async function saveBitgetAccount() {
     setMsg("");

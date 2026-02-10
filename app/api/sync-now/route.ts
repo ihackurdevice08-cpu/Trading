@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabase/server";
 import { decryptText } from "@/lib/crypto/dec";
 import { bitgetSign } from "@/lib/bitget/sign";
@@ -8,38 +8,32 @@ import { bitgetSign } from "@/lib/bitget/sign";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function makeSupabaseFromCookies(req: Request) {
-  const cookieStore = (req as any).cookies;
-  const cookiesToSet: any[] = [];
-
-  const supabase = createServerClient(
+function supabaseFromCookies() {
+  const store = cookies();
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return cookieStore?.getAll?.() ?? [];
+          return store.getAll();
         },
         setAll(cs) {
-          cs.forEach((c) => cookiesToSet.push(c));
+          cs.forEach(({ name, value, options }) => store.set(name, value, options));
         },
       },
     }
   );
-
-  return { supabase, cookiesToSet };
 }
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const { supabase, cookiesToSet } = makeSupabaseFromCookies(req);
+    const supabase = supabaseFromCookies();
+    const { data, error } = await supabase.auth.getUser();
+    const user_id = data?.user?.id;
 
-    const { data: u, error: uErr } = await supabase.auth.getUser();
-    const user_id = u?.user?.id;
-    if (uErr || !user_id) {
-      const res = NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-      cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
-      return res;
+    if (error || !user_id) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
     const sb = supabaseServer();
@@ -52,9 +46,7 @@ export async function POST(req: Request) {
 
     if (aErr) return NextResponse.json({ ok: false, error: aErr.message }, { status: 500 });
     if (!accounts || accounts.length === 0) {
-      const res = NextResponse.json({ ok: true, note: "No Bitget accounts registered yet." });
-      cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
-      return res;
+      return NextResponse.json({ ok: true, note: "No Bitget accounts registered yet." });
     }
 
     let totalUpserts = 0;
@@ -99,6 +91,7 @@ export async function POST(req: Request) {
         const orderId = String(it.orderId ?? "");
         const symbol = String(it.symbol ?? it.symbolName ?? "");
         const ts = Number(it.cTime ?? it.fillTime ?? it.ts ?? it.uTime ?? 0) || 0;
+
         const id = `${user_id}:${acc.id}:${tradeId || orderId || ts}`;
 
         return {
@@ -125,9 +118,7 @@ export async function POST(req: Request) {
       if (!upErr) totalUpserts += rows.length;
     }
 
-    const res = NextResponse.json({ ok: true, note: `Sync done. upserted=${totalUpserts}` });
-    cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
-    return res;
+    return NextResponse.json({ ok: true, note: `Sync done. upserted=${totalUpserts}` });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
