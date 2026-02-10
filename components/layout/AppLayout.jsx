@@ -4,8 +4,8 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppearance } from "../providers/AppearanceProvider";
-import FuturesTicker from "../widgets/FuturesTicker";
 import { supabaseBrowser } from "../../lib/supabase/browser";
+import FuturesTicker from "../widgets/FuturesTicker";
 
 export default function AppLayout({ children }) {
   const pathname = usePathname();
@@ -28,6 +28,7 @@ export default function AppLayout({ children }) {
   async function onRefresh() {
     if (!isAuthed) {
       setToast("로그인 후 Refresh를 이용하실 수 있습니다.");
+      setTimeout(() => setToast(""), 2500);
       return;
     }
     try {
@@ -54,8 +55,8 @@ export default function AppLayout({ children }) {
         minHeight: "100vh",
         background: "var(--bg-main)",
         color: "var(--text-primary)",
-        display: "grid",
-        gridTemplateRows: "56px 1fr",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {/* Top Bar */}
@@ -65,6 +66,7 @@ export default function AppLayout({ children }) {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 16px",
+          height: 56,
           borderBottom: "1px solid var(--line-soft)",
           background: "rgba(0,0,0,0.10)",
           backdropFilter: "blur(10px)",
@@ -74,13 +76,21 @@ export default function AppLayout({ children }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Private console for disciplined execution</div>
+          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>
+          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+            Private console for disciplined execution
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {showRefreshHere ? (
             <button
-              type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();onRefresh();}}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRefresh();
+              }}
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
@@ -97,7 +107,12 @@ export default function AppLayout({ children }) {
 
           {isAuthed ? (
             <button
-              type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();onLogout();}}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLogout();
+              }}
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
@@ -130,7 +145,7 @@ export default function AppLayout({ children }) {
       </div>
 
       {/* Body */}
-      <div style={{ display: "grid", gridTemplateColumns: appearance.navLayout === "side" ? "240px 1fr" : "1fr" }}>
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: appearance.navLayout === "side" ? "240px 1fr" : "1fr" }}>
         {appearance.navLayout === "side" ? (
           <aside style={{ borderRight: "1px solid var(--line-soft)", padding: 12 }}>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>Navigation</div>
@@ -159,7 +174,7 @@ export default function AppLayout({ children }) {
           </aside>
         ) : null}
 
-        <main style={{ padding: 16 }}>
+        <main style={{ padding: 16, paddingBottom: 84 }}>
           {appearance.navLayout === "top" ? (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
               {nav.map((x) => {
@@ -203,12 +218,8 @@ export default function AppLayout({ children }) {
         </main>
       </div>
 
-      {/* Global Bottom Ticker (always visible) */}
-      
-
-
+      {/* ✅ Global Bottom Ticker (always visible, fixed) */}
       <FuturesTicker />
-
     </div>
   );
 }
