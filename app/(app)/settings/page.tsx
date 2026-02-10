@@ -58,6 +58,7 @@ function RowToggle({
 export default function SettingsPage() {
   const { appearance, patchAppearance, isAuthed, saveToCloud } = useAppearance();
   const [busy, setBusy] = useState(false);
+  const [apiBusy, setApiBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
   // Bitget API form
@@ -65,53 +66,63 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [apiBusy, setApiBusy] = useState(false);
 
   async function saveNow() {
     setBusy(true);
-    setMsg("");
+    setMsg("Saving…");
     try {
       await saveToCloud();
-      setMsg(isAuthed ? "설정이 계정에 반영되었습니다." : "설정이 기기에 저장되었습니다. 로그인 후 계정에 동기화할 수 있습니다.");
-    } catch {
-      setMsg("저장 중 문제가 발생했습니다.");
+      setMsg("Saved. (계정 동기화 완료)");
+    } catch (e: any) {
+      setMsg(`Save failed: ${e?.message || "unknown error"}`);
     } finally {
       setBusy(false);
     }
   }
 
   async function manualSync() {
-    const sb = supabaseBrowser();
-    const { data } = await sb.auth.getSession();
-    const accessToken = data?.session?.access_token;
-
+    setMsg("Syncing…");
     try {
+      const sb = supabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      const accessToken = data?.session?.access_token;
+
       const res = await fetch("/api/sync-now", {
         method: "POST",
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
-      const j = await res.json();
-      alert(j?.note || "Sync requested");
-    } catch {
-      alert("Sync failed");
+
+      const text = await res.text();
+      let j: any = null;
+      try { j = JSON.parse(text); } catch {}
+
+      if (!res.ok) {
+        setMsg(`Sync failed (${res.status}): ${j?.error || text}`);
+        return;
+      }
+      setMsg(j?.note || "Sync requested");
+    } catch (e: any) {
+      setMsg(`Sync failed: ${e?.message || "unknown error"}`);
     }
   }
 
   async function saveBitgetAccount() {
+    setMsg("");
     const sb = supabaseBrowser();
     const { data } = await sb.auth.getUser();
     const user_id = data?.user?.id;
+
     if (!user_id) {
-      alert("로그인이 필요합니다.");
+      setMsg("로그인이 필요합니다.");
       return;
     }
-
     if (!alias || !apiKey || !apiSecret || !passphrase) {
-      alert("Alias / API Key / Secret / Passphrase를 모두 입력하세요.");
+      setMsg("Alias / API Key / Secret / Passphrase를 모두 입력하세요.");
       return;
     }
 
     setApiBusy(true);
+    setMsg("Registering Bitget account…");
     try {
       const r = await fetch("/api/exchange-accounts", {
         method: "POST",
@@ -125,20 +136,24 @@ export default function SettingsPage() {
           passphrase,
         }),
       });
-      const j = await r.json();
-      if (!j?.ok) throw new Error(j?.error || "save failed");
 
-      // 저장 즉시 동기화(요구사항)
+      const text = await r.text();
+      let j: any = null;
+      try { j = JSON.parse(text); } catch {}
+
+      if (!r.ok || !j?.ok) {
+        setMsg(`Register failed (${r.status}): ${j?.error || text}`);
+        return;
+      }
+
+      // 저장 즉시 동기화
       await manualSync();
 
-      // 입력칸 정리(선택)
       setApiKey("");
       setApiSecret("");
       setPassphrase("");
-
-      alert("Bitget 계정이 등록되었습니다.");
     } catch (e: any) {
-      alert(e?.message || "저장 실패");
+      setMsg(`Register failed: ${e?.message || "unknown error"}`);
     } finally {
       setApiBusy(false);
     }
@@ -192,10 +207,7 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      <Card
-        title="Bitget API 연결"
-        desc="현재는 Bitget만 지원합니다. 계정(여러 개) 등록이 가능하며, 등록 즉시 동기화를 시작합니다."
-      >
+      <Card title="Bitget API 연결" desc="현재는 Bitget만 지원합니다. 등록 즉시 동기화를 시작합니다.">
         <div style={{ display: "grid", gap: 12 }}>
           <div>
             <Label>Account Alias</Label>
@@ -284,69 +296,36 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card title="Navigation Layout" desc="메뉴 위치를 바꿉니다. 기본은 상단(Top)입니다.">
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={() => patchAppearance({ navLayout: "top" as any })}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: appearance.navLayout === "top" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            Top
-          </button>
-          <button
-            onClick={() => patchAppearance({ navLayout: "side" as any })}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: appearance.navLayout === "side" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            Side
-          </button>
-        </div>
-      </Card>
-
       <Card title="Dashboard Rows" desc="대시보드에 표시할 Row를 선택합니다. 기본은 Row4 ON 입니다.">
         <div style={{ display: "grid", gap: 10 }}>
           <RowToggle
             checked={(appearance as any).showRow1Status}
             onChange={(v) => patchAppearance({ showRow1Status: v } as any)}
-            title="Row 1 — Status (Great / Good / Slow down / Stop)"
-            desc="상태등(행동/리스크 신호 기반) — 트레이딩 중 리마인더."
+            title="Row 1 — Status"
+            desc="Great / Good / Slow down / Stop"
           />
           <RowToggle
             checked={(appearance as any).showRow2AssetPerf}
             onChange={(v) => patchAppearance({ showRow2AssetPerf: v } as any)}
             title="Row 2 — Asset & Performance"
-            desc="자산 곡선 + 성과 지표(Profit Factor, Avg/Max Win/Loss 등)."
+            desc="자산 곡선 + 성과 지표"
           />
           <RowToggle
             checked={(appearance as any).showRow3Behavior}
             onChange={(v) => patchAppearance({ showRow3Behavior: v } as any)}
             title="Row 3 — Behavior"
-            desc="홀드시간/진입간격/거래빈도/연승연패 등 ‘행동’ 모니터."
+            desc="홀드시간/진입간격/거래빈도/연승연패"
           />
           <RowToggle
             checked={(appearance as any).showRow4Overtrade}
             onChange={(v) => patchAppearance({ showRow4Overtrade: v } as any)}
-            title="Row 4 — Overtrade Monitor (기본 ON)"
-            desc="최근 1시간 과다거래 감시. 기준은 옵션으로 바뀝니다."
+            title="Row 4 — Overtrade Monitor"
+            desc="최근 1시간 과다거래 감시"
           />
         </div>
       </Card>
 
-      <Card title="Overtrade Count Basis" desc="과다거래 카운트 기준을 선택합니다. 기본은 CLOSE 기준입니다.">
+      <Card title="Overtrade Count Basis" desc="기본은 CLOSE 기준입니다.">
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
             onClick={() => patchAppearance({ overtradeCountBasis: "close" as any } as any)}
@@ -360,9 +339,8 @@ export default function SettingsPage() {
               cursor: "pointer",
             }}
           >
-            CLOSE 기준(기본)
+            CLOSE
           </button>
-
           <button
             onClick={() => patchAppearance({ overtradeCountBasis: "open" as any } as any)}
             style={{
@@ -375,41 +353,7 @@ export default function SettingsPage() {
               cursor: "pointer",
             }}
           >
-            OPEN 기준
-          </button>
-        </div>
-      </Card>
-
-      <Card title="Refresh Placement" desc="Refresh 버튼 위치를 선택합니다. 기본은 우측 상단(글로벌)입니다.">
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={() => patchAppearance({ refreshPlacement: "global" as any } as any)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: (appearance as any).refreshPlacement === "global" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            Global (우측 상단)
-          </button>
-
-          <button
-            onClick={() => patchAppearance({ refreshPlacement: "dashboard" as any } as any)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-soft)",
-              background: (appearance as any).refreshPlacement === "dashboard" ? "rgba(210,194,165,0.14)" : "transparent",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            Dashboard
+            OPEN
           </button>
         </div>
       </Card>
