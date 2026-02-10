@@ -15,6 +15,13 @@ export type AppearanceSettings = {
   bgDim: number;          // 0..0.9
 
   // for future: ticker toggles etc.
+  showRow1Status?: boolean;
+  showRow2Links?: boolean;
+  showRow3Rules?: boolean;
+  showRow2AssetPerf?: boolean;
+  showRow3Behavior?: boolean;
+  showRow4Overtrade?: boolean;
+  bg?: { enabled?: boolean; fit?: "cover" | "contain"; url?: string | null };
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
