@@ -11,9 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        router.replace("/dashboard");
-      }
+      if (data.session) router.replace("/dashboard");
     });
   }, []);
 
