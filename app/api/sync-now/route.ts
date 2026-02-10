@@ -8,8 +8,9 @@ import { bitgetSign } from "@/lib/bitget/sign";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function supabaseFromCookies() {
-  const store = cookies();
+async function supabaseFromCookies() {
+  const store = await cookies();
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,7 +20,9 @@ function supabaseFromCookies() {
           return store.getAll();
         },
         setAll(cs) {
-          cs.forEach(({ name, value, options }) => store.set(name, value, options));
+          cs.forEach(({ name, value, options }) => {
+            store.set(name, value, options);
+          });
         },
       },
     }
@@ -28,7 +31,7 @@ function supabaseFromCookies() {
 
 export async function POST() {
   try {
-    const supabase = supabaseFromCookies();
+    const supabase = await supabaseFromCookies();
     const { data, error } = await supabase.auth.getUser();
     const user_id = data?.user?.id;
 

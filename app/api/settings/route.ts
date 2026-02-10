@@ -6,8 +6,9 @@ import { supabaseServer } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function supabaseFromCookies() {
-  const store = cookies();
+async function supabaseFromCookies() {
+  const store = await cookies();
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,7 +18,9 @@ function supabaseFromCookies() {
           return store.getAll();
         },
         setAll(cs) {
-          cs.forEach(({ name, value, options }) => store.set(name, value, options));
+          cs.forEach(({ name, value, options }) => {
+            store.set(name, value, options);
+          });
         },
       },
     }
@@ -26,7 +29,7 @@ function supabaseFromCookies() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = supabaseFromCookies();
+    const supabase = await supabaseFromCookies();
     const { data, error } = await supabase.auth.getUser();
     const uid = data?.user?.id;
 
@@ -38,10 +41,9 @@ export async function POST(req: Request) {
     const appearance = body?.appearance ?? body ?? {};
 
     const sb = supabaseServer(); // service role
-    const { error: upErr } = await sb.from("user_settings").upsert(
-      { user_id: uid, appearance },
-      { onConflict: "user_id" }
-    );
+    const { error: upErr } = await sb
+      .from("user_settings")
+      .upsert({ user_id: uid, appearance }, { onConflict: "user_id" });
 
     if (upErr) {
       return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
