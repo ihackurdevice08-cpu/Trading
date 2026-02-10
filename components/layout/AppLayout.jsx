@@ -4,12 +4,14 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppearance } from "../providers/AppearanceProvider";
+import { THEMES } from "@/lib/appearance/themes";
 import { supabaseBrowser } from "../../lib/supabase/browser";
 import FuturesTicker from "../widgets/FuturesTicker";
 
 export default function AppLayout({ children }) {
   const pathname = usePathname();
   const { appearance, isAuthed } = useAppearance();
+  const themeTokens = (THEMES?.[appearance?.themeId]?.tokens) || THEMES.linen.tokens;
   const [toast, setToast] = useState("");
 
   const nav = useMemo(
@@ -50,8 +52,16 @@ export default function AppLayout({ children }) {
   }
 
   return (
-    <div
-      style={{
+    <div style={{ 
+        position: "relative",
+        zIndex: 1,
+        ["--bg"]: themeTokens.bg,
+        ["--panel"]: themeTokens.panel,
+        ["--text-primary"]: themeTokens.text,
+        ["--text-muted"]: themeTokens.muted,
+        ["--line-soft"]: themeTokens.lineSoft,
+        ["--line-hard"]: themeTokens.lineHard,
+        ["--accent"]: themeTokens.accent,
         minHeight: "100vh",
         background: "var(--bg-main)",
         color: "var(--text-primary)",
@@ -59,6 +69,62 @@ export default function AppLayout({ children }) {
         flexDirection: "column",
       }}
     >
+      {/* =====================================================
+          Global Background Media (account-bound)
+          ===================================================== */}
+      {appearance?.bgType !== "none" && appearance?.bgUrl ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 0,
+            pointerEvents: "none",
+            overflow: "hidden",
+          }}
+        >
+          {appearance.bgType === "video" ? (
+            <video
+              src={appearance.bgUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: appearance.bgFit || "cover",
+                opacity: typeof appearance.bgOpacity === "number" ? appearance.bgOpacity : 0.22,
+                filter: `blur(${appearance.bgBlurPx || 0}px)`,
+                transform: "scale(1.02)",
+              }}
+            />
+          ) : (
+            <img
+              src={appearance.bgUrl}
+              alt="background"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: appearance.bgFit || "cover",
+                opacity: typeof appearance.bgOpacity === "number" ? appearance.bgOpacity : 0.22,
+                filter: `blur(${appearance.bgBlurPx || 0}px)`,
+                transform: "scale(1.02)",
+              }}
+            />
+          )}
+          {/* dim layer */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "black",
+              opacity: typeof appearance.bgDim === "number" ? appearance.bgDim : 0.45,
+            }}
+          />
+        </div>
+      ) : null}
+
+
       {/* Top Bar */}
       <div
         style={{
