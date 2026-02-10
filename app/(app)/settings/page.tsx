@@ -101,14 +101,19 @@ export default function SettingsPage() {
     }
   }
 
-  function apiComingSoon() {
-    setMsg("API 연결(암호화 저장/즉시 동기화)은 다음 단계에서 한 번에 적용됩니다. 지금은 화면 구조만 준비해두었습니다.");
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <div>
+function apiComingSoon() {
+  fetch("/api/sync-now", {
+    method: "POST",
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      alert(res?.note || "Sync requested");
+    })
+    .catch(() => {
+      alert("Sync failed");
+    });
+}
           <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>Settings</div>
           <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
             필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
