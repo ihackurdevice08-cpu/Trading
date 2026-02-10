@@ -74,12 +74,7 @@ export default function AppLayout({ children }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>
-        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <FuturesTicker />
-        </div>
-
-          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Private console for disciplined execution</div>
+          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Private console for disciplined execution</div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -207,6 +202,13 @@ export default function AppLayout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* Global Bottom Ticker (always visible) */}
+      
+
+
+      <FuturesTicker />
+
     </div>
   );
 }
