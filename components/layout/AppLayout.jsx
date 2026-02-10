@@ -80,7 +80,7 @@ export default function AppLayout({ children }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {showRefreshHere ? (
             <button
-              onClick={onRefresh}
+              type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();onRefresh();}}
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
@@ -97,7 +97,7 @@ export default function AppLayout({ children }) {
 
           {isAuthed ? (
             <button
-              onClick={onLogout}
+              type="button" onClick={(e)=>{e.preventDefault();e.stopPropagation();onLogout();}}
               style={{
                 padding: "8px 10px",
                 borderRadius: 12,
