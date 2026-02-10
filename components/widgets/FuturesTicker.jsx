@@ -4,39 +4,39 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
 
+// ✅ 예전 방식: "한방에" 24hr ticker 가져오기 (Spot)
+// Binance Spot: /api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT","SOLUSDT"]
+function oneShotUrl() {
+  const symbolsJson = encodeURIComponent(JSON.stringify(SYMBOLS));
+  return `https://api.binance.com/api/v3/ticker/24hr?symbols=${symbolsJson}`;
+}
+
 function tvSymbol(sym) {
-  // TradingView Perp 표기: BINANCE:BTCUSDT.P (대부분 이 심볼로 연결됨)
-  return `BINANCE:${sym}.P`;
+  // 현물 차트
+  return `BINANCE:${sym}`;
 }
 
 function openTradingView(sym) {
   const tv = tvSymbol(sym);
   const web = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}`;
 
-  // 모바일: 딥링크 시도 후 fallback
-  // (TV 앱이 있으면 tradingview:// 가 먹히는 기기가 있음. 안 먹으면 웹으로 감.)
   const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
   if (isMobile) {
     const deep = `tradingview://chart?symbol=${encodeURIComponent(tv)}`;
     try {
       window.location.href = deep;
-      setTimeout(() => {
-        window.location.href = web;
-      }, 650);
+      setTimeout(() => (window.location.href = web), 650);
       return;
     } catch {
       window.location.href = web;
       return;
     }
   }
-
   window.open(web, "_blank", "noopener,noreferrer");
 }
 
 function fmtPrice(n) {
   if (typeof n !== "number" || !isFinite(n)) return "-";
-  // 코인별 자릿수 자동 느낌
   if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
   if (n >= 100) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (n >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -51,29 +51,40 @@ function fmtPct(n) {
 
 export default function FuturesTicker() {
   const [data, setData] = useState({});
-  const inflight = useRef(false);
+  const [note, setNote] = useState("");
   const timer = useRef(null);
-
-  const rows = useMemo(() => {
-    return SYMBOLS.map((s) => {
-      const it = data[s] || {};
-      const price = Number(it.price);
-      const pct = Number(it.pct);
-      const up = isFinite(pct) && pct >= 0;
-      const color = !isFinite(pct) ? "var(--text-muted)" : up ? "rgba(139,226,139,0.95)" : "rgba(255,122,122,0.95)";
-      return { symbol: s, price, pct, color };
-    });
-  }, [data]);
+  const inflight = useRef(false);
 
   async function tick() {
     if (inflight.current) return;
     inflight.current = true;
+
     try {
-      const r = await fetch("/api/binance-tickers", { cache: "no-store" });
-      const j = await r.json().catch(() => null);
-      if (r.ok && j && j.ok && j.data) setData(j.data);
-    } catch {
-      // ignore
+      setNote("");
+      const r = await fetch(oneShotUrl(), { cache: "no-store" });
+      if (!r.ok) throw new Error(`binance status=${r.status}`);
+
+      const arr = await r.json();
+      const map = {};
+
+      if (Array.isArray(arr)) {
+        for (const it of arr) {
+          const sym = String(it?.symbol || "").toUpperCase();
+          if (!SYMBOLS.includes(sym)) continue;
+
+          map[sym] = {
+            price: Number(it?.lastPrice ?? NaN),
+            pct: Number(it?.priceChangePercent ?? NaN),
+          };
+        }
+      }
+
+      // 누락은 NaN 처리(표기는 -)
+      for (const s of SYMBOLS) if (!map[s]) map[s] = { price: NaN, pct: NaN };
+
+      setData(map);
+    } catch (e) {
+      setNote(String(e?.message || e));
     } finally {
       inflight.current = false;
     }
@@ -81,11 +92,26 @@ export default function FuturesTicker() {
 
   useEffect(() => {
     tick();
-    timer.current = setInterval(tick, 1000);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
+    timer.current = setInterval(tick, 1000); // ✅ 1초마다
+    return () => timer.current && clearInterval(timer.current);
   }, []);
+
+  const rows = useMemo(() => {
+    return SYMBOLS.map((s) => {
+      const it = data?.[s] || {};
+      const price = Number(it.price);
+      const pct = Number(it.pct);
+
+      const up = isFinite(pct) && pct >= 0;
+      const color = !isFinite(pct)
+        ? "var(--text-muted, rgba(233,236,241,0.72))"
+        : up
+          ? "rgba(139,226,139,0.95)"
+          : "rgba(255,122,122,0.95)";
+
+      return { symbol: s, price, pct, color };
+    });
+  }, [data]);
 
   return (
     <div
@@ -95,9 +121,10 @@ export default function FuturesTicker() {
         right: 0,
         bottom: 0,
         zIndex: 50,
-        borderTop: "1px solid var(--line-soft)",
+        borderTop: "1px solid var(--line-soft, rgba(233,236,241,0.18))",
         background: "rgba(0,0,0,0.18)",
         backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         padding: "10px 12px",
       }}
     >
@@ -123,27 +150,34 @@ export default function FuturesTicker() {
               gap: 10,
               padding: "10px 12px",
               borderRadius: 14,
-              border: "1px solid var(--line-soft)",
+              border: "1px solid var(--line-soft, rgba(233,236,241,0.18))",
               background: "rgba(210,194,165,0.10)",
-              minWidth: 210,
+              minWidth: 220,
               justifyContent: "space-between",
+              color: "var(--text-primary, #e9ecf1)", // ✅ “안 보임” 방지
+              fontWeight: 900,
             }}
-            title="Open in TradingView"
           >
-            <span style={{ fontWeight: 900, letterSpacing: 0.3 }}>
+            <span style={{ letterSpacing: 0.3 }}>
               {r.symbol.replace("USDT", "")}
             </span>
 
             {/* ✅ 요구: 가격(좌) / 퍼센트(우) */}
-            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 900 }}>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {fmtPrice(r.price)}
             </span>
-            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 900, color: r.color }}>
+            <span style={{ fontVariantNumeric: "tabular-nums", color: r.color }}>
               {fmtPct(r.pct)}
             </span>
           </button>
         ))}
       </div>
+
+      {note ? (
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted, rgba(233,236,241,0.72))" }}>
+          Ticker note: {note}
+        </div>
+      ) : null}
     </div>
   );
 }
