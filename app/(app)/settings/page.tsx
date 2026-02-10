@@ -1,94 +1,63 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useState } from "react";
 import { useAppearance } from "../../../components/providers/AppearanceProvider";
-import { THEMES, type ThemeId } from "../../../lib/appearance/themes";
-import { supabaseBrowser } from "../../../lib/supabase/browser";
 
-const Field = ({ title, desc, children }: any) => (
-  <div style={{ padding: 14, border: "1px solid var(--line-soft)", borderRadius: 14, background: "rgba(34,32,28,0.55)" }}>
-    <div style={{ fontWeight: 900 }}>{title}</div>
-    <div style={{ color: "var(--text-muted)", marginTop: 6, fontSize: 13 }}>{desc}</div>
-    <div style={{ marginTop: 12 }}>{children}</div>
-  </div>
-);
-
-const Label = ({ children }: any) => (
-  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>{children}</div>
-);
-
-function RowToggle({ checked, onChange, title, desc }: any) {
+function Card({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 10, alignItems: "start", cursor: "pointer" }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 3 }} />
-      <div>
-        <div style={{ fontWeight: 900 }}>{title}</div>
-        <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{desc}</div>
-      </div>
-    </label>
+    <div style={{ border: "1px solid var(--line-soft)", borderRadius: 16, padding: 16, background: "rgba(0,0,0,0.12)" }}>
+      <div style={{ fontSize: 18, fontWeight: 900 }}>{title}</div>
+      {desc ? <div style={{ color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>{desc}</div> : null}
+      <div style={{ marginTop: 14 }}>{children}</div>
+    </div>
   );
 }
 
-function Pill({ children }: any) {
+function Label({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 13, fontWeight: 900, marginBottom: 8 }}>{children}</div>;
+}
+
+function RowToggle({
+  checked,
+  onChange,
+  title,
+  desc,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  title: string;
+  desc: string;
+}) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, border: "1px solid var(--line-soft)", color: "var(--text-secondary)", fontSize: 12 }}>
-      {children}
-    </span>
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+        padding: 12,
+        borderRadius: 14,
+        border: "1px solid var(--line-soft)",
+        background: "rgba(0,0,0,0.10)",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 18, height: 18, marginTop: 2 }}
+      />
+      <div>
+        <div style={{ fontWeight: 900 }}>{title}</div>
+        <div style={{ color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>{desc}</div>
+      </div>
+    </div>
   );
 }
 
 export default function SettingsPage() {
   const { appearance, patchAppearance, isAuthed, saveToCloud } = useAppearance();
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string>("");
-
-  // API 연결(현재 UI만; 백엔드는 다음 덩어리 패치에서)
-  const [alias, setAlias] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-
-  const themeOptions = useMemo(() => Object.entries(THEMES) as unknown as [string, any][], []);
-
-  async function uploadBackground(file: File) {
-    if (!isAuthed) {
-      setMsg("배경 업로드는 로그인 후 이용 가능합니다.");
-      return;
-    }
-
-    setBusy(true);
-    setMsg("");
-
-    try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const uid = data.session?.user?.id;
-      if (!uid) throw new Error("No session");
-
-      const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
-      const path = `backgrounds/${uid}/${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`;
-
-      const { error } = await sb.storage.from("user-media").upload(path, file, {
-        cacheControl: "3600",
-        upsert: true,
-        contentType: file.type || undefined,
-      });
-      if (error) throw error;
-
-      const { data: pub } = sb.storage.from("user-media").getPublicUrl(path);
-      const url = pub.publicUrl;
-
-      const isVideo = file.type.startsWith("video/");
-      patchAppearance({ bgType: isVideo ? "video" : "image", bgUrl: url });
-
-      await saveToCloud();
-      setMsg("배경이 준비되었습니다. 원하시면 Fit/Dim/Blur로 가독성을 조정해 주세요.");
-    } catch (e: any) {
-      setMsg(`업로드에 문제가 있었습니다: ${e?.message || "unknown"}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [msg, setMsg] = useState("");
 
   async function saveNow() {
     setBusy(true);
@@ -96,30 +65,30 @@ export default function SettingsPage() {
     try {
       await saveToCloud();
       setMsg(isAuthed ? "설정이 계정에 반영되었습니다." : "설정이 기기에 저장되었습니다. 로그인 후 계정에 동기화할 수 있습니다.");
+    } catch {
+      setMsg("저장 중 문제가 발생했습니다.");
     } finally {
       setBusy(false);
     }
   }
 
-        <div>
-function apiComingSoon() {
-  fetch("/api/sync-now", {
-    method: "POST",
-  })
-    .then((r) => r.json())
-    .then((res) => {
-      alert(res?.note || "Sync requested");
-    })
-    .catch(() => {
-      alert("Sync failed");
-    });
-}
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>Settings</div>
-          <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
-            필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
-          </div>
-        </div>
+  function apiComingSoon() {
+    fetch("/api/sync-now", { method: "POST" })
+      .then((r) => r.json())
+      .then((res) => alert(res?.note || "Sync requested"))
+      .catch(() => alert("Sync failed"));
+  }
 
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>Settings</div>
+        <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
+          필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button
           onClick={saveNow}
           disabled={busy}
@@ -133,7 +102,22 @@ function apiComingSoon() {
             cursor: "pointer",
           }}
         >
-          Save
+          {busy ? "Saving…" : "Save"}
+        </button>
+
+        <button
+          onClick={apiComingSoon}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid var(--line-soft)",
+            background: "transparent",
+            color: "var(--text-primary)",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          Refresh (수동 동기화)
         </button>
       </div>
 
@@ -143,410 +127,283 @@ function apiComingSoon() {
         </div>
       ) : null}
 
-      <Field
-        title="Appearance"
-        desc="공간의 분위기를 선택합니다. 테마/메뉴 방향/배경은 서로 독립이므로, 원하는 조합으로 맞추셔도 됩니다."
-      >
+      <Card title="Navigation Layout" desc="메뉴 위치를 바꿉니다. 기본은 상단(Top)입니다.">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => patchAppearance({ navLayout: "top" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.navLayout === "top" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Top
+          </button>
+          <button
+            onClick={() => patchAppearance({ navLayout: "side" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.navLayout === "side" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Side
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Background (Image / Video)" desc="개인 이미지를 라운지 배경으로 사용합니다. 원본 비율은 Fit에서 조정합니다.">
         <div style={{ display: "grid", gap: 12 }}>
           <div>
-            <Label>Theme</Label>
-            <select
-              value={appearance.themeId}
-              onChange={(e) => patchAppearance({ themeId: Number(e.target.value) as ThemeId })}
+            <Label>Type</Label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => patchAppearance({ bgType: "none" as any, bgUrl: "" })}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: appearance.bgType === "none" ? "rgba(210,194,165,0.14)" : "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                None
+              </button>
+              <button
+                onClick={() => patchAppearance({ bgType: "image" as any })}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: appearance.bgType === "image" ? "rgba(210,194,165,0.14)" : "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Image
+              </button>
+              <button
+                onClick={() => patchAppearance({ bgType: "video" as any })}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: appearance.bgType === "video" ? "rgba(210,194,165,0.14)" : "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Video
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <Label>URL</Label>
+            <input
+              value={appearance.bgUrl || ""}
+              onChange={(e) => patchAppearance({ bgUrl: e.target.value })}
+              placeholder="https://... (Storage 업로드 연결은 다음 단계)"
               style={{
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: 12,
                 border: "1px solid var(--line-soft)",
-                background: "var(--bg-panel)",
+                background: "rgba(0,0,0,0.08)",
                 color: "var(--text-primary)",
               }}
-            >
-              {themeOptions.map(([id, t]) => (
-                <option key={id} value={id}>
-                  {id}. {t.name} — {t.desc}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
-            <Label>Navigation Layout</Label>
+            <Label>Fit</Label>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
-                onClick={() => patchAppearance({ navLayout: "top" })}
+                onClick={() => patchAppearance({ bgFit: "cover" as any })}
                 style={{
                   padding: "10px 12px",
                   borderRadius: 12,
                   border: "1px solid var(--line-soft)",
-                  background: appearance.navLayout === "top" ? "rgba(210,194,165,0.14)" : "transparent",
+                  background: appearance.bgFit === "cover" ? "rgba(210,194,165,0.14)" : "transparent",
                   color: "var(--text-primary)",
                   fontWeight: 900,
                   cursor: "pointer",
                 }}
               >
-                Top Bar — 상단 가로 메뉴
+                Cover
               </button>
               <button
-                onClick={() => patchAppearance({ navLayout: "side" })}
+                onClick={() => patchAppearance({ bgFit: "contain" as any })}
                 style={{
                   padding: "10px 12px",
                   borderRadius: 12,
                   border: "1px solid var(--line-soft)",
-                  background: appearance.navLayout === "side" ? "rgba(210,194,165,0.14)" : "transparent",
+                  background: appearance.bgFit === "contain" ? "rgba(210,194,165,0.14)" : "transparent",
                   color: "var(--text-primary)",
                   fontWeight: 900,
                   cursor: "pointer",
                 }}
               >
-                Side Bar — 좌측 세로 메뉴
+                Contain
               </button>
-            </div>
-            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Pill>기본값: Top Bar</Pill>
-              <Pill>언제든 변경 가능</Pill>
-            </div>
-          </div>
-
-          <div>
-            <Label>Background</Label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {[
-                { v: "none", d: "None — 가장 담백하게" },
-                { v: "image", d: "Image — 사진으로 분위기" },
-                { v: "video", d: "Video — 영상으로 몰입" },
-              ].map((x) => (
-                <button
-                  key={x.v}
-                  onClick={() => patchAppearance({ bgType: x.v as any })}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid var(--line-soft)",
-                    background: appearance.bgType === x.v ? "rgba(210,194,165,0.14)" : "transparent",
-                    color: "var(--text-primary)",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  {x.d}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <Label>Upload (Image / Video)</Label>
-              <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 8 }}>
-                원본 파일은 그대로 보관하고, 화면에는 원본을 표시합니다. (표시 방식은 Fit에서 조정)
-              </div>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) uploadBackground(f);
-                }}
-              />
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <Label>Fit</Label>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => patchAppearance({ bgFit: "cover" })}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid var(--line-soft)",
-                    background: appearance.bgFit === "cover" ? "rgba(210,194,165,0.14)" : "transparent",
-                    color: "var(--text-primary)",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cover — 화면에 맞춤(일부 잘림 가능) [기본]
-                </button>
-                <button
-                  onClick={() => patchAppearance({ bgFit: "contain" })}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid var(--line-soft)",
-                    background: appearance.bgFit === "contain" ? "rgba(210,194,165,0.14)" : "transparent",
-                    color: "var(--text-primary)",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  Contain — 원본 전체(여백 가능)
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              <div>
-                <Label>Opacity</Label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={appearance.bgOpacity}
-                  onChange={(e) => patchAppearance({ bgOpacity: Number(e.target.value) })}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div>
-                <Label>Blur</Label>
-                <input
-                  type="range"
-                  min={0}
-                  max={24}
-                  step={1}
-                  value={appearance.bgBlurPx}
-                  onChange={(e) => patchAppearance({ bgBlurPx: Number(e.target.value) })}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div>
-                <Label>Dim</Label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={appearance.bgDim}
-                  onChange={(e) => patchAppearance({ bgDim: Number(e.target.value) })}
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </Field>
-
-      <Field
-        title="Dashboard Layout"
-        desc="대시보드에 어떤 Row를 상시 노출할지 선택합니다. 실전이라면 4번(Overtrade)만 켜두셔도 충분합니다."
-      >
-        <div style={{ display: "grid", gap: 12 }}>
-          <RowToggle
-            checked={appearance.showRow1Status}
-            onChange={(v: boolean) => patchAppearance({ showRow1Status: v })}
-            title="Row 1 — Status Strip"
-            desc="GREAT/GOOD/SLOW/STOP 상태와 핵심 사유를 상단에 담백하게 표시합니다."
-          />
-          <RowToggle
-            checked={appearance.showRow2AssetPerf}
-            onChange={(v: boolean) => patchAppearance({ showRow2AssetPerf: v })}
-            title="Row 2 — Asset & Performance"
-            desc="자산 곡선과 성과 지표를 정리합니다(리뷰 중심)."
-          />
-          <RowToggle
-            checked={appearance.showRow3Behavior}
-            onChange={(v: boolean) => patchAppearance({ showRow3Behavior: v })}
-            title="Row 3 — Behavior"
-            desc="홀드 시간/진입 간격/거래 빈도 등 행동 지표를 모니터합니다."
-          />
-          <RowToggle
-            checked={appearance.showRow4Overtrade}
-            onChange={(v: boolean) => patchAppearance({ showRow4Overtrade: v })}
-            title="Row 4 — Overtrade Monitor (기본 ON)"
-            desc="최근 1시간 과다거래를 감시합니다(실전 핵심)."
-          />
-
-          <div style={{ paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>Overtrade Count Basis</div>
-            <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 8 }}>
-              과다거래 카운트를 ‘청산(CLOSE)’ 기준으로 셀지, ‘진입(OPEN)’ 기준으로 셀지 선택합니다. 기본은 CLOSE입니다.
-            </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                onClick={() => patchAppearance({ overtradeCountBasis: "close" as any })}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: appearance.overtradeCountBasis === "close" ? "rgba(210,194,165,0.14)" : "transparent",
-                  color: "var(--text-primary)",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                }}
-              >
-                CLOSE 기준(기본)
-              </button>
-
-              <button
-                onClick={() => patchAppearance({ overtradeCountBasis: "open" as any })}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: appearance.overtradeCountBasis === "open" ? "rgba(210,194,165,0.14)" : "transparent",
-                  color: "var(--text-primary)",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                }}
-              >
-                OPEN 기준
-              </button>
-            </div>
-          </div>
-
-          <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            * 로그인 상태에서는 변경 사항이 계정에 반영되어 다른 기기에서도 동일하게 유지됩니다.
-          </div>
-        </div>
-      </Field>
-
-      <Field
-        title="API 연결"
-        desc="완전한 기능 활용을 위해 거래소 API 연결이 필요합니다. 현재는 Bitget만 지원합니다. (추후 확장)"
-      >
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Pill>현재 지원: Bitget</Pill>
-            <Pill>여러 계정 연결 가능</Pill>
-            <Pill>Alias는 직접 입력</Pill>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <Label>Alias</Label>
-              <input
-                value={alias}
-                onChange={(e) => setAlias(e.target.value)}
-                placeholder="예: Main / Sub / Prop"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "var(--bg-panel)",
-                  color: "var(--text-primary)",
-                }}
-              />
-              <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 6 }}>
-                이 이름은 화면과 보고서에 표시됩니다. 짧고 분명하게 추천드립니다.
-              </div>
-            </div>
-
-            <div>
-              <Label>Exchange</Label>
-              <input
-                value="Bitget"
-                readOnly
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "rgba(0,0,0,0.12)",
-                  color: "var(--text-secondary)",
-                }}
-              />
-              <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 6 }}>
-                현재는 Bitget만 제공됩니다. 다음 단계에서 타 거래소를 순차적으로 확장합니다.
-              </div>
             </div>
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
             <div>
-              <Label>API Key</Label>
+              <Label>Opacity (배경 진하기)</Label>
               <input
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "var(--bg-panel)",
-                  color: "var(--text-primary)",
-                }}
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bgOpacity}
+                onChange={(e) => patchAppearance({ bgOpacity: Number(e.target.value) })}
+                style={{ width: "100%" }}
               />
             </div>
 
             <div>
-              <Label>Secret Key</Label>
+              <Label>Blur (가독성↑)</Label>
               <input
-                value={apiSecret}
-                onChange={(e) => setApiSecret(e.target.value)}
-                placeholder="••••••••"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "var(--bg-panel)",
-                  color: "var(--text-primary)",
-                }}
+                type="range"
+                min={0}
+                max={24}
+                step={1}
+                value={appearance.bgBlurPx}
+                onChange={(e) => patchAppearance({ bgBlurPx: Number(e.target.value) })}
+                style={{ width: "100%" }}
               />
             </div>
 
             <div>
-              <Label>Passphrase</Label>
+              <Label>Dim Overlay (눈 편함/가독성↑)</Label>
               <input
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                placeholder="••••••••"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid var(--line-soft)",
-                  background: "var(--bg-panel)",
-                  color: "var(--text-primary)",
-                }}
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bgDim}
+                onChange={(e) => patchAppearance({ bgDim: Number(e.target.value) })}
+                style={{ width: "100%" }}
               />
-              <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 6 }}>
-                키는 서버에서 암호화되어 보관되며, 화면에는 노출되지 않도록 설계합니다.
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <button
-              onClick={apiComingSoon}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(210,194,165,0.12)",
-                color: "var(--text-primary)",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
-              저장 후 즉시 동기화 (준비중)
-            </button>
-            <button
-              onClick={apiComingSoon}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "transparent",
-                color: "var(--text-primary)",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
-              Refresh (수동 동기화, 준비중)
-            </button>
-
-            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-              * 실제 연결/동기화는 다음 단계에서 한 번에 적용됩니다.
             </div>
           </div>
         </div>
-      </Field>
+      </Card>
+
+      <Card title="Dashboard Rows" desc="대시보드에 표시할 Row를 선택합니다. 기본은 Row4 ON 입니다.">
+        <div style={{ display: "grid", gap: 10 }}>
+          <RowToggle
+            checked={appearance.showRow1Status}
+            onChange={(v) => patchAppearance({ showRow1Status: v })}
+            title="Row 1 — Status (Great / Good / Slow down / Stop)"
+            desc="상태등(행동/리스크 신호 기반) — 트레이딩 중 리마인더."
+          />
+          <RowToggle
+            checked={appearance.showRow2AssetPerf}
+            onChange={(v) => patchAppearance({ showRow2AssetPerf: v })}
+            title="Row 2 — Asset & Performance"
+            desc="자산 곡선 + 성과 지표(Profit Factor, Avg/Max Win/Loss 등)."
+          />
+          <RowToggle
+            checked={appearance.showRow3Behavior}
+            onChange={(v) => patchAppearance({ showRow3Behavior: v })}
+            title="Row 3 — Behavior"
+            desc="홀드시간/진입간격/거래빈도/연승연패 등 ‘행동’ 모니터."
+          />
+          <RowToggle
+            checked={appearance.showRow4Overtrade}
+            onChange={(v) => patchAppearance({ showRow4Overtrade: v })}
+            title="Row 4 — Overtrade Monitor (기본 ON)"
+            desc="최근 1시간 과다거래 감시. 기준은 아래 옵션으로 바뀝니다."
+          />
+
+          <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+            * 변경 후 Save를 누르면(로그인 시) 계정에 저장되어 다른 기기에서도 동일하게 보입니다.
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Overtrade Count Basis" desc="과다거래 카운트 기준을 선택합니다. 기본은 CLOSE 기준입니다.">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => patchAppearance({ overtradeCountBasis: "close" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.overtradeCountBasis === "close" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            CLOSE 기준(기본)
+          </button>
+
+          <button
+            onClick={() => patchAppearance({ overtradeCountBasis: "open" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.overtradeCountBasis === "open" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            OPEN 기준
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Refresh Placement" desc="우측 상단에 Refresh를 둘지(글로벌), 대시보드에 둘지 선택합니다.">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => patchAppearance({ refreshPlacement: "global" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.refreshPlacement === "global" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Global (우측 상단)
+          </button>
+
+          <button
+            onClick={() => patchAppearance({ refreshPlacement: "dashboard" as any })}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid var(--line-soft)",
+              background: appearance.refreshPlacement === "dashboard" ? "rgba(210,194,165,0.14)" : "transparent",
+              color: "var(--text-primary)",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Dashboard
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
