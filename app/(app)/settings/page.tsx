@@ -170,7 +170,7 @@ export default function SettingsPage() {
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button"
-          onClick={saveNow}
+          onClick={(e)=>{e.preventDefault();e.stopPropagation();saveNow();}}
           disabled={busy}
           style={{
             padding: "10px 12px",
@@ -186,7 +186,7 @@ export default function SettingsPage() {
         </button>
 
         <button type="button"
-          onClick={manualSync}
+          onClick={(e)=>{e.preventDefault();e.stopPropagation();manualSync();}}
           style={{
             padding: "10px 12px",
             borderRadius: 12,
@@ -278,7 +278,7 @@ export default function SettingsPage() {
           </div>
 
           <button type="button"
-            onClick={saveBitgetAccount}
+            onClick={(e)=>{e.preventDefault();e.stopPropagation();saveBitgetAccount();}}
             disabled={apiBusy}
             style={{
               padding: "10px 12px",
