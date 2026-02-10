@@ -4,22 +4,27 @@ export type NavLayout = "top" | "side";
 export type BgType = "none" | "image" | "video";
 export type BgFit = "cover" | "contain";
 
+export type OvertradeCountBasis = "close" | "open"; // default close
+
 export type AppearanceSettings = {
   themeId: ThemeId;
   navLayout: NavLayout;
 
   bgType: BgType;
   bgUrl: string;
-  bgFit: BgFit;        // default cover
-  bgOpacity: number;   // 0..1
-  bgBlurPx: number;    // 0..24
-  bgDim: number;       // 0..1
+  bgFit: BgFit;
+  bgOpacity: number;
+  bgBlurPx: number;
+  bgDim: number;
 
   // Dashboard rows (Row 1~4)
   showRow1Status: boolean;
   showRow2AssetPerf: boolean;
   showRow3Behavior: boolean;
-  showRow4Overtrade: boolean; // default ON
+  showRow4Overtrade: boolean;
+
+  // Behavior / Rules (settings-driven; must never break)
+  overtradeCountBasis: OvertradeCountBasis; // close/open
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -33,9 +38,10 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   bgBlurPx: 10,
   bgDim: 0.45,
 
-  // Dashboard rows
   showRow1Status: false,
   showRow2AssetPerf: false,
   showRow3Behavior: false,
   showRow4Overtrade: true,
+
+  overtradeCountBasis: "close",
 };

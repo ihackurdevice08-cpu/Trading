@@ -20,12 +20,7 @@ const Label = ({ children }: any) => (
 function RowToggle({ checked, onChange, title, desc }: any) {
   return (
     <label style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 10, alignItems: "start", cursor: "pointer" }}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ marginTop: 3 }}
-      />
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 3 }} />
       <div>
         <div style={{ fontWeight: 900 }}>{title}</div>
         <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{desc}</div>
@@ -101,6 +96,7 @@ export default function SettingsPage() {
             취향 옵션은 설명을 보고 천천히 바꾸면 됨. {isAuthed ? "로그인됨(클라우드 저장 가능)" : "로그인 전(로컬만)"}
           </div>
         </div>
+
         <button
           onClick={saveNow}
           disabled={busy}
@@ -265,7 +261,12 @@ export default function SettingsPage() {
           <div style={{ display: "grid", gap: 10 }}>
             <div>
               <Label>Opacity (배경 진하기)</Label>
-              <input type="range" min={0} max={1} step={0.01} value={appearance.bgOpacity}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bgOpacity}
                 onChange={(e) => patchAppearance({ bgOpacity: Number(e.target.value) })}
                 style={{ width: "100%" }}
               />
@@ -273,7 +274,12 @@ export default function SettingsPage() {
 
             <div>
               <Label>Blur (가독성↑)</Label>
-              <input type="range" min={0} max={24} step={1} value={appearance.bgBlurPx}
+              <input
+                type="range"
+                min={0}
+                max={24}
+                step={1}
+                value={appearance.bgBlurPx}
                 onChange={(e) => patchAppearance({ bgBlurPx: Number(e.target.value) })}
                 style={{ width: "100%" }}
               />
@@ -281,7 +287,12 @@ export default function SettingsPage() {
 
             <div>
               <Label>Dim Overlay (눈 편함/가독성↑)</Label>
-              <input type="range" min={0} max={1} step={0.01} value={appearance.bgDim}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={appearance.bgDim}
                 onChange={(e) => patchAppearance({ bgDim: Number(e.target.value) })}
                 style={{ width: "100%" }}
               />
@@ -319,6 +330,46 @@ export default function SettingsPage() {
             title="Row 4 — Overtrade Monitor (기본 ON)"
             desc="최근 1시간 과다거래 감시. 실전 중 가장 중요."
           />
+
+          {/* ✅ NEW: Overtrade count basis */}
+          <div style={{ paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Overtrade Count Basis</div>
+            <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 8 }}>
+              최근 1시간 과다거래 카운트를 “청산(CLOSE)” 기준으로 셀지, “진입(OPEN)” 기준으로 셀지 선택합니다. 기본은 CLOSE.
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => patchAppearance({ overtradeCountBasis: "close" as any })}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: appearance.overtradeCountBasis === "close" ? "rgba(210,194,165,0.14)" : "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                CLOSE 기준(기본)
+              </button>
+
+              <button
+                onClick={() => patchAppearance({ overtradeCountBasis: "open" as any })}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid var(--line-soft)",
+                  background: appearance.overtradeCountBasis === "open" ? "rgba(210,194,165,0.14)" : "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                OPEN 기준
+              </button>
+            </div>
+          </div>
 
           <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
             * 변경 후 Save를 누르면(로그인 시) 계정에 저장되어 다른 기기에서도 동일하게 보입니다.
