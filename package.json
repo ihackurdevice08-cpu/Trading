@@ -7,7 +7,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@plasmicapp/react-web": "^0.2.416",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.45.4",
     "next": "^15.2.0",
@@ -15,7 +14,6 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@plasmicapp/cli": "^0.1.356",
     "@types/react": "19.2.13",
     "typescript": "5.9.3"
   }
