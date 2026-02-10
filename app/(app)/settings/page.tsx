@@ -126,44 +126,9 @@ export default function SettingsPage() {
   const [apiSecret, setApiSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
 
-  async function saveNow() {
-    setBusy(true);
-    setMsg("Saving…");
-    try {
-      await saveToCloud();
-      setMsg("Saved. (계정 동기화 완료)");
-    } catch (e: any) {
-      setMsg(`Save failed: ${e?.message || "unknown error"}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  
 
-  async function manualSync() {
-    setMsg("Syncing…");
-    try {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      const accessToken = data?.session?.access_token;
-
-      const res = await fetch("/api/sync-now", {
-        method: "POST",
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-      });
-
-      const text = await res.text();
-      let j: any = null;
-      try { j = JSON.parse(text); } catch {}
-
-      if (!res.ok) {
-        setMsg(`Sync failed (${res.status}): ${j?.error || text}`);
-        return;
-      }
-      setMsg(j?.note || "Sync requested");
-    } catch (e: any) {
-      setMsg(`Sync failed: ${e?.message || "unknown error"}`);
-    }
-  }
+  
 
   async function saveBitgetAccount() {
     setMsg("");
