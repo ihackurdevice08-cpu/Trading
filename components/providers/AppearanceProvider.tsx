@@ -87,7 +87,7 @@ const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARA
   // APPLY THEME VARS whenever theme changes
   useEffect(() => {
     const t = getTheme(appearance.themeId);
-    applyThemeVars(t.vars);
+    applyThemeVars(appearance.themeId);
   }, [appearance.themeId]);
 
   useEffect(() => {
