@@ -70,3 +70,29 @@ export const THEMES: Record<string, { name: string; tokens: ThemeTokens }> = {
     },
   },
 };
+
+/**
+ * Backward-compatible exports:
+ * Some code imports { getTheme, applyThemeVars } from "@/lib/appearance/themes".
+ */
+export function getTheme(themeId?: string) {
+  const id = (themeId || "linen").toString();
+  return THEMES[id] || THEMES["linen"];
+}
+
+export function applyThemeVars(themeId?: string) {
+  // SSR/Build safety
+  if (typeof document === "undefined") return;
+
+  const { tokens } = getTheme(themeId);
+  const r = document.documentElement;
+
+  // These names must match what your CSS uses (var(--bg), etc.)
+  r.style.setProperty("--bg", tokens.bg);
+  r.style.setProperty("--panel", tokens.panel);
+  r.style.setProperty("--text", tokens.text);
+  r.style.setProperty("--text-muted", tokens.muted);
+  r.style.setProperty("--line-soft", tokens.lineSoft);
+  r.style.setProperty("--line-hard", tokens.lineHard);
+  r.style.setProperty("--accent", tokens.accent);
+}
