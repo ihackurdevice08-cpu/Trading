@@ -12,6 +12,7 @@ export default function AppLayout({ children }) {
             <nav style={S.nav}>
               <Link style={S.navItem} href="/dashboard">Dashboard</Link>
               <Link style={S.navItem} href="/journal">Journal</Link>
+              <Link style={S.navItem} href="/manual-trades">Trades</Link>
               <Link style={S.navItem} href="/goals">Goals</Link>
               <Link style={S.navItem} href="/settings">Settings</Link>
             </nav>
