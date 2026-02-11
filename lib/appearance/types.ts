@@ -21,7 +21,13 @@ export type AppearanceSettings = {
   showRow2AssetPerf?: boolean;
   showRow3Behavior?: boolean;
   showRow4Overtrade?: boolean;
-  bg?: { enabled?: boolean; fit?: "cover" | "contain"; url?: string | null };
+  bg?: { enabled?: boolean; fit?: "cover" | "contain"; url?: string | null 
+    type?: "none" | "image" | "video";
+    opacity?: number; // 0~1
+    dim?: number; // 0~1 overlay dim
+    blurPx?: number; // background blur px
+  
+  };
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
