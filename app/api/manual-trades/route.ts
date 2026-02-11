@@ -1,64 +1,61 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
+import { supabaseServer } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-// GET /api/manual-trades?from=...&to=...&symbol=...&tag=...
-export async function GET(req: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
-
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
-
-  if (authErr || !user) return bad("로그인이 필요합니다.", 401);
-
-  const url = new URL(req.url);
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
-  const symbol = url.searchParams.get("symbol");
-  const tag = url.searchParams.get("tag");
-
-  let q = supabase
-    .from("manual_trades")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("opened_at", { ascending: false })
-    .limit(200);
-
-  if (from) q = q.gte("opened_at", from);
-  if (to) q = q.lte("opened_at", to);
-  if (symbol) q = q.ilike("symbol", `%${symbol}%`);
-
-  if (tag) q = q.contains("tags", [tag]);
-
-  const { data, error } = await q;
-  if (error) return bad(error.message, 500);
-
-  return NextResponse.json({ ok: true, trades: data ?? [] });
+async function sbFromCookies() {
+  const store = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return store.getAll();
+        },
+        setAll(cs) {
+          cs.forEach(({ name, value, options }) => store.set(name, value, options));
+        },
+      },
+    }
+  );
 }
 
-// POST /api/manual-trades
+export async function GET() {
+  const sbAuth = await sbFromCookies();
+  const { data } = await sbAuth.auth.getUser();
+  const uid = data.user?.id;
+  if (!uid) return bad("unauthorized", 401);
+
+  const sb = supabaseServer();
+  const { data: rows, error } = await sb
+    .from("manual_trades")
+    .select("*")
+    .eq("user_id", uid)
+    .order("opened_at", { ascending: false });
+
+  if (error) return bad(error.message, 500);
+  return NextResponse.json({ ok: true, trades: rows || [] });
+}
+
 export async function POST(req: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const sbAuth = await sbFromCookies();
+  const { data } = await sbAuth.auth.getUser();
+  const user = data.user;
+  if (!user) return bad("unauthorized", 401);
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
+  const body = await req.json().catch(() => ({}));
 
-  if (authErr || !user) return bad("로그인이 필요합니다.", 401);
-
-  const body = await req.json().catch(() => null);
-  if (!body) return bad("요청 본문이 비어있습니다.");
-
-  const symbol = String(body.symbol ?? "").trim();
-  const side = String(body.side ?? "").trim();
-  const opened_at = String(body.opened_at ?? "").trim();
+  const symbol = String(body.symbol || "").trim().toUpperCase();
+  const side = String(body.side || "").trim().toLowerCase();
+  const opened_at = body.opened_at;
 
   if (!symbol) return bad("symbol이 필요합니다.");
   if (side !== "long" && side !== "short") return bad("side는 long/short만 가능합니다.");
@@ -77,13 +74,13 @@ export async function POST(req: Request) {
     notes: body.notes ?? null,
   };
 
-  const { data, error } = await supabase
+  const sb = supabaseServer();
+  const { data: row, error } = await sb
     .from("manual_trades")
     .insert(payload)
     .select("*")
     .single();
 
   if (error) return bad(error.message, 500);
-
-  return NextResponse.json({ ok: true, trade: data });
+  return NextResponse.json({ ok: true, trade: row });
 }
