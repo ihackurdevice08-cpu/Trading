@@ -2,16 +2,25 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+
 import { useAppearance } from "../providers/AppearanceProvider";
 import { THEMES } from "@/lib/appearance/themes";
-import { supabaseBrowser } from "../../lib/supabase/browser";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+
 import FuturesTicker from "../widgets/FuturesTicker";
+import BackgroundLayer from "../ui/BackgroundLayer";
 
 export default function AppLayout({ children }) {
   const pathname = usePathname();
-  const { appearance, isAuthed } = useAppearance();
-  const themeTokens = (THEMES?.[appearance?.themeId]?.tokens) || THEMES.linen.tokens;
+  const router = useRouter();
+
+  const { appearance, refreshAppearance } = useAppearance();
+  const themeTokens = useMemo(() => {
+    const id = appearance?.themeId || "linen";
+    return (THEMES[id] && THEMES[id].tokens) ? THEMES[id].tokens : THEMES.linen.tokens;
+  }, [appearance?.themeId]);
+
   const [toast, setToast] = useState("");
 
   const nav = useMemo(
@@ -23,268 +32,169 @@ export default function AppLayout({ children }) {
     []
   );
 
-  const showRefreshHere =
-    appearance.refreshPlacement === "global" ||
-    (appearance.refreshPlacement === "dashboard" && pathname?.startsWith("/dashboard"));
-
-  async function onRefresh() {
-    if (!isAuthed) {
-      setToast("로그인 후 Refresh를 이용하실 수 있습니다.");
-      setTimeout(() => setToast(""), 2500);
-      return;
-    }
+  const onRefresh = async () => {
     try {
-      setToast("동기화를 호출했습니다. 잠시만 기다려 주세요.");
+      setToast("동기화 요청 중…");
       const res = await fetch("/api/sync-now", { method: "POST" });
-      if (!res.ok) throw new Error("sync endpoint not ready");
-      setToast("요청이 접수되었습니다. 데이터는 곧 반영됩니다.");
-    } catch {
-      setToast("동기화 엔드포인트는 다음 단계에서 연결됩니다. (UI는 준비 완료)");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "request error");
+      setToast("동기화 요청 완료 (UTC 기준 반영될 수 있음)");
+      setTimeout(() => setToast(""), 2500);
+    } catch (e) {
+      setToast(`동기화 실패: ${e?.message || e}`);
+      setTimeout(() => setToast(""), 3500);
     }
-    setTimeout(() => setToast(""), 3000);
-  }
+  };
 
-  async function onLogout() {
-    const sb = supabaseBrowser();
-    await sb.auth.signOut();
-    setToast("안전하게 로그아웃되었습니다.");
-    setTimeout(() => setToast(""), 2500);
-  }
+  const onLogout = async () => {
+    try {
+      const sb = supabaseBrowser();
+      await sb.auth.signOut();
+    } catch {}
+    router.push("/login");
+  };
+
+  // 상단 네비가 Top일 때 하단 티커 공간 확보
+  const bottomSpace = 72;
 
   return (
-    <div style={{ 
+    <div
+      style={{
+        minHeight: "100vh",
         position: "relative",
-        zIndex: 1,
+        display: "flex",
+        flexDirection: "column",
+
+        // theme tokens -> css vars
         ["--bg"]: themeTokens.bg,
         ["--panel"]: themeTokens.panel,
-        ["--text-primary"]: themeTokens.text,
+        ["--panel-2"]: themeTokens.panel2,
+        ["--text"]: themeTokens.text,
         ["--text-muted"]: themeTokens.muted,
         ["--line-soft"]: themeTokens.lineSoft,
         ["--line-hard"]: themeTokens.lineHard,
         ["--accent"]: themeTokens.accent,
-        minHeight: "100vh",
-        background: "var(--bg-main)",
-        color: "var(--text-primary)",
-        display: "flex",
-        flexDirection: "column",
       }}
     >
-      {/* =====================================================
-          Global Background Media (account-bound)
-          ===================================================== */}
-      {appearance?.bgType !== "none" && appearance?.bgUrl ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 0,
-            pointerEvents: "none",
-            overflow: "hidden",
-          }}
-        >
-          {appearance.bgType === "video" ? (
-            <video
-              src={appearance.bgUrl}
-              autoPlay
-              muted
-              loop
-              playsInline
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: appearance.bgFit || "cover",
-                opacity: typeof appearance.bgOpacity === "number" ? appearance.bgOpacity : 0.22,
-                filter: `blur(${appearance.bgBlurPx || 0}px)`,
-                transform: "scale(1.02)",
-              }}
-            />
-          ) : (
-            <img
-              src={appearance.bgUrl}
-              alt="background"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: appearance.bgFit || "cover",
-                opacity: typeof appearance.bgOpacity === "number" ? appearance.bgOpacity : 0.22,
-                filter: `blur(${appearance.bgBlurPx || 0}px)`,
-                transform: "scale(1.02)",
-              }}
-            />
-          )}
-          {/* dim layer */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "black",
-              opacity: typeof appearance.bgDim === "number" ? appearance.bgDim : 0.45,
-            }}
-          />
-        </div>
-      ) : null}
+      {/* Global Background (account-bound via appearance.bg) */}
+      <BackgroundLayer />
 
-
-      {/* Top Bar */}
+      {/* Top bar */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          height: 56,
-          borderBottom: "1px solid var(--line-soft)",
-          background: "rgba(0,0,0,0.10)",
-          backdropFilter: "blur(10px)",
           position: "sticky",
           top: 0,
           zIndex: 20,
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(8px)",
+          borderBottom: "1px solid var(--line-soft)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Man Cave OS</div>
-          <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-            Private console for disciplined execution
+        <div
+          style={{
+            maxWidth: 1200,
+            margin: "0 auto",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontWeight: 950, letterSpacing: -0.3 }}>Man Cave OS</div>
+            <div style={{ color: "rgba(0,0,0,0.55)", fontSize: 12 }}>
+              Private console for disciplined execution
+            </div>
           </div>
-        </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {showRefreshHere ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onRefresh();
-              }}
+              onClick={() => refreshAppearance?.()}
               style={{
                 padding: "8px 10px",
-                borderRadius: 12,
+                borderRadius: 10,
                 border: "1px solid var(--line-soft)",
                 background: "rgba(210,194,165,0.12)",
-                color: "var(--text-primary)",
                 fontWeight: 900,
                 cursor: "pointer",
               }}
             >
               Refresh
             </button>
-          ) : null}
 
-          {isAuthed ? (
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onLogout();
-              }}
+              onClick={onRefresh}
               style={{
                 padding: "8px 10px",
-                borderRadius: 12,
+                borderRadius: 10,
                 border: "1px solid var(--line-soft)",
-                background: "transparent",
-                color: "var(--text-primary)",
+                background: "rgba(210,194,165,0.18)",
+                fontWeight: 900,
+                cursor: "pointer",
+              }}
+            >
+              Sync
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 10,
+                border: "1px solid var(--line-soft)",
+                background: "rgba(255,255,255,0.75)",
                 fontWeight: 900,
                 cursor: "pointer",
               }}
             >
               Logout
             </button>
-          ) : (
-            <Link
-              href="/login"
-              style={{
-                padding: "8px 10px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "transparent",
-                color: "var(--text-primary)",
-                fontWeight: 900,
-                textDecoration: "none",
-              }}
-            >
-              Login
-            </Link>
-          )}
+          </div>
+        </div>
+
+        {/* Nav */}
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 14px 10px" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {nav.map((it) => {
+              const active = pathname === it.href || pathname?.startsWith(it.href + "/");
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 12px",
+                    borderRadius: 12,
+                    border: "1px solid var(--line-soft)",
+                    background: active ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.55)",
+                    fontWeight: 950,
+                    color: "rgba(0,0,0,0.92)",
+                    textDecoration: "none",
+                  }}
+                >
+                  {it.label}
+                </Link>
+              );
+            })}
+          </div>
+          {toast ? (
+            <div style={{ marginTop: 8, fontSize: 12, color: "rgba(0,0,0,0.60)" }}>{toast}</div>
+          ) : null}
         </div>
       </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: appearance.navLayout === "side" ? "240px 1fr" : "1fr" }}>
-        {appearance.navLayout === "side" ? (
-          <aside style={{ borderRight: "1px solid var(--line-soft)", padding: 12 }}>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>Navigation</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {nav.map((x) => {
-                const active = pathname?.startsWith(x.href);
-                return (
-                  <Link
-                    key={x.href}
-                    href={x.href}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid var(--line-soft)",
-                      background: active ? "rgba(210,194,165,0.14)" : "transparent",
-                      color: "var(--text-primary)",
-                      textDecoration: "none",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {x.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </aside>
-        ) : null}
-
-        <main style={{ padding: 16, paddingBottom: 84 }}>
-          {appearance.navLayout === "top" ? (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-              {nav.map((x) => {
-                const active = pathname?.startsWith(x.href);
-                return (
-                  <Link
-                    key={x.href}
-                    href={x.href}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid var(--line-soft)",
-                      background: active ? "rgba(210,194,165,0.14)" : "transparent",
-                      color: "var(--text-primary)",
-                      textDecoration: "none",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {x.label}
-                  </Link>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {toast ? (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                color: "var(--text-secondary)",
-                marginBottom: 12,
-              }}
-            >
-              {toast}
-            </div>
-          ) : null}
-
-          {children}
-        </main>
+      {/* Main */}
+      <div style={{ flex: 1, paddingBottom: bottomSpace }}>
+        {children}
       </div>
 
-      {/* ✅ Global Bottom Ticker (always visible, fixed) */}
+      {/* Global Bottom Ticker (always visible) */}
       <FuturesTicker />
     </div>
   );
