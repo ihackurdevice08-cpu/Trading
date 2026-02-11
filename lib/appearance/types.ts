@@ -35,3 +35,11 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   bgBlurPx: 0,
   bgDim: 0.45,
 };
+
+// ---- auto patch ----
+export type __BgPatch = {
+  opacity?: number;
+  dim?: number;
+  blurPx?: number;
+  type?: string;
+}
