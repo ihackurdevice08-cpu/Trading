@@ -474,6 +474,13 @@ export default function SettingsPage() {
             title="Row 4 — Overtrade Monitor"
             desc="최근 1시간 과다거래 감시"
           />
+          <RowToggle
+            checked={(appearance as any).showRow5Goals}
+            onChange={(v) => patchAppearance({ showRow5Goals: v } as any)}
+            title="Row 5 — Goals"
+            desc="진행중 목표 달성률"
+          />
+
         </div>
       </Card>
 

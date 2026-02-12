@@ -1,194 +1,150 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-function num(v:any){
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-function pct(cur:number, tar:number){
-  if(!tar) return 0;
-  return Math.max(0, Math.min(200, (cur / tar) * 100));
-}
+const n = (v:any)=> (Number.isFinite(Number(v)) ? Number(v) : 0);
+const clamp = (x:number, a:number, b:number)=> Math.max(a, Math.min(b, x));
+const pct = (cur:number, tgt:number)=> tgt>0 ? clamp((cur/tgt)*100, 0, 200) : 0;
 
-const TYPE_LABEL: Record<string,string> = {
-  pnl: "수익(PnL) 목표",
-  withdrawal: "출금 목표",
-  counter: "횟수/카운트 목표",
-  boolean: "체크(전략/심리) 목표",
-};
+function Bar({cur,tgt}:{cur:number,tgt:number}){
+  const p = pct(cur,tgt);
+  return (
+    <div style={{height:10, background:"rgba(0,0,0,0.08)", borderRadius:999, overflow:"hidden"}}>
+      <div style={{width:`${p}%`, height:"100%", background:"rgba(0,0,0,0.55)"}} />
+    </div>
+  );
+}
 
 export default function GoalsPage(){
-  const [goals,setGoals]=useState<any[]>([]);
-  const [history,setHistory]=useState<any[]>([]);
-  const [title,setTitle]=useState("");
-  const [target,setTarget]=useState("");
-  const [type,setType]=useState<"pnl"|"withdrawal"|"counter"|"boolean">("pnl");
-  const [busy,setBusy]=useState(false);
-  const [msg,setMsg]=useState<string>("");
+  const [goals,setGoals] = useState<any[]>([]);
+  const [history,setHistory] = useState<any[]>([]);
+  const [busy,setBusy] = useState(false);
+  const [err,setErr] = useState("");
+
+  // create form
+  const [title,setTitle] = useState("");
+  const [type,setType] = useState<"pnl"|"withdrawal"|"counter"|"boolean">("pnl");
+  const [target,setTarget] = useState("");
 
   async function load(){
-    setMsg("");
-    const r = await fetch("/api/goals-v2",{cache:"no-store"});
-    const j = await r.json().catch(()=>({ok:false,error:"JSON parse failed"}));
-    if(!j.ok){
-      setMsg("불러오기 실패: " + (j.error || "unknown"));
-      return;
-    }
-    setGoals(j.goals||[]);
-    setHistory(j.history||[]);
-    if(j.history_error){
-      // history 쪽 에러가 있더라도 goals는 보여주되, 참고용 메시지
-      // (원하면 이 라인 지워도 됨)
-      // setMsg("히스토리 일부 로딩 실패: " + j.history_error);
-    }
+    setErr("");
+    const r = await fetch("/api/goals-v2?includeCompleted=1", { cache:"no-store" });
+    const j = await r.json().catch(()=>null);
+    if(!j?.ok){ setErr(j?.error || "불러오기 실패"); return; }
+    // 여기서는 goals에 completed도 같이 받아오되, 화면에서 분리해서 보여줌
+    setGoals(j.goals || []);
+    setHistory(j.history || []);
   }
 
   async function create(){
-    if(busy) return;
+    setErr("");
     setBusy(true);
-    setMsg("");
-
-    const trimmed = (title || "").trim();
-    const isBool = type === "boolean";
-    const t = isBool ? 1 : num(target);
-
-    const payload = {
-      title: trimmed || "(제목없음)",
-      type,
-      mode: (type==="pnl") ? "auto" : "manual",
-      period: (type==="pnl") ? "monthly" : "none",
-      target_value: t,
-      current_value: 0,
-      unit: (type==="pnl" || type==="withdrawal") ? "usd" : "count",
-    };
-
     try{
+      const payload:any = {
+        title: title.trim(),
+        type,
+        period:"monthly",
+      };
+      if(type !== "boolean"){
+        payload.target_value = n(target);
+        if(!payload.target_value) { setErr("목표 수치(숫자)를 입력해줘"); return; }
+      }
       const r = await fetch("/api/goals-v2",{
         method:"POST",
         headers:{ "content-type":"application/json"},
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      const j = await r.json().catch(()=>({ok:false,error:"JSON parse failed"}));
-      if(!j.ok){
-        setMsg("생성 실패: " + (j.error || "unknown"));
-        return;
-      }
-      setTitle("");
-      setTarget("");
+      const j = await r.json().catch(()=>null);
+      if(!j?.ok){ setErr(j?.error || "생성 실패"); return; }
+      setTitle(""); setTarget("");
       await load();
-      setMsg("✅ 목표가 생성되었습니다.");
-    }catch(e:any){
-      setMsg("생성 실패(네트워크): " + (e?.message || "unknown"));
-    }finally{
+    } finally {
       setBusy(false);
     }
   }
 
-  async function completeBoolean(g:any){
-    if(busy) return;
+  async function markDone(g:any){
+    setErr("");
     setBusy(true);
-    setMsg("");
     try{
       const r = await fetch("/api/goals-v2",{
         method:"PATCH",
         headers:{ "content-type":"application/json"},
-        body: JSON.stringify({ id: g.id, current_value: 1, target_value: 1 })
+        body: JSON.stringify({ id:g.id, current_value: (g.type==="boolean") ? 1 : g.target_value }),
       });
-      const j = await r.json().catch(()=>({ok:false,error:"JSON parse failed"}));
-      if(!j.ok){
-        setMsg("완료 처리 실패: " + (j.error || "unknown"));
-        return;
-      }
+      const j = await r.json().catch(()=>null);
+      if(!j?.ok){ setErr(j?.error || "처리 실패"); return; }
       await load();
-      setMsg("✅ 완료 처리되었습니다.");
-    }finally{
+    } finally {
       setBusy(false);
     }
   }
 
-  async function removeGoal(g:any){
-    if(busy) return;
-    const yes = confirm("이 목표를 삭제(아카이브)할까? (완전삭제 아님)");
-    if(!yes) return;
+  async function archiveGoal(g:any){
+    if(!confirm("이 목표를 숨김(아카이브)할까요? (복구 가능)")) return;
+    const r = await fetch(`/api/goals-v2?id=${encodeURIComponent(g.id)}`, { method:"DELETE" });
+    const j = await r.json().catch(()=>null);
+    if(!j?.ok){ setErr(j?.error || "숨김 실패"); return; }
+    await load();
+  }
 
-    setBusy(true);
-    setMsg("");
-    try{
-      const r = await fetch("/api/goals-v2?id="+encodeURIComponent(g.id),{ method:"DELETE" });
-      const j = await r.json().catch(()=>({ok:false,error:"JSON parse failed"}));
-      if(!j.ok){
-        setMsg("삭제 실패: " + (j.error || "unknown"));
-        return;
-      }
-      await load();
-      setMsg("🗑️ 목표가 삭제(아카이브)되었습니다.");
-    }finally{
-      setBusy(false);
-    }
+  async function hardDelete(g:any){
+    if(!confirm("⚠️ 완전 삭제할까요? (히스토리/누적 통계에서도 사라짐)")) return;
+    const r = await fetch(`/api/goals-v2?id=${encodeURIComponent(g.id)}&hard=1`, { method:"DELETE" });
+    const j = await r.json().catch(()=>null);
+    if(!j?.ok){ setErr(j?.error || "삭제 실패"); return; }
+    await load();
   }
 
   useEffect(()=>{ load(); },[]);
 
-  const active = useMemo(()=>goals.filter(g=>g.status==="active"),[goals]);
-  const completed = useMemo(()=>history,[history]);
+  const active = useMemo(()=> goals.filter(g=>g.status==="active"), [goals]);
+  const completed = useMemo(()=> goals.filter(g=>g.status==="completed"), [goals]);
 
-  const totalWithdrawal = useMemo(()=>{
-    return completed
-      .filter((h:any)=>h.type==="withdrawal")
-      .reduce((a:number,b:any)=>a+num(b.target_value),0);
-  },[completed]);
+  // 누적 통계(히스토리 기반)
+  const totalAchievedAmount = useMemo(()=>(
+    (history||[]).filter((h:any)=> String(h.unit)==="usd").reduce((a:number,b:any)=> a + n(b.target_value), 0)
+  ), [history]);
 
-  const totalAchievedAmount = useMemo(()=>{
-    return completed
-      .filter((h:any)=>h.type==="pnl" || h.type==="withdrawal")
-      .reduce((a:number,b:any)=>a+num(b.target_value),0);
-  },[completed]);
+  const totalWithdrawal = useMemo(()=>(
+    (history||[]).filter((h:any)=> String(h.type)==="withdrawal").reduce((a:number,b:any)=> a + n(b.target_value), 0)
+  ), [history]);
 
-  const totalAchievedCount = useMemo(()=>completed.length,[completed]);
+  const totalCountGoals = useMemo(()=>(
+    (history||[]).filter((h:any)=> String(h.unit)!=="usd").length
+  ), [history]);
 
-  const nonMoneyCount = useMemo(()=>{
-    return completed.filter((h:any)=>!(h.type==="pnl" || h.type==="withdrawal")).length;
-  },[completed]);
+  const typeLabel = (t:string)=>{
+    if(t==="pnl") return "수익(PnL)";
+    if(t==="withdrawal") return "출금";
+    if(t==="counter") return "횟수/체크";
+    if(t==="boolean") return "1회성(체크)";
+    return t;
+  };
 
   return (
-    <div style={{padding:20,maxWidth:1100}}>
-      <h1 style={{margin:"0 0 10px 0"}}>Goals</h1>
+    <div style={{padding:20, maxWidth:1100}}>
+      <h1 style={{marginTop:0}}>Goals</h1>
 
-      {msg ? (
-        <div style={{margin:"10px 0", padding:10, border:"1px solid #eee", background:"#fafafa"}}>
-          {msg}
-        </div>
-      ) : null}
+      {err ? <div style={{border:"1px solid #eee", padding:10, marginBottom:12}}>{err}</div> : null}
 
-      <div style={{border:"1px solid #eee", padding:12}}>
+      <div style={{border:"1px solid #eee", padding:12, marginBottom:12}}>
         <div style={{fontWeight:900, marginBottom:8}}>성과(누적)</div>
-        <div>누적 출금 달성 금액: {totalWithdrawal.toLocaleString()}</div>
-        <div>누적 금액 목표 달성 금액(PnL+출금): {totalAchievedAmount.toLocaleString()}</div>
-        <div>누적 목표 달성 횟수(전체): {totalAchievedCount}</div>
-        <div>누적 목표 달성 횟수(비-금액/체크형): {nonMoneyCount}</div>
+        <div>누적 목표 달성 금액: <b>{totalAchievedAmount.toLocaleString()}</b></div>
+        <div>누적 출금 달성 금액: <b>{totalWithdrawal.toLocaleString()}</b></div>
+        <div>누적 목표 달성 횟수(비-금액): <b>{totalCountGoals}</b></div>
+        <div>총 완료 횟수: <b>{(history||[]).length}</b></div>
       </div>
 
-      <div style={{marginTop:12, border:"1px solid #eee", padding:12}}>
+      <div style={{border:"1px solid #eee", padding:12, marginBottom:18}}>
         <div style={{fontWeight:900, marginBottom:8}}>새 목표 만들기</div>
-        <div style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
-          <input
-            placeholder="목표 제목"
-            value={title}
-            onChange={e=>setTitle(e.target.value)}
-            style={{padding:"8px 10px"}}
-          />
-          <input
-            placeholder={type==="boolean" ? "체크형은 숫자 불필요" : "목표 수치"}
-            value={target}
-            onChange={e=>setTarget(e.target.value)}
-            disabled={type==="boolean"}
-            style={{padding:"8px 10px"}}
-          />
-          <select value={type} onChange={e=>setType(e.target.value as any)} style={{padding:"8px 10px"}}>
+        <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr 1fr auto", gap:8, alignItems:"center"}}>
+          <input placeholder="목표 제목" value={title} onChange={e=>setTitle(e.target.value)} />
+          <input placeholder={type==="boolean" ? "목표 수치 없음" : "목표 수치(숫자)"} value={target} onChange={e=>setTarget(e.target.value)} disabled={type==="boolean"} />
+          <select value={type} onChange={e=>setType(e.target.value as any)}>
             <option value="pnl">수익(PnL)</option>
             <option value="withdrawal">출금</option>
-            <option value="counter">카운트</option>
-            <option value="boolean">체크(전략/심리)</option>
+            <option value="counter">횟수/체크</option>
+            <option value="boolean">1회성(체크)</option>
           </select>
           <button onClick={create} disabled={busy} style={{padding:"8px 12px", fontWeight:900}}>
             {busy ? "처리중..." : "생성"}
@@ -196,53 +152,58 @@ export default function GoalsPage(){
         </div>
       </div>
 
-      <h2 style={{marginTop:18}}>진행중 목표</h2>
+      <h2 style={{marginTop:0}}>진행중 목표</h2>
       {active.length===0 ? <div style={{opacity:.7}}>없음</div> : null}
-
-      {active.map(g=>{
-        const tv = num(g.target_value || 0) || 1;
-        const cv = num(g.current_value || 0);
-        const p = pct(cv, tv);
+      {active.map((g:any)=>{
+        const cur = n(g.current_value);
+        const tgt = n(g.target_value);
         return (
-          <div key={g.id} style={{border:"1px solid #ddd",padding:12,marginBottom:12}}>
+          <div key={g.id} style={{border:"1px solid #eee", padding:12, marginBottom:10}}>
             <div style={{display:"flex", justifyContent:"space-between", gap:10}}>
-              <div style={{fontWeight:900}}>{g.title}</div>
-              <div style={{opacity:.7, fontSize:12}}>{TYPE_LABEL[g.type] || g.type}</div>
+              <div style={{fontWeight:900}}>{g.title || "(untitled)"}</div>
+              <div style={{opacity:.7}}>{typeLabel(String(g.type))} 목표</div>
             </div>
 
-            <div style={{marginTop:6}}>
-              {g.type==="boolean" ? "체크형 목표" : `${cv} / ${tv}`}{" "}
-              <span style={{opacity:.7}}>(달성률 {p.toFixed(1)}%)</span>
-            </div>
+            {g.type==="boolean" ? (
+              <div style={{marginTop:10}}>
+                <Bar cur={cur} tgt={1} />
+                <div style={{marginTop:6, opacity:.8}}>미완료</div>
+              </div>
+            ) : (
+              <div style={{marginTop:10}}>
+                <div style={{display:"flex", justifyContent:"space-between", gap:10, opacity:.8}}>
+                  <div>{cur.toLocaleString()} / {tgt.toLocaleString()}</div>
+                  <div>달성률 {pct(cur,tgt).toFixed(1)}%</div>
+                </div>
+                <Bar cur={cur} tgt={tgt} />
+              </div>
+            )}
 
-            <div style={{background:"#eee",height:10, marginTop:8, borderRadius:6, overflow:"hidden"}}>
-              <div style={{width:p+"%",height:"100%",background:"#333"}}/>
-            </div>
-
-            <div style={{display:"flex", gap:8, marginTop:10}}>
+            <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap"}}>
               {g.type==="boolean" ? (
-                <button onClick={()=>completeBoolean(g)} disabled={busy}>
-                  완료 처리
-                </button>
+                <button onClick={()=>markDone(g)} disabled={busy} style={{padding:"6px 10px"}}>달성 처리</button>
               ) : null}
-              <button onClick={()=>removeGoal(g)} disabled={busy} style={{opacity:0.9}}>
-                삭제
-              </button>
+              <button onClick={()=>archiveGoal(g)} disabled={busy} style={{padding:"6px 10px"}}>숨김</button>
+              <button onClick={()=>hardDelete(g)} disabled={busy} style={{padding:"6px 10px"}}>완전삭제</button>
             </div>
           </div>
         );
       })}
 
-      <h2 style={{marginTop:18}}>완료된 목표</h2>
+      <h2 style={{marginTop:18}}>완료된 목표 (대시보드에는 안 보이게)</h2>
       {completed.length===0 ? <div style={{opacity:.7}}>없음</div> : null}
-
       {completed.map((g:any)=>(
-        <div key={g.id} style={{border:"1px solid #eee",padding:10,marginBottom:8,opacity:0.85}}>
-          <div style={{fontWeight:800}}>
-            {g.title} <span style={{opacity:.7}}>({TYPE_LABEL[g.type] || g.type})</span>
+        <div key={g.id} style={{border:"1px solid #eee", padding:12, marginBottom:10, opacity:.75}}>
+          <div style={{display:"flex", justifyContent:"space-between", gap:10}}>
+            <div style={{fontWeight:900}}>{g.title || "(untitled)"}</div>
+            <div style={{opacity:.7}}>{typeLabel(String(g.type))}</div>
           </div>
-          <div style={{fontSize:12, opacity:0.75}}>
-            달성값: {g.target_value ?? "-"} {g.unit ?? ""} · {g.completed_at}
+          <div style={{marginTop:8}}>
+            {g.type==="boolean" ? "완료" : `${n(g.target_value).toLocaleString()} 달성`}
+          </div>
+          <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap"}}>
+            <button onClick={()=>archiveGoal(g)} style={{padding:"6px 10px"}}>숨김</button>
+            <button onClick={()=>hardDelete(g)} style={{padding:"6px 10px"}}>완전삭제</button>
           </div>
         </div>
       ))}

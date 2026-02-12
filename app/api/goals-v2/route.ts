@@ -23,30 +23,37 @@ async function sbFromCookies(){
   );
 }
 
-export async function GET(){
+const n = (v:any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+export async function GET(req:Request){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
   const uid = data.user?.id;
   if(!uid) return bad("unauthorized",401);
 
+  const url = new URL(req.url);
+  const includeArchived = url.searchParams.get("includeArchived")==="1";
+  const includeCompleted = url.searchParams.get("includeCompleted")==="1";
+
   const sb = supabaseServer();
 
-  const { data: goals, error: gErr } = await sb
-    .from("goals_v2")
-    .select("*")
-    .eq("user_id", uid)
-    .order("created_at",{ascending:false});
+  // goals_v2: 기본은 active만. (Dashboard도 이걸로 active만 보이게)
+  let q = sb.from("goals_v2").select("*").eq("user_id", uid);
 
-  if(gErr) return bad(gErr.message, 500);
+  if(!includeArchived) q = q.neq("status","archived");
+  if(!includeCompleted) q = q.neq("status","completed");
 
-  // history는 실패해도 goals는 내려주도록 방어
-  const { data: history, error: hErr } = await sb
+  const { data: goals, error: e1 } = await q.order("created_at",{ascending:false});
+  if(e1) return bad(e1.message,500);
+
+  // history: 컬럼이 확정이 아니라서 order를 강제하지 않음(안전)
+  const { data: history, error: e2 } = await sb
     .from("goals_history")
     .select("*")
-    .eq("user_id", uid)
-    .order("completed_at",{ascending:false});
+    .eq("user_id", uid);
+  if(e2) return bad(e2.message,500);
 
-  return ok({ goals: goals||[], history: hErr ? [] : (history||[]), history_error: hErr ? hErr.message : null });
+  return ok({ goals: goals||[], history: history||[] });
 }
 
 export async function POST(req:Request){
@@ -58,16 +65,21 @@ export async function POST(req:Request){
   const body = await req.json().catch(()=>null);
   if(!body) return bad("invalid json");
 
+  const type = String(body.type || "pnl"); // pnl / withdrawal / counter / boolean
+  const title = String(body.title || "").trim();
+
+  if(!title) return bad("title required");
+
   const payload = {
     user_id: user.id,
-    title: body.title,
-    type: body.type,
-    mode: body.mode,
-    period: body.period,
-    target_value: body.target_value ?? null,
-    current_value: body.current_value ?? 0,
-    unit: body.unit,
-    status: body.status ?? "active",
+    title,
+    type,
+    mode: (type==="pnl" || type==="withdrawal") ? "auto" : "manual",
+    period: String(body.period || "monthly"),
+    target_value: (type==="boolean") ? null : n(body.target_value),
+    current_value: (type==="boolean") ? 0 : n(body.current_value ?? 0),
+    unit: (type==="pnl" || type==="withdrawal") ? "usd" : "count",
+    status: "active",
     meta: body.meta ?? {}
   };
 
@@ -93,43 +105,50 @@ export async function PATCH(req:Request){
 
   const sb = supabaseServer();
 
-  const { data: goal, error: readErr } = await sb
+  const { data: goal, error: e0 } = await sb
     .from("goals_v2")
     .select("*")
     .eq("id", body.id)
-    .eq("user_id", user.id)
     .single();
-
-  if(readErr) return bad(readErr.message, 500);
+  if(e0) return bad(e0.message,500);
 
   const updated = { ...goal, ...body };
 
-  const willComplete =
-    updated.status !== "completed" &&
-    updated.target_value != null &&
-    Number(updated.current_value ?? 0) >= Number(updated.target_value);
+  // 완료 처리 조건:
+  // - boolean: current_value=1이면 완료
+  // - 숫자 목표: target_value 있고 current>=target이면 완료
+  const isBoolean = updated.type === "boolean";
+  const hasTarget = updated.target_value != null && n(updated.target_value) > 0;
+  const done =
+    isBoolean ? n(updated.current_value) >= 1 :
+    (hasTarget ? n(updated.current_value) >= n(updated.target_value) : false);
 
-  if(willComplete){
-    const { error: histErr } = await sb.from("goals_history").insert({
+  if(done && updated.status !== "completed"){
+    await sb.from("goals_history").insert({
       user_id: user.id,
       goal_id: updated.id,
       type: updated.type,
       title: updated.title,
       target_value: updated.target_value,
       unit: updated.unit,
-      meta: updated.meta ?? {}
     });
-    if(histErr) return bad(histErr.message, 500);
     updated.status = "completed";
   }
 
-  const { error: upErr } = await sb
-    .from("goals_v2")
-    .update(updated)
-    .eq("id", body.id)
-    .eq("user_id", user.id);
+  const { error: e1 } = await sb.from("goals_v2").update({
+    title: updated.title,
+    type: updated.type,
+    mode: updated.mode,
+    period: updated.period,
+    target_value: updated.target_value,
+    current_value: updated.current_value,
+    unit: updated.unit,
+    status: updated.status,
+    meta: updated.meta ?? {},
+    updated_at: new Date().toISOString(),
+  }).eq("id", updated.id);
 
-  if(upErr) return bad(upErr.message, 500);
+  if(e1) return bad(e1.message,500);
 
   return ok({});
 }
@@ -142,15 +161,27 @@ export async function DELETE(req:Request){
 
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
+  const hard = url.searchParams.get("hard")==="1"; // 완전삭제
+
   if(!id) return bad("id required");
 
-  const { error } = await supabaseServer()
+  const sb = supabaseServer();
+
+  if(hard){
+    // 목표 + 연결된 히스토리까지 제거 (정말 삭제)
+    await sb.from("goals_history").delete().eq("user_id", uid).eq("goal_id", id);
+    const { error } = await sb.from("goals_v2").delete().eq("user_id", uid).eq("id", id);
+    if(error) return bad(error.message,500);
+    return ok({});
+  }
+
+  // 기본은 아카이브(숨김)
+  const { error } = await sb
     .from("goals_v2")
-    .update({ status:"archived" })
-    .eq("id", id)
-    .eq("user_id", uid);
+    .update({ status:"archived", updated_at: new Date().toISOString() })
+    .eq("user_id", uid)
+    .eq("id", id);
 
-  if(error) return bad(error.message, 500);
-
+  if(error) return bad(error.message,500);
   return ok({});
 }
