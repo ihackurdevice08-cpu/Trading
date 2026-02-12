@@ -475,11 +475,53 @@ export default function SettingsPage() {
             desc="최근 1시간 과다거래 감시"
           />
           <RowToggle
-            checked={(appearance as any).showRow5Goals}
-            onChange={(v) => patchAppearance({ showRow5Goals: v } as any)}
+            checked={appearance.showRow5Goals}
+            onChange={(v) => patchAppearance({ showRow5Goals: v })}
             title="Row 5 — Goals"
             desc="진행중 목표 달성률"
           />
+
+
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--line-soft)" }}>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Row 순서</div>
+          <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 10 }}>
+            (안정성 우선) 지금은 위/아래 버튼으로 순서를 저장합니다. 나중에 드래그로 업그레이드 가능.
+          </div>
+
+          {(() => {
+            const order = ((appearance.dashboardRowOrder && appearance.dashboardRowOrder.length)
+              ? appearance.dashboardRowOrder
+              : ["row1","row2","row3","row4","row5"]) as any;
+
+            const labels: any = {
+              row1: "Row 1 — Status",
+              row2: "Row 2 — Asset & Performance",
+              row3: "Row 3 — Behavior",
+              row4: "Row 4 — Overtrade Monitor",
+              row5: "Row 5 — Goals",
+            };
+
+            function move(idx: number, dir: -1 | 1) {
+              const next = [...order] as any;
+              const j = idx + dir;
+              if (j < 0 || j >= next.length) return;
+              const tmp = next[idx]; next[idx] = next[j]; next[j] = tmp;
+              patchAppearance({ dashboardRowOrder: next });
+            }
+
+            return (
+              <div style={{ display: "grid", gap: 8 }}>
+                {order.map((id: any, i: number) => (
+                  <div key={id} style={{ display: "flex", gap: 8, alignItems: "center", border: "1px solid var(--line-soft)", borderRadius: 12, padding: "8px 10px" }}>
+                    <div style={{ flex: 1, fontWeight: 900 }}>{labels[id] || id}</div>
+                    <button type="button" onClick={() => move(i, -1)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "transparent", cursor: "pointer" }}>▲</button>
+                    <button type="button" onClick={() => move(i,  1)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "transparent", cursor: "pointer" }}>▼</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
 
         </div>
       </Card>
