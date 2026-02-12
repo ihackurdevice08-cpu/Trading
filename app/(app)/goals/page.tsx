@@ -1,184 +1,143 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 
-type Goals = { y:any; m:any; w:any; d:any };
-type Stats = { monthPnL:number; weekPnL:number; todayPnL:number };
-
-function n(v:any){
-  const x = Number(v);
-  return Number.isFinite(x) ? x : 0;
+function pct(c:number,t:number){
+  if(!t) return 0;
+  return Math.min(200,(c/t)*100);
 }
-function fmt(v:number){
-  if (!Number.isFinite(v)) return "-";
-  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-function pct(done:number, target:number){
-  if (!Number.isFinite(done) || !Number.isFinite(target) || target === 0) return 0;
-  const p = (done/target)*100;
-  return Math.max(0, Math.min(200, p)); // 200%까지만 표시
+function num(v:any){
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export default function GoalsPage(){
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-
-  const [goals, setGoals] = useState<Goals>({ y:{}, m:{}, w:{}, d:{} });
-  const [stats, setStats] = useState<Stats>({ monthPnL:0, weekPnL:0, todayPnL:0 });
-
-  // 입력(목표값)
-  const [dTarget, setDTarget] = useState<string>("");
-  const [wTarget, setWTarget] = useState<string>("");
-  const [mTarget, setMTarget] = useState<string>("");
+  const [goals,setGoals]=useState<any[]>([]);
+  const [history,setHistory]=useState<any[]>([]);
+  const [title,setTitle]=useState("");
+  const [target,setTarget]=useState("");
+  const [type,setType]=useState("pnl");
 
   async function load(){
-    setLoading(true);
-    setErr("");
-    try{
-      const [a,b] = await Promise.all([
-        fetch("/api/goals", { cache:"no-store" }).then(r=>r.json()),
-        fetch("/api/dashboard", { cache:"no-store" }).then(r=>r.json()),
-      ]);
-
-      if (!a.ok) throw new Error(a.error || "goals api error");
-      if (!b.ok) throw new Error(b.error || "dashboard api error");
-
-      setGoals(a.goals);
-      setStats({
-        monthPnL: n(b.stats?.monthPnL),
-        weekPnL: n(b.stats?.weekPnL),
-        todayPnL: n(b.stats?.todayPnL),
-      });
-
-      const d = a.goals?.d?.target ?? "";
-      const w = a.goals?.w?.target ?? "";
-      const m = a.goals?.m?.target ?? "";
-      setDTarget(d === "" ? "" : String(d));
-      setWTarget(w === "" ? "" : String(w));
-      setMTarget(m === "" ? "" : String(m));
-    }catch(e:any){
-      setErr(e?.message || "error");
-    }finally{
-      setLoading(false);
+    const r = await fetch("/api/goals-v2",{cache:"no-store"});
+    const j = await r.json();
+    if(j.ok){
+      setGoals(j.goals||[]);
+      setHistory(j.history||[]);
     }
   }
 
-  async function save(){
-    setErr("");
-    try{
-      const next = {
-        ...goals,
-        d: { ...(goals.d||{}), target: dTarget === "" ? null : Number(dTarget) },
-        w: { ...(goals.w||{}), target: wTarget === "" ? null : Number(wTarget) },
-        m: { ...(goals.m||{}), target: mTarget === "" ? null : Number(mTarget) },
-      };
-
-      const res = await fetch("/api/goals", {
-        method: "POST",
-        headers: { "content-type":"application/json" },
-        body: JSON.stringify(next),
-      });
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error || "save failed");
-      await load();
-      alert("저장 완료");
-    }catch(e:any){
-      setErr(e?.message || "error");
-    }
+  async function create(){
+    const t = num(target);
+    const isBoolean = type === "boolean";
+    await fetch("/api/goals-v2",{
+      method:"POST",
+      headers:{ "content-type":"application/json"},
+      body:JSON.stringify({
+        title: title || "(untitled)",
+        type,
+        mode: (type==="pnl") ? "auto" : "manual",
+        period: (type==="pnl") ? "monthly" : "none",
+        target_value: isBoolean ? null : t,
+        current_value: 0,
+        unit: (type==="pnl" || type==="withdrawal") ? "usd" : "count"
+      })
+    });
+    setTitle(""); setTarget("");
+    load();
   }
 
-  useEffect(()=>{ load(); }, []);
+  async function completeBoolean(g:any){
+    await fetch("/api/goals-v2",{
+      method:"PATCH",
+      headers:{ "content-type":"application/json"},
+      body:JSON.stringify({ id:g.id, current_value: 1, target_value: 1, unit: g.unit })
+    });
+    load();
+  }
 
-  const dT = dTarget === "" ? 0 : Number(dTarget);
-  const wT = wTarget === "" ? 0 : Number(wTarget);
-  const mT = mTarget === "" ? 0 : Number(mTarget);
+  useEffect(()=>{ load(); },[]);
 
-  const dP = useMemo(()=>pct(stats.todayPnL, dT), [stats.todayPnL, dT]);
-  const wP = useMemo(()=>pct(stats.weekPnL, wT), [stats.weekPnL, wT]);
-  const mP = useMemo(()=>pct(stats.monthPnL, mT), [stats.monthPnL, mT]);
+  const active = useMemo(()=>goals.filter(g=>g.status==="active"),[goals]);
+  const completed = useMemo(()=>history,[history]);
 
-  if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
-  if (err) return <div style={{ padding: 20 }}>Error: {err}</div>;
+  const totalWithdrawal = useMemo(()=>{
+    return completed
+      .filter((h:any)=>h.type==="withdrawal")
+      .reduce((a:number,b:any)=>a+num(b.target_value),0);
+  },[completed]);
+
+  const totalAchievedAmount = useMemo(()=>{
+    return completed
+      .filter((h:any)=>h.type==="pnl" || h.type==="withdrawal")
+      .reduce((a:number,b:any)=>a+num(b.target_value),0);
+  },[completed]);
+
+  const totalAchievedCount = useMemo(()=>{
+    return completed.length;
+  },[completed]);
+
+  const nonMoneyCount = useMemo(()=>{
+    return completed.filter((h:any)=>!(h.type==="pnl" || h.type==="withdrawal")).length;
+  },[completed]);
 
   return (
-    <div style={{ padding: 20, maxWidth: 980 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 10 }}>Goals</h1>
+    <div style={{padding:20,maxWidth:1100}}>
+      <h1 style={{margin:0}}>Goals</h1>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16 }}>
-        <GoalCard
-          title="Daily"
-          done={stats.todayPnL}
-          target={dT}
-          progress={dP}
-          input={dTarget}
-          setInput={setDTarget}
-        />
-        <GoalCard
-          title="Weekly"
-          done={stats.weekPnL}
-          target={wT}
-          progress={wP}
-          input={wTarget}
-          setInput={setWTarget}
-        />
-        <GoalCard
-          title="Monthly"
-          done={stats.monthPnL}
-          target={mT}
-          progress={mP}
-          input={mTarget}
-          setInput={setMTarget}
-        />
+      <div style={{marginTop:16, border:"1px solid #eee", padding:12}}>
+        <div style={{fontWeight:800, marginBottom:8}}>Achievements</div>
+        <div>누적 출금 달성 금액: {totalWithdrawal.toLocaleString()}</div>
+        <div>누적 금액 목표 달성 금액(PnL+출금): {totalAchievedAmount.toLocaleString()}</div>
+        <div>누적 목표 달성 횟수(전체): {totalAchievedCount}</div>
+        <div>누적 목표 달성 횟수(비-금액/체크형): {nonMoneyCount}</div>
       </div>
 
-      <div style={{ marginTop: 16, display:"flex", gap:10 }}>
-        <button onClick={save} style={S.primary}>저장</button>
-        <button onClick={load} style={S.secondary}>새로고침</button>
+      <div style={{marginTop:16, border:"1px solid #eee", padding:12}}>
+        <div style={{fontWeight:800, marginBottom:8}}>Create Goal</div>
+        <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+          <input placeholder="Goal title" value={title} onChange={e=>setTitle(e.target.value)} />
+          <input placeholder="Target (숫자, boolean은 비워도 됨)" value={target} onChange={e=>setTarget(e.target.value)} />
+          <select value={type} onChange={e=>setType(e.target.value)}>
+            <option value="pnl">PnL</option>
+            <option value="withdrawal">Withdrawal</option>
+            <option value="counter">Counter</option>
+            <option value="boolean">Boolean</option>
+          </select>
+          <button onClick={create}>Create</button>
+        </div>
       </div>
 
-      <div style={{ marginTop: 10, opacity: 0.7, fontSize: 12 }}>
-        * 진행률은 수동 거래(manual_trades) 기반 PnL로 계산됨
-      </div>
+      <h2 style={{marginTop:22}}>Active Goals</h2>
+      {active.length===0 ? <div style={{opacity:.7}}>없음</div> : null}
+      {active.map(g=>{
+        const tv = g.target_value == null ? 1 : num(g.target_value);
+        const cv = num(g.current_value);
+        const progress = pct(cv, tv);
+        return (
+          <div key={g.id} style={{border:"1px solid #ddd",padding:12,marginBottom:12}}>
+            <div style={{display:"flex", justifyContent:"space-between", gap:10}}>
+              <div><b>{g.title}</b> ({g.type})</div>
+              <div style={{opacity:.7, fontSize:12}}>{g.mode}{g.period ? ` · ${g.period}` : ""}</div>
+            </div>
+            <div style={{marginTop:6}}>{cv} / {g.target_value ?? "-"}</div>
+            <div style={{background:"#eee",height:10, marginTop:8}}>
+              <div style={{width:progress+"%",height:"100%",background:"#333"}}/>
+            </div>
+            {g.type==="boolean" ? (
+              <button style={{marginTop:10}} onClick={()=>completeBoolean(g)}>Complete</button>
+            ) : null}
+          </div>
+        );
+      })}
+
+      <h2 style={{marginTop:22}}>Completed Goals</h2>
+      {completed.length===0 ? <div style={{opacity:.7}}>없음</div> : null}
+      {completed.map((g:any)=>(
+        <div key={g.id} style={{border:"1px solid #eee",padding:10,marginBottom:8,opacity:0.8}}>
+          <div>{g.title} — {g.type} — {g.target_value ?? ""} {g.unit ?? ""}</div>
+          <div style={{fontSize:12, opacity:0.7}}>{g.completed_at}</div>
+        </div>
+      ))}
     </div>
   );
 }
-
-function GoalCard({
-  title, done, target, progress, input, setInput
-}:{ title:string; done:number; target:number; progress:number; input:string; setInput:(v:string)=>void }){
-  return (
-    <div style={S.card}>
-      <div style={{ fontSize: 13, opacity: 0.7 }}>{title}</div>
-      <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>{fmt(done)}</div>
-      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
-        Target: {target ? fmt(target) : "-"}
-      </div>
-
-      <div style={S.barWrap}>
-        <div style={{ ...S.barFill, width: `${progress}%` }} />
-      </div>
-      <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
-        Progress: {progress.toFixed(1)}%
-      </div>
-
-      <div style={{ marginTop: 10, display:"grid", gap:6 }}>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Set Target</div>
-        <input
-          value={input}
-          onChange={(e)=>setInput(e.target.value)}
-          placeholder="예: 500"
-          style={S.input}
-        />
-      </div>
-    </div>
-  );
-}
-
-const S:any = {
-  card: { padding:16, borderRadius:12, border:"1px solid rgba(0,0,0,.08)", background:"white" },
-  input: { padding:"10px 12px", borderRadius:10, border:"1px solid rgba(0,0,0,.10)", outline:"none" },
-  barWrap: { height:10, borderRadius:999, background:"rgba(0,0,0,.06)", overflow:"hidden", marginTop:10 },
-  barFill: { height:"100%", background:"rgba(0,0,0,.55)" },
-  primary: { padding:"10px 14px", borderRadius:10, border:"1px solid rgba(0,0,0,.10)", background:"#111", color:"white", fontWeight:900, cursor:"pointer" },
-  secondary: { padding:"10px 14px", borderRadius:10, border:"1px solid rgba(0,0,0,.10)", background:"white", fontWeight:900, cursor:"pointer" },
-};

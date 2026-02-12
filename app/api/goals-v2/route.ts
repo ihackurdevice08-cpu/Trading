@@ -23,22 +23,6 @@ async function sbFromCookies(){
   );
 }
 
-function startOfPeriod(period:string){
-  const now = new Date();
-  if(period==="daily"){
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  }
-  if(period==="weekly"){
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day===0?-6:1);
-    return new Date(now.getFullYear(), now.getMonth(), diff).toISOString();
-  }
-  if(period==="monthly"){
-    return new Date(now.getFullYear(), now.getMonth(),1).toISOString();
-  }
-  return null;
-}
-
 export async function GET(){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
@@ -47,36 +31,23 @@ export async function GET(){
 
   const sb = supabaseServer();
 
-  const { data: goals, error } = await sb
+  const { data: goals, error: gErr } = await sb
     .from("goals_v2")
     .select("*")
     .eq("user_id", uid)
-    .eq("status","active");
+    .order("created_at",{ascending:false});
 
-  if(error) return bad(error.message,500);
+  if(gErr) return bad(gErr.message, 500);
 
-  const enriched = [];
+  const { data: history, error: hErr } = await sb
+    .from("goals_history")
+    .select("*")
+    .eq("user_id", uid)
+    .order("completed_at",{ascending:false});
 
-  for(const g of goals||[]){
-    let current = g.current_value ?? 0;
+  if(hErr) return bad(hErr.message, 500);
 
-    if(g.type==="pnl" && g.mode==="auto"){
-      const from = startOfPeriod(g.period);
-      if(from){
-        const { data: rows } = await sb
-          .from("manual_trades")
-          .select("pnl")
-          .eq("user_id", uid)
-          .gte("opened_at", from);
-
-        current = (rows||[]).reduce((acc:any,r:any)=>acc+(Number(r.pnl)||0),0);
-      }
-    }
-
-    enriched.push({ ...g, current_value: current });
-  }
-
-  return ok({ goals: enriched });
+  return ok({ goals: goals||[], history: history||[] });
 }
 
 export async function POST(req:Request){
@@ -97,6 +68,7 @@ export async function POST(req:Request){
     target_value: body.target_value ?? null,
     current_value: body.current_value ?? 0,
     unit: body.unit,
+    status: body.status ?? "active",
     meta: body.meta ?? {}
   };
 
@@ -120,13 +92,47 @@ export async function PATCH(req:Request){
   const body = await req.json().catch(()=>null);
   if(!body?.id) return bad("id required");
 
-  const { error } = await supabaseServer()
+  const sb = supabaseServer();
+
+  const { data: goal, error: readErr } = await sb
     .from("goals_v2")
-    .update(body)
+    .select("*")
+    .eq("id", body.id)
+    .eq("user_id", user.id)
+    .single();
+
+  if(readErr) return bad(readErr.message, 500);
+
+  const updated = { ...goal, ...body };
+
+  // avoid duplicate history insert if already completed
+  const willComplete =
+    updated.status !== "completed" &&
+    updated.target_value != null &&
+    Number(updated.current_value ?? 0) >= Number(updated.target_value);
+
+  if(willComplete){
+    const { error: histErr } = await sb.from("goals_history").insert({
+      user_id: user.id,
+      goal_id: updated.id,
+      type: updated.type,
+      title: updated.title,
+      target_value: updated.target_value,
+      unit: updated.unit,
+      meta: updated.meta ?? {}
+    });
+
+    if(histErr) return bad(histErr.message, 500);
+    updated.status = "completed";
+  }
+
+  const { error: upErr } = await sb
+    .from("goals_v2")
+    .update(updated)
     .eq("id", body.id)
     .eq("user_id", user.id);
 
-  if(error) return bad(error.message,500);
+  if(upErr) return bad(upErr.message, 500);
 
   return ok({});
 }
@@ -147,7 +153,7 @@ export async function DELETE(req:Request){
     .eq("id", id)
     .eq("user_id", uid);
 
-  if(error) return bad(error.message,500);
+  if(error) return bad(error.message, 500);
 
   return ok({});
 }
