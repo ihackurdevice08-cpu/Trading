@@ -1,4 +1,5 @@
 import Link from "next/link";
+import RiskBanner from "@/components/RiskBanner";
 
 export default function AppLayout({ children }) {
   return (
@@ -14,7 +15,8 @@ export default function AppLayout({ children }) {
               <Link style={S.navItem} href="/journal">Journal</Link>
               <Link style={S.navItem} href="/manual-trades">Trades</Link>
               <Link style={S.navItem} href="/goals">Goals</Link>
-              <Link style={S.navItem} href="/settings">Settings</Link>
+              <Link style={S.navItem} href="/risk">Risk</Link>
+                <Link style={S.navItem} href="/settings">Settings</Link>
             </nav>
 
             <div style={{ flex: 1 }} />
@@ -24,7 +26,8 @@ export default function AppLayout({ children }) {
 
           {/* Main */}
           <main style={S.main}>
-            {children}
+            <RiskBanner />
+              {children}
           </main>
         </div>
       </body>
