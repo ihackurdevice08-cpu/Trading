@@ -28,20 +28,33 @@ async function sbFromCookies() {
   );
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
   const uid = data.user?.id;
   if (!uid) return bad("unauthorized", 401);
 
-  const sb = supabaseServer();
-  const { data: rows, error } = await sb
+  const url = new URL(req.url);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  const symbol = url.searchParams.get("symbol");
+  const tag = url.searchParams.get("tag");
+
+  let q = supabaseServer()
     .from("manual_trades")
     .select("*")
     .eq("user_id", uid)
-    .order("opened_at", { ascending: false });
+    .order("opened_at", { ascending: false })
+    .limit(200);
 
+  if (from) q = q.gte("opened_at", from);
+  if (to) q = q.lte("opened_at", to);
+  if (symbol) q = q.ilike("symbol", `%${symbol}%`);
+  if (tag) q = q.contains("tags", [tag]);
+
+  const { data: rows, error } = await q;
   if (error) return bad(error.message, 500);
+
   return NextResponse.json({ ok: true, trades: rows || [] });
 }
 
@@ -74,8 +87,7 @@ export async function POST(req: Request) {
     notes: body.notes ?? null,
   };
 
-  const sb = supabaseServer();
-  const { data: row, error } = await sb
+  const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
     .select("*")
@@ -83,4 +95,25 @@ export async function POST(req: Request) {
 
   if (error) return bad(error.message, 500);
   return NextResponse.json({ ok: true, trade: row });
+}
+
+// DELETE /api/manual-trades?id=UUID
+export async function DELETE(req: Request) {
+  const sbAuth = await sbFromCookies();
+  const { data } = await sbAuth.auth.getUser();
+  const uid = data.user?.id;
+  if (!uid) return bad("unauthorized", 401);
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  if (!id) return bad("id가 필요합니다.");
+
+  const { error } = await supabaseServer()
+    .from("manual_trades")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", uid);
+
+  if (error) return bad(error.message, 500);
+  return NextResponse.json({ ok: true });
 }

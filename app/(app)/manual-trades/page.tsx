@@ -78,6 +78,23 @@ export default function ManualTradesPage() {
     }
   }
 
+  async function deleteTrade(id: string) {
+    setErr("");
+    const ok = window.confirm("이 거래기록을 삭제할까요?");
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/manual-trades?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "삭제 실패");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "오류");
+    }
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -86,7 +103,7 @@ export default function ManualTradesPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: 20 }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>수동 거래기록</h1>
       <div style={{ opacity: 0.75, marginBottom: 16 }}>
-        Dashboard/Goals/Risk의 “기초 데이터”를 여기서부터 쌓습니다.
+        여기 데이터가 Dashboard/Goals/Risk의 기초가 됩니다.
       </div>
 
       {err ? (
@@ -121,7 +138,7 @@ export default function ManualTradesPage() {
           </label>
 
           <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>
-            <span style={{ opacity: 0.8 }}>태그 (콤마로 구분)</span>
+            <span style={{ opacity: 0.8 }}>태그 (콤마)</span>
             <input value={tags} onChange={(e) => setTags(e.target.value)} style={inputStyle} placeholder="breakout, revenge, clean" />
           </label>
 
@@ -154,10 +171,17 @@ export default function ManualTradesPage() {
         ) : (
           trades.map((t) => (
             <div key={t.id} style={{ padding: 12, borderTop: "1px solid rgba(255,255,255,.06)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontWeight: 800 }}>{t.symbol} · {t.side.toUpperCase()}</div>
-                <div style={{ opacity: 0.75 }}>PnL: {fmt(t.pnl)}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                <div style={{ fontWeight: 800 }}>
+                  {t.symbol} · {t.side.toUpperCase()}
+                </div>
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ opacity: 0.75 }}>PnL: {fmt(t.pnl)}</div>
+                  <button onClick={() => deleteTrade(t.id)} style={dangerBtn}>삭제</button>
+                </div>
               </div>
+
               <div style={{ opacity: 0.75, marginTop: 6 }}>opened: {t.opened_at}</div>
               {t.tags?.length ? <div style={{ marginTop: 6, opacity: 0.8 }}>tags: {t.tags.join(", ")}</div> : null}
               {t.notes ? <div style={{ marginTop: 6, opacity: 0.85 }}>note: {t.notes}</div> : null}
@@ -193,6 +217,15 @@ const btnStyle2: React.CSSProperties = {
   background: "transparent",
   cursor: "pointer",
   opacity: 0.9,
+};
+
+const dangerBtn: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,0,0,.35)",
+  background: "rgba(255,0,0,.10)",
+  cursor: "pointer",
+  fontWeight: 800,
 };
 
 const pillStyle: React.CSSProperties = {
