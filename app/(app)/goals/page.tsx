@@ -25,12 +25,14 @@ export default function GoalsPage(){
   const [type,setType] = useState<"pnl"|"withdrawal"|"counter"|"boolean">("pnl");
   const [target,setTarget] = useState("");
 
+  // per-goal edit buffer (current_value 입력용)
+  const [edit,setEdit] = useState<Record<string,string>>({});
+
   async function load(){
     setErr("");
     const r = await fetch("/api/goals-v2?includeCompleted=1", { cache:"no-store" });
     const j = await r.json().catch(()=>null);
     if(!j?.ok){ setErr(j?.error || "불러오기 실패"); return; }
-    // 여기서는 goals에 completed도 같이 받아오되, 화면에서 분리해서 보여줌
     setGoals(j.goals || []);
     setHistory(j.history || []);
   }
@@ -44,10 +46,13 @@ export default function GoalsPage(){
         type,
         period:"monthly",
       };
+      if(!payload.title){ setErr("목표 제목을 입력해줘"); return; }
+
       if(type !== "boolean"){
         payload.target_value = n(target);
         if(!payload.target_value) { setErr("목표 수치(숫자)를 입력해줘"); return; }
       }
+
       const r = await fetch("/api/goals-v2",{
         method:"POST",
         headers:{ "content-type":"application/json"},
@@ -55,7 +60,32 @@ export default function GoalsPage(){
       });
       const j = await r.json().catch(()=>null);
       if(!j?.ok){ setErr(j?.error || "생성 실패"); return; }
+
       setTitle(""); setTarget("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateProgress(g:any){
+    setErr("");
+    setBusy(true);
+    try{
+      const v = edit[g.id];
+      const cur = (g.type==="boolean") ? 1 : n(v);
+      if(g.type!=="boolean" && !Number.isFinite(cur)){ setErr("숫자를 입력해줘"); return; }
+
+      const r = await fetch("/api/goals-v2",{
+        method:"PATCH",
+        headers:{ "content-type":"application/json"},
+        body: JSON.stringify({ id:g.id, current_value: cur }),
+      });
+      const j = await r.json().catch(()=>null);
+      if(!j?.ok){ setErr(j?.error || "저장 실패"); return; }
+
+      // 입력칸은 유지해도 되지만, UX상 비워줌
+      setEdit(prev => ({...prev, [g.id]:""}));
       await load();
     } finally {
       setBusy(false);
@@ -121,6 +151,12 @@ export default function GoalsPage(){
     return t;
   };
 
+  const unitLabel = (t:string)=>{
+    if(t==="pnl" || t==="withdrawal") return "USDT";
+    if(t==="counter") return "회";
+    return "";
+  };
+
   return (
     <div style={{padding:20, maxWidth:1100}}>
       <h1 style={{marginTop:0}}>Goals</h1>
@@ -154,9 +190,13 @@ export default function GoalsPage(){
 
       <h2 style={{marginTop:0}}>진행중 목표</h2>
       {active.length===0 ? <div style={{opacity:.7}}>없음</div> : null}
+
       {active.map((g:any)=>{
         const cur = n(g.current_value);
         const tgt = n(g.target_value);
+        const isBool = g.type==="boolean";
+        const unit = unitLabel(String(g.type));
+
         return (
           <div key={g.id} style={{border:"1px solid #eee", padding:12, marginBottom:10}}>
             <div style={{display:"flex", justifyContent:"space-between", gap:10}}>
@@ -164,27 +204,54 @@ export default function GoalsPage(){
               <div style={{opacity:.7}}>{typeLabel(String(g.type))} 목표</div>
             </div>
 
-            {g.type==="boolean" ? (
-              <div style={{marginTop:10}}>
-                <Bar cur={cur} tgt={1} />
-                <div style={{marginTop:6, opacity:.8}}>미완료</div>
-              </div>
-            ) : (
-              <div style={{marginTop:10}}>
-                <div style={{display:"flex", justifyContent:"space-between", gap:10, opacity:.8}}>
-                  <div>{cur.toLocaleString()} / {tgt.toLocaleString()}</div>
-                  <div>달성률 {pct(cur,tgt).toFixed(1)}%</div>
-                </div>
-                <Bar cur={cur} tgt={tgt} />
-              </div>
-            )}
+            <div style={{marginTop:10}}>
+              {isBool ? (
+                <>
+                  <Bar cur={0} tgt={1} />
+                  <div style={{marginTop:6, opacity:.8}}>미완료</div>
+                </>
+              ) : (
+                <>
+                  <div style={{display:"flex", justifyContent:"space-between", gap:10, opacity:.8}}>
+                    <div>{cur.toLocaleString()} / {tgt.toLocaleString()} {unit}</div>
+                    <div>달성률 {pct(cur,tgt).toFixed(1)}%</div>
+                  </div>
+                  <Bar cur={cur} tgt={tgt} />
+                </>
+              )}
+            </div>
 
-            <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap"}}>
-              {g.type==="boolean" ? (
-                <button onClick={()=>markDone(g)} disabled={busy} style={{padding:"6px 10px"}}>달성 처리</button>
-              ) : null}
+            {/* ✅ 진행 업데이트 / 완료 처리 */}
+            <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
+              {isBool ? (
+                <button onClick={()=>markDone(g)} disabled={busy} style={{padding:"6px 10px", fontWeight:900}}>
+                  달성
+                </button>
+              ) : (
+                <>
+                  <input
+                    style={{padding:"6px 10px", width:220}}
+                    placeholder={`현재 ${typeLabel(String(g.type))} 입력 (${unit})`}
+                    value={edit[g.id] ?? ""}
+                    onChange={(e)=>setEdit(prev=>({ ...prev, [g.id]: e.target.value }))}
+                  />
+                  <button onClick={()=>updateProgress(g)} disabled={busy} style={{padding:"6px 10px", fontWeight:900}}>
+                    진행 저장
+                  </button>
+                  <button onClick={()=>markDone(g)} disabled={busy} style={{padding:"6px 10px"}}>
+                    목표 달성 처리
+                  </button>
+                </>
+              )}
+
+              <div style={{flex:1}} />
+
               <button onClick={()=>archiveGoal(g)} disabled={busy} style={{padding:"6px 10px"}}>숨김</button>
               <button onClick={()=>hardDelete(g)} disabled={busy} style={{padding:"6px 10px"}}>완전삭제</button>
+            </div>
+
+            <div style={{marginTop:8, fontSize:12, opacity:.75}}>
+              * 진행 저장을 누르면 목표가 자동 업데이트됩니다. 목표치 이상이면 자동으로 완료 처리됩니다.
             </div>
           </div>
         );
