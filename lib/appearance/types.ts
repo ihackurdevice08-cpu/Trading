@@ -13,6 +13,15 @@ export type AppearanceSettings = {
   showRow2AssetPerf?: boolean;
   showRow3Behavior?: boolean;
   showRow4Overtrade?: boolean;
+  showRow5Goals?: boolean;
+
+  dashboardRowOrder?: (
+    | "row1"
+    | "row2"
+    | "row3"
+    | "row4"
+    | "row5"
+  )[];
 
   // Overtrade options (optional)
   overtradeWindowMin?: number;
