@@ -36,6 +36,11 @@ export default function GoalsPage(){
     }
     setGoals(j.goals||[]);
     setHistory(j.history||[]);
+    if(j.history_error){
+      // history 쪽 에러가 있더라도 goals는 보여주되, 참고용 메시지
+      // (원하면 이 라인 지워도 됨)
+      // setMsg("히스토리 일부 로딩 실패: " + j.history_error);
+    }
   }
 
   async function create(){
@@ -52,7 +57,7 @@ export default function GoalsPage(){
       type,
       mode: (type==="pnl") ? "auto" : "manual",
       period: (type==="pnl") ? "monthly" : "none",
-      target_value: t,                 // ✅ boolean도 1로 고정
+      target_value: t,
       current_value: 0,
       unit: (type==="pnl" || type==="withdrawal") ? "usd" : "count",
     };
@@ -80,6 +85,7 @@ export default function GoalsPage(){
   }
 
   async function completeBoolean(g:any){
+    if(busy) return;
     setBusy(true);
     setMsg("");
     try{
@@ -95,6 +101,27 @@ export default function GoalsPage(){
       }
       await load();
       setMsg("✅ 완료 처리되었습니다.");
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  async function removeGoal(g:any){
+    if(busy) return;
+    const yes = confirm("이 목표를 삭제(아카이브)할까? (완전삭제 아님)");
+    if(!yes) return;
+
+    setBusy(true);
+    setMsg("");
+    try{
+      const r = await fetch("/api/goals-v2?id="+encodeURIComponent(g.id),{ method:"DELETE" });
+      const j = await r.json().catch(()=>({ok:false,error:"JSON parse failed"}));
+      if(!j.ok){
+        setMsg("삭제 실패: " + (j.error || "unknown"));
+        return;
+      }
+      await load();
+      setMsg("🗑️ 목표가 삭제(아카이브)되었습니다.");
     }finally{
       setBusy(false);
     }
@@ -192,11 +219,16 @@ export default function GoalsPage(){
               <div style={{width:p+"%",height:"100%",background:"#333"}}/>
             </div>
 
-            {g.type==="boolean" ? (
-              <button onClick={()=>completeBoolean(g)} disabled={busy} style={{marginTop:10}}>
-                완료 처리
+            <div style={{display:"flex", gap:8, marginTop:10}}>
+              {g.type==="boolean" ? (
+                <button onClick={()=>completeBoolean(g)} disabled={busy}>
+                  완료 처리
+                </button>
+              ) : null}
+              <button onClick={()=>removeGoal(g)} disabled={busy} style={{opacity:0.9}}>
+                삭제
               </button>
-            ) : null}
+            </div>
           </div>
         );
       })}
