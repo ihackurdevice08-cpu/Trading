@@ -39,15 +39,14 @@ export async function GET(){
 
   if(gErr) return bad(gErr.message, 500);
 
+  // history는 실패해도 goals는 내려주도록 방어
   const { data: history, error: hErr } = await sb
     .from("goals_history")
     .select("*")
     .eq("user_id", uid)
     .order("completed_at",{ascending:false});
 
-  if(hErr) return bad(hErr.message, 500);
-
-  return ok({ goals: goals||[], history: history||[] });
+  return ok({ goals: goals||[], history: hErr ? [] : (history||[]), history_error: hErr ? hErr.message : null });
 }
 
 export async function POST(req:Request){
@@ -105,7 +104,6 @@ export async function PATCH(req:Request){
 
   const updated = { ...goal, ...body };
 
-  // avoid duplicate history insert if already completed
   const willComplete =
     updated.status !== "completed" &&
     updated.target_value != null &&
@@ -121,7 +119,6 @@ export async function PATCH(req:Request){
       unit: updated.unit,
       meta: updated.meta ?? {}
     });
-
     if(histErr) return bad(histErr.message, 500);
     updated.status = "completed";
   }
