@@ -48,6 +48,7 @@ export default function GoalsClient({ initial }) {
         <h1 style={{margin:0}}>Goals</h1>
         <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
           <a href="/dashboard" style={S.btn}>Dashboard</a>
+          <a href="/risk" style={S.btn}>Risk</a>
           <a href="/settings" style={S.btn}>Settings</a>
           <a href="/journal" style={S.btn}>Journal</a>
         </div>

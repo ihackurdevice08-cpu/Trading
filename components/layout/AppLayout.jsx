@@ -8,7 +8,8 @@ export default function AppLayout({ children }) {
     { href: "/journal", label: "Journal" },
     { href: "/goals", label: "Goals" },
     { href: "/manual-trades", label: "Trades" },
-    { href: "/settings", label: "Settings" },
+    { href: "/risk", label: "Risk" },
+      { href: "/settings", label: "Settings" },
   ];
 
   return (

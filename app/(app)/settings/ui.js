@@ -64,6 +64,7 @@ export default function SettingsClient({ initial }) {
         <div style={{display:"flex", gap:10}}>
           <a href="/dashboard" style={S.btn}>Dashboard</a>
           <a href="/journal" style={S.btn}>Journal</a>
+          <a href="/risk" style={S.btn}>Risk</a>
           <a href="/goals" style={S.btn}>Goals</a>
         </div>
       </header>

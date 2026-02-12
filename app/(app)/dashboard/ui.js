@@ -30,6 +30,7 @@ export default function DashboardClient({ email, settings }) {
           <div style={S.sub}>로그인됨: {email}</div>
         </div>
         <div style={S.headerBtns}>
+          <a href="/risk" style={S.btn}>Risk</a>
           <a href="/settings" style={S.btn}>Settings</a>
           <a href="/goals" style={S.btn}>Goals</a>
           <a href="/journal" style={S.btn}>Journal</a>

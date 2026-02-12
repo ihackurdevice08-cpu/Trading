@@ -26,7 +26,11 @@ export default function GoalsPage(){
   const [target,setTarget] = useState("");
 
   // per-goal edit buffer (current_value 입력용)
-  const [edit,setEdit] = useState<Record<string,string>>({});
+  const [editProgress,setEditProgress] = useState<Record<string,string>>({});
+
+  // per-goal title edit buffer
+  const [editingId,setEditingId] = useState<string|null>(null);
+  const [editTitle,setEditTitle] = useState<Record<string,string>>({});
 
   async function load(){
     setErr("");
@@ -72,9 +76,8 @@ export default function GoalsPage(){
     setErr("");
     setBusy(true);
     try{
-      const v = edit[g.id];
+      const v = editProgress[g.id];
       const cur = (g.type==="boolean") ? 1 : n(v);
-      if(g.type!=="boolean" && !Number.isFinite(cur)){ setErr("숫자를 입력해줘"); return; }
 
       const r = await fetch("/api/goals-v2",{
         method:"PATCH",
@@ -82,10 +85,31 @@ export default function GoalsPage(){
         body: JSON.stringify({ id:g.id, current_value: cur }),
       });
       const j = await r.json().catch(()=>null);
-      if(!j?.ok){ setErr(j?.error || "저장 실패"); return; }
+      if(!j?.ok){ setErr(j?.error || "진행 저장 실패"); return; }
 
-      // 입력칸은 유지해도 되지만, UX상 비워줌
-      setEdit(prev => ({...prev, [g.id]:""}));
+      setEditProgress(prev => ({...prev, [g.id]:""}));
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTitle(g:any){
+    setErr("");
+    const t = (editTitle[g.id] ?? "").trim();
+    if(!t){ setErr("제목이 비어있어"); return; }
+
+    setBusy(true);
+    try{
+      const r = await fetch("/api/goals-v2",{
+        method:"PATCH",
+        headers:{ "content-type":"application/json"},
+        body: JSON.stringify({ id:g.id, title: t }),
+      });
+      const j = await r.json().catch(()=>null);
+      if(!j?.ok){ setErr(j?.error || "이름 저장 실패"); return; }
+
+      setEditingId(null);
       await load();
     } finally {
       setBusy(false);
@@ -102,7 +126,7 @@ export default function GoalsPage(){
         body: JSON.stringify({ id:g.id, current_value: (g.type==="boolean") ? 1 : g.target_value }),
       });
       const j = await r.json().catch(()=>null);
-      if(!j?.ok){ setErr(j?.error || "처리 실패"); return; }
+      if(!j?.ok){ setErr(j?.error || "완료 처리 실패"); return; }
       await load();
     } finally {
       setBusy(false);
@@ -197,10 +221,39 @@ export default function GoalsPage(){
         const isBool = g.type==="boolean";
         const unit = unitLabel(String(g.type));
 
+        const isEditing = editingId === g.id;
+        const titleValue = isEditing ? (editTitle[g.id] ?? g.title ?? "") : (g.title ?? "");
+
         return (
           <div key={g.id} style={{border:"1px solid #eee", padding:12, marginBottom:10}}>
-            <div style={{display:"flex", justifyContent:"space-between", gap:10}}>
-              <div style={{fontWeight:900}}>{g.title || "(untitled)"}</div>
+            <div style={{display:"flex", justifyContent:"space-between", gap:10, alignItems:"center"}}>
+              <div style={{fontWeight:900, display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+                {isEditing ? (
+                  <>
+                    <input
+                      value={titleValue}
+                      onChange={(e)=>setEditTitle(prev=>({ ...prev, [g.id]: e.target.value }))}
+                      style={{padding:"6px 10px", minWidth:260}}
+                    />
+                    <button onClick={()=>saveTitle(g)} disabled={busy} style={{padding:"6px 10px", fontWeight:900}}>저장</button>
+                    <button onClick={()=>setEditingId(null)} disabled={busy} style={{padding:"6px 10px"}}>취소</button>
+                  </>
+                ) : (
+                  <>
+                    <span>{g.title || "(untitled)"}</span>
+                    <button
+                      onClick={()=>{
+                        setEditingId(g.id);
+                        setEditTitle(prev=>({ ...prev, [g.id]: g.title || "" }));
+                      }}
+                      disabled={busy}
+                      style={{padding:"6px 10px"}}
+                    >
+                      이름 수정
+                    </button>
+                  </>
+                )}
+              </div>
               <div style={{opacity:.7}}>{typeLabel(String(g.type))} 목표</div>
             </div>
 
@@ -221,7 +274,6 @@ export default function GoalsPage(){
               )}
             </div>
 
-            {/* ✅ 진행 업데이트 / 완료 처리 */}
             <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
               {isBool ? (
                 <button onClick={()=>markDone(g)} disabled={busy} style={{padding:"6px 10px", fontWeight:900}}>
@@ -230,10 +282,10 @@ export default function GoalsPage(){
               ) : (
                 <>
                   <input
-                    style={{padding:"6px 10px", width:220}}
+                    style={{padding:"6px 10px", width:240}}
                     placeholder={`현재 ${typeLabel(String(g.type))} 입력 (${unit})`}
-                    value={edit[g.id] ?? ""}
-                    onChange={(e)=>setEdit(prev=>({ ...prev, [g.id]: e.target.value }))}
+                    value={editProgress[g.id] ?? ""}
+                    onChange={(e)=>setEditProgress(prev=>({ ...prev, [g.id]: e.target.value }))}
                   />
                   <button onClick={()=>updateProgress(g)} disabled={busy} style={{padding:"6px 10px", fontWeight:900}}>
                     진행 저장
