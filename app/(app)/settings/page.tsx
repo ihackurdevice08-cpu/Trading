@@ -57,6 +57,8 @@ function RowToggle({
 }
 
 export default function SettingsPage() {
+  const [saveMsg, setSaveMsg] = useState<string>("");
+
   const { appearance, patchAppearance, isAuthed } = useAppearance();
   const [busy, setBusy] = useState(false);
   const [apiBusy, setApiBusy] = useState(false);
@@ -89,7 +91,8 @@ export default function SettingsPage() {
     setBusy(true);
     setMsg("Saving…");
     try {
-      const res = await fetch("/api/settings", {
+      const res = setSaveMsg("");
+    const resp = await globalThis.fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appearance }),
