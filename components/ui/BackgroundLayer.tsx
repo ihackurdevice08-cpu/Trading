@@ -1,12 +1,11 @@
 "use client";
 
+import React from "react";
 import { useAppearance } from "@/components/providers/AppearanceProvider";
 
 export default function BackgroundLayer() {
   const { appearance } = useAppearance();
-
-  // 타입 충돌 회피: bg는 런타임 필드가 더 많을 수 있음(opacity/dim/blurPx/type 등)
-  const bg: any = (appearance as any)?.bg || {};
+  const bg = appearance.bg || {};
 
   if (!bg.enabled) return null;
   if (!bg.url) return null;
@@ -17,68 +16,49 @@ export default function BackgroundLayer() {
   const dim = typeof bg.dim === "number" ? bg.dim : 0.45;
   const blurPx = typeof bg.blurPx === "number" ? bg.blurPx : 10;
 
-  const isVideo = bg.type === "video";
-  const src = String(bg.url || "");
+  const common: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 0,
+    pointerEvents: "none",
+    opacity,
+    filter: blurPx ? `blur(${blurPx}px)` : undefined,
+    transform: "scale(1.02)",
+  };
 
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        overflow: "hidden",
-      }}
-    >
+    <>
+      {bg.type === "image" ? (
+        <div
+          style={{
+            ...common,
+            backgroundImage: `url(${bg.url})`,
+            backgroundSize: fit,
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
+      ) : (
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{ ...common, width: "100%", height: "100%", objectFit: fit }}
+          src={bg.url}
+        />
+      )}
+
+      {/* dim overlay */}
       <div
         style={{
-          position: "absolute",
+          position: "fixed",
           inset: 0,
-          background: "var(--bg)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          opacity,
-          filter: blurPx ? `blur(${blurPx}px)` : undefined,
-          transform: blurPx ? "scale(1.04)" : undefined,
-        }}
-      >
-        {isVideo ? (
-          <video
-            src={src}
-            autoPlay
-            muted
-            loop
-            playsInline
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: fit,
-            }}
-          />
-        ) : (
-          <img
-            src={src}
-            alt=""
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: fit,
-            }}
-          />
-        )}
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
+          zIndex: 1,
+          pointerEvents: "none",
           background: `rgba(0,0,0,${dim})`,
         }}
       />
-    </div>
+    </>
   );
 }

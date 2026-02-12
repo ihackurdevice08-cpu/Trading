@@ -657,8 +657,8 @@ export default function SettingsPage() {
           <label style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Type</div>
             <select
-              value={appearance.bgType}
-              onChange={(e) => patchAppearance({ bgType: e.target.value as any })}
+              value={((appearance.bg?.type ?? "none") as any)}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), type: e.target.value as any } } as any)}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -678,8 +678,8 @@ export default function SettingsPage() {
           <label style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Fit</div>
             <select
-              value={appearance.bgFit}
-              onChange={(e) => patchAppearance({ bgFit: e.target.value as any })}
+              value={((appearance.bg?.fit ?? "cover") as any)}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), fit: e.target.value as any } } as any)}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -702,8 +702,8 @@ export default function SettingsPage() {
               min="0"
               max="1"
               step="0.01"
-              value={appearance.bgOpacity}
-              onChange={(e) => patchAppearance({ bgOpacity: Number(e.target.value) })}
+              value={(typeof appearance.bg?.opacity === "number" ? appearance.bg.opacity : 0.25)}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), opacity: Number(e.target.value) } } as any)}
             />
           </label>
 
@@ -714,8 +714,8 @@ export default function SettingsPage() {
               min="0"
               max="24"
               step="1"
-              value={appearance.bgBlurPx}
-              onChange={(e) => patchAppearance({ bgBlurPx: Number(e.target.value) })}
+              value={(typeof appearance.bg?.blurPx === "number" ? appearance.bg.blurPx : 10)}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), blurPx: Number(e.target.value) } } as any)}
             />
           </label>
 
@@ -726,8 +726,8 @@ export default function SettingsPage() {
               min="0"
               max="0.9"
               step="0.01"
-              value={appearance.bgDim}
-              onChange={(e) => patchAppearance({ bgDim: Number(e.target.value) })}
+              value={(typeof appearance.bg?.dim === "number" ? appearance.bg.dim : 0.45)}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), dim: Number(e.target.value) } } as any)}
             />
           </label>
 
@@ -755,10 +755,8 @@ export default function SettingsPage() {
 
                   // 업로드한 파일 유형에 따라 타입 자동 세팅
                   const isVideo = f.type.startsWith("video/");
-                  patchAppearance({
-                    bgUrl: url,
-                    bgType: isVideo ? "video" : "image",
-                  });
+                  patchAppearance({ bg: { ...(appearance.bg || {}), url: url,
+                    bgType: isVideo ? "video" : "image", } } as any);
                   alert("Uploaded");
                 } catch (err: any) {
                   alert(err?.message || String(err));
@@ -774,8 +772,8 @@ export default function SettingsPage() {
             <div style={{ fontSize: 12, fontWeight: 900, color: "var(--text-muted)" }}>Or paste URL</div>
             <input
               type="text"
-              value={appearance.bgUrl || ""}
-              onChange={(e) => patchAppearance({ bgUrl: e.target.value })}
+              value={(appearance.bg?.url ?? "") || ""}
+              onChange={(e) => patchAppearance({ bg: { ...(appearance.bg || {}), url: e.target.value } } as any)}
               placeholder="https://..."
               style={{
                 width: "100%",

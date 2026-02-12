@@ -23,7 +23,22 @@ async function sbFromCookies(){
   );
 }
 
-// ---------------- GET ----------------
+function startOfPeriod(period:string){
+  const now = new Date();
+  if(period==="daily"){
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  }
+  if(period==="weekly"){
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day===0?-6:1);
+    return new Date(now.getFullYear(), now.getMonth(), diff).toISOString();
+  }
+  if(period==="monthly"){
+    return new Date(now.getFullYear(), now.getMonth(),1).toISOString();
+  }
+  return null;
+}
+
 export async function GET(){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
@@ -36,15 +51,34 @@ export async function GET(){
     .from("goals_v2")
     .select("*")
     .eq("user_id", uid)
-    .eq("status","active")
-    .order("created_at",{ascending:false});
+    .eq("status","active");
 
   if(error) return bad(error.message,500);
 
-  return ok({ goals: goals || [] });
+  const enriched = [];
+
+  for(const g of goals||[]){
+    let current = g.current_value ?? 0;
+
+    if(g.type==="pnl" && g.mode==="auto"){
+      const from = startOfPeriod(g.period);
+      if(from){
+        const { data: rows } = await sb
+          .from("manual_trades")
+          .select("pnl")
+          .eq("user_id", uid)
+          .gte("opened_at", from);
+
+        current = (rows||[]).reduce((acc:any,r:any)=>acc+(Number(r.pnl)||0),0);
+      }
+    }
+
+    enriched.push({ ...g, current_value: current });
+  }
+
+  return ok({ goals: enriched });
 }
 
-// ---------------- POST ----------------
 export async function POST(req:Request){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
@@ -77,7 +111,6 @@ export async function POST(req:Request){
   return ok({ goal: row });
 }
 
-// ---------------- PATCH ----------------
 export async function PATCH(req:Request){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
@@ -85,15 +118,11 @@ export async function PATCH(req:Request){
   if(!user) return bad("unauthorized",401);
 
   const body = await req.json().catch(()=>null);
-  if(!body || !body.id) return bad("id required");
-
-  const updates:any = {};
-  if(body.current_value !== undefined) updates.current_value = body.current_value;
-  if(body.status) updates.status = body.status;
+  if(!body?.id) return bad("id required");
 
   const { error } = await supabaseServer()
     .from("goals_v2")
-    .update(updates)
+    .update(body)
     .eq("id", body.id)
     .eq("user_id", user.id);
 
@@ -102,7 +131,6 @@ export async function PATCH(req:Request){
   return ok({});
 }
 
-// ---------------- DELETE (archive) ----------------
 export async function DELETE(req:Request){
   const sbAuth = await sbFromCookies();
   const { data } = await sbAuth.auth.getUser();
