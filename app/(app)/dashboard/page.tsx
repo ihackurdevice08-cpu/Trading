@@ -1,88 +1,68 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useAppearance } from "@/components/providers/AppearanceProvider";
+import Link from "next/link";
 
-function fmt(n:any){
-  const v = Number(n);
-  if(!Number.isFinite(v)) return "-";
-  return v.toLocaleString(undefined,{maximumFractionDigits:2});
-}
-function pct(cur:number,tar:number){
-  if(!tar) return 0;
-  return Math.min(200,(cur/tar)*100);
+function Row1() {
+  return <div style={box}>Row 1 - Status</div>;
 }
 
-export default function DashboardPage(){
-  const [stats,setStats]=useState<any>(null);
-  const [goals,setGoals]=useState<any[]>([]);
-  const [err,setErr]=useState("");
+function Row2() {
+  return <div style={box}>Row 2 - Asset & Performance</div>;
+}
 
-  async function load(){
-    try{
-      const [a,b]=await Promise.all([
-        fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.json()),
-        fetch("/api/goals-v2",{cache:"no-store"}).then(r=>r.json())
-      ]);
-      if(a.ok) setStats(a.stats);
-      if(b.ok) setGoals(b.goals||[]);
-    }catch(e:any){
-      setErr(e?.message||"error");
+function Row3() {
+  return <div style={box}>Row 3 - Behavior</div>;
+}
+
+function Row4() {
+  return <div style={box}>Row 4 - Overtrade</div>;
+}
+
+function Row5() {
+  return <div style={box}>Row 5 - Goals</div>;
+}
+
+export default function DashboardPage() {
+  const { appearance } = useAppearance();
+
+  const order =
+    appearance.dashboardRowOrder ?? ["row1", "row2", "row3", "row4", "row5"];
+
+  function renderRow(id: string) {
+    switch (id) {
+      case "row1":
+        return appearance.showRow1Status ? <Row1 key="row1" /> : null;
+      case "row2":
+        return appearance.showRow2AssetPerf ? <Row2 key="row2" /> : null;
+      case "row3":
+        return appearance.showRow3Behavior ? <Row3 key="row3" /> : null;
+      case "row4":
+        return appearance.showRow4Overtrade ? <Row4 key="row4" /> : null;
+      case "row5":
+        return appearance.showRow5Goals ? <Row5 key="row5" /> : null;
+      default:
+        return null;
     }
   }
 
-  useEffect(()=>{
-    load();
-
-    // 15초 자동 갱신
-    const id = setInterval(load,15000);
-
-    // trades 업데이트 이벤트 감지
-    function handler(){ load(); }
-    window.addEventListener("trades-updated",handler);
-
-    return ()=>{
-      clearInterval(id);
-      window.removeEventListener("trades-updated",handler);
-    };
-  },[]);
-
-  if(err) return <div style={{padding:20}}>Error: {err}</div>;
-  if(!stats) return <div style={{padding:20}}>Loading...</div>;
-
   return (
-    <div style={{padding:20,maxWidth:1100}}>
+    <div style={{ padding: 24 }}>
       <h1>Dashboard</h1>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
-        <Card title="Today" value={fmt(stats.todayPnL)} />
-        <Card title="Week" value={fmt(stats.weekPnL)} />
-        <Card title="Month" value={fmt(stats.monthPnL)} />
+      <div style={{ marginBottom: 16 }}>
+        <Link href="/settings">Settings</Link>
       </div>
 
-      <div style={{marginTop:30}}>
-        <h2>Active Goals</h2>
-        {goals.map(g=>{
-          const progress = pct(Number(g.current_value||0),Number(g.target_value||1));
-          return (
-            <div key={g.id} style={{marginBottom:12,border:"1px solid #ddd",padding:12}}>
-              <div><b>{g.title}</b></div>
-              <div>{fmt(g.current_value)} / {fmt(g.target_value)}</div>
-              <div style={{background:"#eee",height:8}}>
-                <div style={{width:progress+"%",height:"100%",background:"#333"}}/>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {order.map((id) => renderRow(id))}
     </div>
   );
 }
 
-function Card({title,value}:{title:string,value:string}){
-  return (
-    <div style={{border:"1px solid #ddd",padding:16}}>
-      <div>{title}</div>
-      <div style={{fontSize:20,fontWeight:700}}>{value}</div>
-    </div>
-  );
-}
+const box: React.CSSProperties = {
+  padding: 20,
+  marginBottom: 12,
+  background: "white",
+  border: "1px solid #eee",
+  borderRadius: 8,
+};
