@@ -20,36 +20,45 @@ async function sbFromCookies(){
   );
 }
 
-function ok(data:any){ return NextResponse.json({ ok:true, ...data }); }
+function ok(payload:any){ return NextResponse.json({ ok:true, ...payload }); }
 function bad(msg:string, status=400){ return NextResponse.json({ ok:false, error:msg }, { status }); }
 
-export async function POST(req:Request){
+export async function GET(){
   const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const uid = data.user?.id;
+  const { data: authData } = await sbAuth.auth.getUser();
+  const uid = authData.user?.id;
   if(!uid) return bad("unauthorized",401);
 
-  const body = await req.json().catch(()=>null);
-  if(!body) return bad("invalid json");
-
-  const kind = String(body.kind || "warning"); // warning | breach | note
-  const state = String(body.state || "NORMAL"); // NORMAL | SLOWDOWN | STOP
-  const reasons = Array.isArray(body.reasons) ? body.reasons.map(String) : [];
-  const trade_id = body.trade_id ? String(body.trade_id) : null;
-  const message = body.message ? String(body.message) : null;
-  const meta = (body.meta && typeof body.meta === "object") ? body.meta : {};
-
   const sb = supabaseServer();
-  const { error } = await sb.from("risk_events").insert({
-    user_id: uid,
-    kind,
-    state,
-    reasons,
-    trade_id,
-    message,
-    meta
-  });
+  const { data: rows, error } = await sb
+    .from("risk_events")
+    .select("*")
+    .eq("user_id", uid)
+    .order("created_at", { ascending:false })
+    .limit(100);
 
   if(error) return bad(error.message,500);
-  return ok({});
+
+  const events = rows || [];
+
+  const stopCount = events.filter((e:any)=>e.state==="STOP").length;
+  const slowdownCount = events.filter((e:any)=>e.state==="SLOWDOWN").length;
+
+  const reasonMap: Record<string, number> = {};
+  for(const e of events as any[]){
+    for(const r of (e.reasons || []) as any[]){
+      const k = String(r);
+      reasonMap[k] = (reasonMap[k] || 0) + 1;
+    }
+  }
+
+  return ok({
+    events,
+    stats:{
+      total: events.length,
+      stopCount,
+      slowdownCount,
+      reasons: reasonMap
+    }
+  });
 }
