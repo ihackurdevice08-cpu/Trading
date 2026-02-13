@@ -24,7 +24,7 @@ async function authUid() {
   );
 
   const { data, error } = await sbAuth.auth.getUser();
-  if (error) return { uid: null, error: error.message };
+  if (error) return { uid: null as string | null, error: error.message };
   const uid = data.user?.id ?? null;
   return { uid, error: uid ? null : "unauthorized" };
 }
@@ -69,5 +69,39 @@ export async function POST(req: Request) {
     return json(200, { ok: true, entry: data });
   } catch (e: any) {
     return json(500, { ok: false, error: "journal POST failed", detail: e?.message || String(e) });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { uid, error } = await authUid();
+    if (!uid) return json(401, { ok: false, error });
+
+    // 1) query ?id=
+    let id: string | null = null;
+    try {
+      const u = new URL(req.url);
+      id = u.searchParams.get("id");
+    } catch {}
+
+    // 2) body {id}
+    if (!id) {
+      const body = await req.json().catch(() => null);
+      id = body?.id ? String(body.id) : null;
+    }
+
+    if (!id) return json(400, { ok: false, error: "id required" });
+
+    const sb = supabaseServer();
+    const { error: derr } = await sb
+      .from("journal_entries")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", uid);
+
+    if (derr) return json(500, { ok: false, error: derr.message });
+    return json(200, { ok: true, id });
+  } catch (e: any) {
+    return json(500, { ok: false, error: "journal DELETE failed", detail: e?.message || String(e) });
   }
 }
