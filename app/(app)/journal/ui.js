@@ -1,97 +1,171 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function JournalClient({ initial }) {
-  const [items, setItems] = useState(initial);
+  const [rows, setRows] = useState(initial || []);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function refresh() {
+    try {
+      const r = await fetch("/api/journal", { cache: "no-store" });
+      const j = await r.json();
+      if (j?.ok) setRows(j.rows || []);
+    } catch (e) {
+      // ignore
+    }
+  }
 
   async function add() {
-    const content = text.trim();
-    if (!content) return;
+    const v = (text || "").trim();
+    if (!v) return;
 
     setBusy(true);
+    setMsg("");
     try {
-      const res = await fetch("/api/journal", {
+      const r = await fetch("/api/journal", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: v }),
       });
-      if (!res.ok) throw new Error("add_failed");
-      const row = await res.json();
-      setItems([row, ...items]);
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        setMsg(`추가 실패: ${(j && j.error) ? j.error : r.status}`);
+        return;
+      }
       setText("");
-    } catch {
-      alert("add failed");
+      await refresh();
     } finally {
       setBusy(false);
     }
   }
 
   async function del(id) {
-    if (!confirm("delete?")) return;
+    const ok = confirm("이 항목을 삭제할까요? (복구 불가)");
+    if (!ok) return;
+
     setBusy(true);
+    setMsg("");
     try {
-      const res = await fetch(`/api/journal?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("del_failed");
-      setItems(items.filter(x => x.id !== id));
-    } catch {
-      alert("delete failed");
+      const r = await fetch(`/api/journal?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        setMsg(`삭제 실패: ${(j && j.error) ? j.error : r.status}`);
+        return;
+      }
+      await refresh();
     } finally {
       setBusy(false);
     }
   }
 
+  useEffect(() => {
+    setRows(initial || []);
+  }, [initial]);
+
   return (
-    <main style={S.page}>
-      <header style={S.header}>
-        <h1 style={{margin:0}}>Journal</h1>
-        <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
-          <a href="/dashboard" style={S.btn}>Dashboard</a>
-          <a href="/risk" style={S.btn}>Risk</a>
-          <a href="/settings" style={S.btn}>Settings</a>
-          <a href="/goals" style={S.btn}>Goals</a>
+    <div style={S.wrap}>
+      <div style={S.header}>
+        <h1 style={{ margin: 0 }}>Journal</h1>
+        {/* NOTE: 전역 Nav가 있으므로 저널 내부 네비 버튼은 제거합니다 */}
+      </div>
+
+      <div style={S.card}>
+        <div style={S.subTitle}>New entry</div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="오늘 트레이딩/감정/근거/리스킹…"
+          style={S.ta}
+        />
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button onClick={add} disabled={busy} style={S.btn}>
+            {busy ? "처리중..." : "Add"}
+          </button>
+          {msg ? <div style={{ fontSize: 12, opacity: 0.8 }}>{msg}</div> : null}
         </div>
-      </header>
+      </div>
 
-      <section style={S.card}>
-        <div style={S.title}>New entry</div>
-        <textarea style={S.ta} value={text} onChange={(e)=>setText(e.target.value)} placeholder="오늘 트레이드/감정/근거/리스크..." />
-        <button style={S.primary} onClick={add} disabled={busy}>
-          {busy ? "..." : "Add"}
-        </button>
-      </section>
-
-      <section style={S.card}>
-        <div style={S.title}>Recent</div>
-        <div style={{display:"grid", gap:10}}>
-          {items.map((x) => (
-            <div key={x.id} style={S.item}>
-              <div style={S.meta}>
-                <span>{new Date(x.created_at).toLocaleString()}</span>
-                <button style={S.small} onClick={() => del(x.id)} disabled={busy}>Delete</button>
+      <div style={S.card}>
+        <div style={S.subTitle}>Recent</div>
+        {rows.length === 0 ? (
+          <div style={{ opacity: 0.7, fontSize: 13 }}>No entries</div>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {rows.map((r) => (
+              <div key={r.id} style={S.item}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ fontSize: 12, opacity: 0.65 }}>
+                    {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                  </div>
+                  <button
+                    onClick={() => del(r.id)}
+                    disabled={busy}
+                    style={S.del}
+                    title="삭제"
+                  >
+                    Delete
+                  </button>
+                </div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
+                  {r.content}
+                </div>
               </div>
-              <div style={S.body}>{x.content}</div>
-            </div>
-          ))}
-          {items.length === 0 && <div style={{opacity:0.7}}>No entries</div>}
-        </div>
-      </section>
-    </main>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 const S = {
-  page: { padding:24, fontFamily:"system-ui", display:"grid", gap:12 },
-  header:{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" },
-  btn:{ padding:"10px 14px", border:"1px solid #ddd", borderRadius:10, textDecoration:"none", color:"black", background:"white" },
-  primary:{ padding:"10px 14px", border:"1px solid #111", borderRadius:10, background:"#111", color:"white", cursor:"pointer", width:"fit-content" },
-  card:{ border:"1px solid #eee", borderRadius:14, padding:16, background:"white" },
-  title:{ fontWeight:800, marginBottom:10 },
-  ta:{ minHeight:120, padding:"10px 12px", border:"1px solid #ddd", borderRadius:10, fontFamily:"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
-  item:{ border:"1px solid #eee", borderRadius:12, padding:12 },
-  meta:{ display:"flex", justifyContent:"space-between", opacity:0.7, fontSize:13, marginBottom:8, gap:10 },
-  body:{ whiteSpace:"pre-wrap" },
-  small:{ padding:"6px 10px", border:"1px solid #ddd", borderRadius:10, background:"white", cursor:"pointer" },
+  wrap: { padding: 20, display: "grid", gap: 14 },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+  card: {
+    border: "1px solid #eee",
+    borderRadius: 12,
+    padding: 14,
+    background: "white",
+  },
+  subTitle: { fontWeight: 800, marginBottom: 10, fontSize: 13, opacity: 0.9 },
+  ta: {
+    width: "100%",
+    minHeight: 120,
+    resize: "vertical",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    outline: "none",
+    fontFamily: "system-ui",
+    marginBottom: 10,
+  },
+  btn: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #111",
+    background: "#111",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+  item: {
+    border: "1px solid #f0f0f0",
+    borderRadius: 12,
+    padding: 12,
+    background: "#fafafa",
+  },
+  del: {
+    padding: "6px 10px",
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    background: "white",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 700,
+  },
 };
