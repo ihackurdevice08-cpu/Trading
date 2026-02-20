@@ -91,7 +91,7 @@ export async function PATCH(req: Request) {
 
   const updated = { ...goal, ...body };
 
-  // 자동 완료 조건 판단
+  // 자동 완료 조건
   const isBoolean = updated.type === "boolean";
   const hasTarget = updated.target_value != null && n(updated.target_value) > 0;
   const done =
@@ -99,9 +99,12 @@ export async function PATCH(req: Request) {
       ? n(updated.current_value) >= 1
       : hasTarget && n(updated.current_value) >= n(updated.target_value);
 
-  // 완료 처리: goals_history에 기록 (중복 방지: 이미 completed이면 스킵)
-  if (done && goal.status !== "completed") {
-    await sb.from("goals_history").insert({
+  const shouldComplete = done && goal.status !== "completed";
+
+  if (shouldComplete) {
+    // goals_history insert + goals_v2 update를 하나의 RPC로 묶어서 트랜잭션 처리
+    // RPC가 없으면 순서 보장: history 먼저, update 나중
+    const { error: histErr } = await sb.from("goals_history").insert({
       user_id: uid,
       goal_id: updated.id,
       type: updated.type,
@@ -109,6 +112,10 @@ export async function PATCH(req: Request) {
       target_value: updated.target_value,
       unit: updated.unit,
     });
+
+    // history insert 실패 시 여기서 중단 (목표 완료 처리 안 함)
+    if (histErr) return bad(`History 저장 실패: ${histErr.message}`, 500);
+
     updated.status = "completed";
   }
 
@@ -125,7 +132,10 @@ export async function PATCH(req: Request) {
     updated_at: new Date().toISOString(),
   }).eq("id", updated.id).eq("user_id", uid);
 
+  // goal update 실패 시 history는 이미 들어간 상태 → 롤백 불가
+  // 진짜 트랜잭션이 필요하면 Supabase RPC(PostgreSQL function)로 이전해야 함
   if (e1) return bad(e1.message, 500);
+
   return ok({});
 }
 
