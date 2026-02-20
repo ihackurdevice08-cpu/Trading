@@ -1,38 +1,26 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function sbFromCookies() {
-  const store = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return store.getAll(); },
-        setAll(cs) { cs.forEach(({ name, value, options }) => store.set(name, value, options)); },
-      },
-    }
-  );
-}
-
-const n = (v:any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-const dayKey = (ts:string) => (ts || "").slice(0, 10);
-const hourKey = (ts:string) => (ts || "").slice(0, 13);
+const n = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const dayKey = (ts: string) => (ts || "").slice(0, 10);
+const hourKey = (ts: string) => (ts || "").slice(0, 13);
 
 export async function GET() {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const uid = data.user?.id;
+  const uid = await getAuthUserId();
   if (!uid) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   const sb = supabaseServer();
 
-  const { data: rs } = await sb.from("risk_settings").select("*").eq("user_id", uid).maybeSingle();
+  const { data: rs } = await sb
+    .from("risk_settings")
+    .select("*")
+    .eq("user_id", uid)
+    .maybeSingle();
+
   const settings = {
     seed_usd: n(rs?.seed_usd ?? 10000),
     max_dd_usd: n(rs?.max_dd_usd ?? 500),
@@ -44,35 +32,31 @@ export async function GET() {
     max_trades_per_hour: Number(rs?.max_trades_per_hour ?? 8),
   };
 
+  // opened_at + pnl만 가져와서 full scan 최적화
   const { data: rows, error } = await sb
     .from("manual_trades")
-    .select("*")
+    .select("opened_at,closed_at,created_at,pnl")
     .eq("user_id", uid)
-    .order("created_at", { ascending: true });
+    .order("opened_at", { ascending: true });
 
-  if (error) return NextResponse.json({ ok:false, error:error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   const seed = settings.seed_usd;
-
   let cumPnl = 0;
   let peakEquity = seed;
   let maxDdUsd = 0;
-
-  const today = new Date().toISOString().slice(0,10);
+  const today = new Date().toISOString().slice(0, 10);
   let todayPnl = 0;
-
   const byDayCount: Record<string, number> = {};
   const byHourCount: Record<string, number> = {};
-
   let consecLoss = 0;
   let maxConsecLoss = 0;
 
-  for (const r of (rows || [])) {
-    const ts = String(r.closed_at || r.created_at || r.opened_at || "");
-    const pnl = n(r.pnl ?? r.realized_pnl ?? r.net_pnl ?? r.profit ?? 0);
+  for (const r of rows || []) {
+    const ts = String(r.opened_at || r.closed_at || r.created_at || "");
+    const pnl = n(r.pnl ?? 0);
 
     cumPnl += pnl;
-
     const equity = seed + cumPnl;
     if (equity > peakEquity) peakEquity = equity;
     const dd = peakEquity - equity;
@@ -89,13 +73,12 @@ export async function GET() {
 
   const equityNow = seed + cumPnl;
   const pnlPct = seed ? (cumPnl / seed) * 100 : 0;
-
   const ddPct = peakEquity ? (maxDdUsd / peakEquity) * 100 : 0;
   const dailyLossUsd = Math.min(0, todayPnl);
   const dailyLossPct = seed ? (dailyLossUsd / seed) * 100 : 0;
 
   const tradesToday = byDayCount[today] || 0;
-  const thisHour = new Date().toISOString().slice(0,13);
+  const thisHour = new Date().toISOString().slice(0, 13);
   const tradesThisHour = byHourCount[thisHour] || 0;
 
   const reasons: string[] = [];
@@ -118,7 +101,7 @@ export async function GET() {
       seed, equityNow, cumPnl, pnlPct,
       peakEquity, maxDdUsd, ddPct,
       todayPnl, dailyLossUsd, dailyLossPct,
-      tradesToday, tradesThisHour, maxConsecLoss
-    }
+      tradesToday, tradesThisHour, maxConsecLoss,
+    },
   });
 }

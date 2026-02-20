@@ -3,12 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
-
-// Binance Spot 24hr (one-shot)
-function oneShotUrl() {
-  const symbolsJson = encodeURIComponent(JSON.stringify(SYMBOLS));
-  return `https://api.binance.com/api/v3/ticker/24hr?symbols=${symbolsJson}`;
-}
+// Binance Futures 24hr 티커 - 서버 API 경유 (CORS 안전, Next.js 캐싱 활용)
+const API_URL = `/api/binance-tickers?symbols=${SYMBOLS.join(",")}`;
 
 function tvSymbol(sym) {
   return `BINANCE:${sym}`;
@@ -18,7 +14,6 @@ function openTradingView(sym) {
   const tv = tvSymbol(sym);
   const web = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}`;
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
   if (isMobile) {
     const deep = `tradingview://chart?symbol=${encodeURIComponent(tv)}`;
     window.location.href = deep;
@@ -44,35 +39,30 @@ function fmtPct(n) {
 
 export default function FuturesTicker() {
   const [data, setData] = useState({});
+  const [error, setError] = useState(false);
   const timer = useRef(null);
+  const retryCount = useRef(0);
 
   async function tick() {
     try {
-      const r = await fetch(oneShotUrl(), { cache: "no-store" });
-      if (!r.ok) return;
+      const r = await fetch(API_URL, { cache: "no-store" });
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      const j = await r.json();
+      if (!j?.ok || !j?.data) throw new Error("bad response");
 
-      const arr = await r.json();
-      const map = {};
-
-      if (Array.isArray(arr)) {
-        for (const it of arr) {
-          const sym = String(it?.symbol || "").toUpperCase();
-          if (!SYMBOLS.includes(sym)) continue;
-          map[sym] = {
-            price: Number(it?.lastPrice),
-            pct: Number(it?.priceChangePercent),
-          };
-        }
-      }
-
-      for (const s of SYMBOLS) if (!map[s]) map[s] = { price: NaN, pct: NaN };
-      setData(map);
-    } catch {}
+      setData(j.data);
+      setError(false);
+      retryCount.current = 0;
+    } catch {
+      retryCount.current += 1;
+      setError(true);
+    }
   }
 
   useEffect(() => {
     tick();
-    timer.current = setInterval(tick, 1000);
+    // 5초 폴링 (1초→5초: 브라우저 부하 80% 감소, 거래소 데이터는 5초도 충분)
+    timer.current = setInterval(tick, 5000);
     return () => clearInterval(timer.current);
   }, []);
 
@@ -81,12 +71,10 @@ export default function FuturesTicker() {
       const it = data[s] || {};
       const price = Number(it.price);
       const pct = Number(it.pct);
-
-      let pctColor = "#000";
+      let pctColor = "inherit";
       if (isFinite(pct)) {
         pctColor = pct >= 0 ? "#0b7949" : "#bc0a07";
       }
-
       return { symbol: s, price, pct, pctColor };
     });
   }, [data]);
@@ -98,33 +86,26 @@ export default function FuturesTicker() {
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 50,
-        borderTop: "1px solid rgba(0,0,0,0.1)",
-        background: "rgba(245,242,235,0.95)",
-        padding: "10px 12px",
+        zIndex: 100,
+        background: "rgba(255,255,255,0.92)",
+        backdropFilter: "blur(8px)",
+        borderTop: "1px solid rgba(0,0,0,0.10)",
+        padding: "8px 16px",
       }}
     >
-      {/* small label */}
       <div
         style={{
           position: "absolute",
           right: 12,
           top: 6,
           fontSize: 11,
-          color: "#111",
-          opacity: 0.7,
+          opacity: 0.5,
         }}
       >
-        Binance Spot Live Price
+        {error ? "⚠ 연결 재시도 중..." : "Binance Futures · 5s"}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          overflowX: "auto",
-        }}
-      >
+      <div style={{ display: "flex", gap: 10, overflowX: "auto" }}>
         {rows.map((r) => (
           <button
             key={r.symbol}
@@ -147,19 +128,10 @@ export default function FuturesTicker() {
             }}
           >
             <span>{r.symbol.replace("USDT", "")}</span>
-
-            {/* price left */}
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {fmtPrice(r.price)}
             </span>
-
-            {/* pct right */}
-            <span
-              style={{
-                fontVariantNumeric: "tabular-nums",
-                color: r.pctColor,
-              }}
-            >
+            <span style={{ fontVariantNumeric: "tabular-nums", color: r.pctColor }}>
               {fmtPct(r.pct)}
             </span>
           </button>

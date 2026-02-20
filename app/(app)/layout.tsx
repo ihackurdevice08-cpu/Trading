@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import AppLayout from "../../components/layout/AppLayout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -16,9 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     const check = async () => {
       const { data } = await sb.auth.getSession();
-      const session = data.session;
-
-      if (!session) {
+      if (!data.session) {
         router.replace("/login");
         return;
       }
@@ -28,18 +25,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     check().catch(() => router.replace("/login"));
 
     const { data: sub } = sb.auth.onAuthStateChange((_evt, session) => {
-      if (!session && pathname?.startsWith("/")) {
-        router.replace("/login");
-      }
+      if (!session) router.replace("/login");
     });
 
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => sub.subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#F4F0E6",
+        fontSize: 15,
+        opacity: 0.7,
+      }}>
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <AppearanceProvider>

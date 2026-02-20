@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -10,28 +9,8 @@ function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-async function sbFromCookies() {
-  const store = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return store.getAll();
-        },
-        setAll(cs) {
-          cs.forEach(({ name, value, options }) => store.set(name, value, options));
-        },
-      },
-    }
-  );
-}
-
 export async function GET(req: Request) {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const uid = data.user?.id;
+  const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
   const url = new URL(req.url);
@@ -42,7 +21,7 @@ export async function GET(req: Request) {
 
   let q = supabaseServer()
     .from("manual_trades")
-    .select("*")
+    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
     .eq("user_id", uid)
     .order("opened_at", { ascending: false })
     .limit(200);
@@ -59,10 +38,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const user = data.user;
-  if (!user) return bad("unauthorized", 401);
+  const uid = await getAuthUserId();
+  if (!uid) return bad("unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
 
@@ -77,7 +54,7 @@ export async function POST(req: Request) {
   const tags = Array.isArray(body.tags) ? body.tags.map((x: any) => String(x)) : [];
 
   const payload = {
-    user_id: user.id,
+    user_id: uid,
     symbol,
     side,
     opened_at,
@@ -90,18 +67,17 @@ export async function POST(req: Request) {
   const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
-    .select("*")
+    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
     .single();
 
   if (error) return bad(error.message, 500);
+
+  // 대시보드 캐시 무효화를 위해 헤더 사용
   return NextResponse.json({ ok: true, trade: row });
 }
 
-// DELETE /api/manual-trades?id=UUID
 export async function DELETE(req: Request) {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const uid = data.user?.id;
+  const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
   const url = new URL(req.url);

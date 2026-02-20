@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { AppearanceSettings } from "@/lib/appearance/types";
-import { applyThemeVars, getTheme } from "@/lib/appearance/themes";
+import { applyThemeVars } from "@/lib/appearance/themes";
 
 const DEFAULT_APPEARANCE: AppearanceSettings = {
   themeId: "linen",
@@ -21,72 +21,65 @@ type Ctx = {
 
 const AppearanceContext = createContext<Ctx | null>(null);
 
+/** AppearanceContext를 사용하는 훅 */
+export function useAppearance(): Ctx {
+  const ctx = useContext(AppearanceContext);
+  if (!ctx) throw new Error("useAppearance must be used within AppearanceProvider");
+  return ctx;
+}
+
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
-  
-  
-  // NOTE: UI gating flag (kept simple to avoid build issues)
-  const isAuthed = true;
-// NOTE: UI gating flag (kept simple to avoid build issues)
-const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
-  const [uid, setUid] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
 
   const sb = useMemo(() => supabaseBrowser(), []);
 
-  const ensureAuth = useCallback(async () => {
-    const { data } = await sb.auth.getUser();
-    const id = data?.user?.id || null;
-    setUid(id);
-    return id;
-  }, [sb]);
-
   const reloadAppearance = useCallback(async () => {
-    const id = await ensureAuth();
-    if (!id) return;
+    const { data } = await sb.auth.getUser();
+    const uid = data?.user?.id || null;
+    setIsAuthed(!!uid);
+    if (!uid) return;
 
     const r = await fetch("/api/settings", { cache: "no-store" });
     const j = await r.json().catch(() => null);
     if (!j?.ok) return;
 
-    const ap = j?.data?.appearance || null;
-    const merged = {
-      ...DEFAULT_APPEARANCE,
-      ...(ap || {}),
-      bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap?.bg || {}) },
-    } as AppearanceSettings;
+    // Bug fix: settings GET returns { ok, appearance } (not { ok, data: { appearance } })
+    const ap = j?.appearance || j?.data?.appearance || null;
+    if (!ap) return;
 
+    const merged: AppearanceSettings = {
+      ...DEFAULT_APPEARANCE,
+      ...ap,
+      bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap?.bg || {}) },
+    };
     setAppearance(merged);
-  }, [ensureAuth]);
+  }, [sb]);
 
   const patchAppearance = useCallback((patch: Partial<AppearanceSettings>) => {
-    setAppearance((p) => {
-      const next = {
-        ...p,
-        ...patch,
-        bg: patch.bg ? { ...(p.bg || {}), ...(patch.bg || {}) } : p.bg,
-      } as AppearanceSettings;
-      return next;
-    });
+    setAppearance((p) => ({
+      ...p,
+      ...patch,
+      bg: patch.bg ? { ...(p.bg || {}), ...patch.bg } : p.bg,
+    }));
   }, []);
 
   const saveAppearance = useCallback(async () => {
-    const id = await ensureAuth();
-    if (!id) throw new Error("unauthorized");
-
-    const payload = { appearance };
+    const { data } = await sb.auth.getUser();
+    if (!data?.user?.id) throw new Error("unauthorized");
 
     const r = await fetch("/api/settings", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ appearance }),
     });
 
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || "request error");
-  }, [appearance, ensureAuth]);
+  }, [appearance, sb]);
 
-  // APPLY THEME VARS whenever theme changes
+  // 테마 CSS 변수 적용
   useEffect(() => {
-    const t = getTheme(appearance.themeId);
     applyThemeVars(appearance.themeId);
   }, [appearance.themeId]);
 
@@ -97,10 +90,4 @@ const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARA
   const value: Ctx = { appearance, patchAppearance, saveAppearance, reloadAppearance, isAuthed };
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
-}
-
-export function useAppearance() {
-  const ctx = useContext(AppearanceContext);
-  if (!ctx) throw new Error("useAppearance must be used within AppearanceProvider");
-  return ctx;
 }

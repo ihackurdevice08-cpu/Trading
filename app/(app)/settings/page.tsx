@@ -568,8 +568,8 @@ export default function SettingsPage() {
               <option value="linen">Linen Suite</option>
               <option value="resort">Desert Resort</option>
               <option value="noir">Noir Executive</option>
-              <option value="ivory">Ivory Gallery</option>
-              <option value="sandstone">Sandstone Lounge</option>
+              <option value="vault">Gold Vault</option>
+              <option value="dune">Dune Beige</option>
             </select>
           </label>
 
@@ -763,7 +763,7 @@ export default function SettingsPage() {
                   // 업로드한 파일 유형에 따라 타입 자동 세팅
                   const isVideo = f.type.startsWith("video/");
                   patchAppearance({ bg: { ...(appearance.bg || {}), url: url,
-                    bgType: isVideo ? "video" : "image", } } as any);
+                    type: isVideo ? "video" : "image", } } as any);
                   alert("Uploaded");
                 } catch (err: any) {
                   alert(err?.message || String(err));

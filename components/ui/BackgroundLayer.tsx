@@ -9,7 +9,10 @@ export default function BackgroundLayer() {
 
   if (!bg.enabled) return null;
   if (!bg.url) return null;
-  if (!bg.type || bg.type === "none") return null;
+
+  // Bug fix: "type" 필드 통일 (bgType 혼용 제거)
+  const bgType = bg.type;
+  if (!bgType || bgType === "none") return null;
 
   const fit = bg.fit || "cover";
   const opacity = typeof bg.opacity === "number" ? bg.opacity : 0.22;
@@ -28,7 +31,7 @@ export default function BackgroundLayer() {
 
   return (
     <>
-      {bg.type === "image" ? (
+      {bgType === "image" ? (
         <div
           style={{
             ...common,
