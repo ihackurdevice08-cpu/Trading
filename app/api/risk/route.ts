@@ -30,16 +30,22 @@ export async function GET() {
     max_consecutive_losses: Number(rs?.max_consecutive_losses ?? 3),
     max_trades_per_day: Number(rs?.max_trades_per_day ?? 20),
     max_trades_per_hour: Number(rs?.max_trades_per_hour ?? 8),
+    // ManualTradingState는 risk_settings에서 관리 (appearance에서 분리)
+    manual_trading_state: String(rs?.manual_trading_state ?? "auto"),
   };
 
-  // opened_at + pnl만 가져와서 full scan 최적화
+  // 필요한 컬럼만, 최근 2000건만
   const { data: rows, error } = await sb
     .from("manual_trades")
-    .select("opened_at,closed_at,created_at,pnl")
+    .select("opened_at,pnl")
     .eq("user_id", uid)
-    .order("opened_at", { ascending: true });
+    .order("opened_at", { ascending: false })
+    .limit(2000);
 
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+  // 최신순으로 왔으니 뒤집어서 시간순 처리
+  const list = (rows || []).reverse();
 
   const seed = settings.seed_usd;
   let cumPnl = 0;
@@ -52,8 +58,8 @@ export async function GET() {
   let consecLoss = 0;
   let maxConsecLoss = 0;
 
-  for (const r of rows || []) {
-    const ts = String(r.opened_at || r.closed_at || r.created_at || "");
+  for (const r of list) {
+    const ts = String(r.opened_at || "");
     const pnl = n(r.pnl ?? 0);
 
     cumPnl += pnl;
@@ -88,8 +94,15 @@ export async function GET() {
   if (tradesToday >= settings.max_trades_per_day) reasons.push("일 거래 과다");
   if (tradesThisHour >= settings.max_trades_per_hour) reasons.push("시간당 거래 과다");
 
+  // manual_trading_state가 Stop이면 강제 STOP
+  if (settings.manual_trading_state === "Stop") {
+    if (!reasons.includes("수동 중단")) reasons.push("수동 중단");
+  }
+
   let state: "NORMAL" | "SLOWDOWN" | "STOP" = "NORMAL";
-  if (reasons.length >= 3) state = "STOP";
+  if (settings.manual_trading_state === "Stop") state = "STOP";
+  else if (settings.manual_trading_state === "Slow Down") state = "SLOWDOWN";
+  else if (reasons.length >= 3) state = "STOP";
   else if (reasons.length >= 1) state = "SLOWDOWN";
 
   return NextResponse.json({
