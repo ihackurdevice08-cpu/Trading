@@ -28,6 +28,7 @@ export async function GET() {
     max_consecutive_losses: Number(rs?.max_consecutive_losses ?? 3),
     max_trades_per_day: Number(rs?.max_trades_per_day ?? 20),
     max_trades_per_hour: Number(rs?.max_trades_per_hour ?? 8),
+    manual_trading_state: String(rs?.manual_trading_state ?? "auto"),
   };
 
   return ok({ settings });
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     max_consecutive_losses: Number(body.max_consecutive_losses || 3),
     max_trades_per_day: Number(body.max_trades_per_day || 20),
     max_trades_per_hour: Number(body.max_trades_per_hour || 8),
+    manual_trading_state: String(body.manual_trading_state ?? "auto"),
   };
 
   const { error } = await supabaseServer()
