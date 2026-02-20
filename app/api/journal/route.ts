@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -11,25 +10,15 @@ function json(status: number, body: any) {
 }
 
 async function authUid() {
-  const store = await cookies();
-  const sbAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return store.getAll(); },
-        setAll(cs) { cs.forEach(({ name, value, options }) => store.set(name, value, options)); },
-      },
-    }
-  );
-
-  const { data, error } = await sbAuth.auth.getUser();
-  if (error) return { uid: null as string | null, error: error.message };
-  const uid = data.user?.id ?? null;
-  return { uid, error: uid ? null : "unauthorized" };
+  try {
+    const uid = await getAuthUserId();
+    return { uid, error: uid ? null : "unauthorized" };
+  } catch (e: any) {
+    return { uid: null as any, error: e?.message || String(e) };
+  }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const { uid, error } = await authUid();
     if (!uid) return json(401, { ok: false, error });
@@ -37,13 +26,13 @@ export async function GET() {
     const sb = supabaseServer();
     const { data, error: qerr } = await sb
       .from("journal_entries")
-      .select("*")
+      .select("id, content, created_at")
       .eq("user_id", uid)
       .order("created_at", { ascending: false })
       .limit(200);
 
     if (qerr) return json(500, { ok: false, error: qerr.message });
-    return json(200, { ok: true, entries: data ?? [] });
+    return json(200, { ok: true, entries: data || [] });
   } catch (e: any) {
     return json(500, { ok: false, error: "journal GET failed", detail: e?.message || String(e) });
   }
@@ -62,7 +51,7 @@ export async function POST(req: Request) {
     const { data, error: ierr } = await sb
       .from("journal_entries")
       .insert({ user_id: uid, content })
-      .select("*")
+      .select("id, content, created_at")
       .single();
 
     if (ierr) return json(500, { ok: false, error: ierr.message });
@@ -96,8 +85,8 @@ export async function DELETE(req: Request) {
     const { error: derr } = await sb
       .from("journal_entries")
       .delete()
-      .eq("id", id)
-      .eq("user_id", uid);
+      .eq("user_id", uid)
+      .eq("id", id);
 
     if (derr) return json(500, { ok: false, error: derr.message });
     return json(200, { ok: true, id });
