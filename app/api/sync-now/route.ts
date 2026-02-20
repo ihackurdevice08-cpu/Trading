@@ -1,6 +1,5 @@
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { supabaseServer } from "@/lib/supabase/server";
 import { decryptText } from "@/lib/crypto/dec";
 import { bitgetSign } from "@/lib/bitget/sign";
@@ -8,30 +7,10 @@ import { bitgetSign } from "@/lib/bitget/sign";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function supabaseFromCookies() {
-  const store = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return store.getAll();
-        },
-        setAll(cs) {
-          cs.forEach(({ name, value, options }) => {
-            store.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-}
 
 export async function POST() {
   try {
-    const supabase = await supabaseFromCookies();
+    const supabase = await (await import("@/lib/supabase/serverAuth")).createAuthClient();
     const { data, error } = await supabase.auth.getUser();
     const user_id = data?.user?.id;
 

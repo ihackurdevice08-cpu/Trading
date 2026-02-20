@@ -1,6 +1,5 @@
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -13,23 +12,6 @@ function bad(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-async function sbFromCookies() {
-  const store = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return store.getAll();
-        },
-        setAll(cs) {
-          cs.forEach(({ name, value, options }) => store.set(name, value, options));
-        },
-      },
-    }
-  );
-}
 
 function toObj(v: any) {
   return v && typeof v === "object" ? v : {};
@@ -44,9 +26,7 @@ function pickTarget(obj: any) {
 }
 
 export async function GET() {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const uid = data.user?.id;
+  const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
   const sb = supabaseServer();
@@ -64,10 +44,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const sbAuth = await sbFromCookies();
-  const { data } = await sbAuth.auth.getUser();
-  const user = data.user;
-  if (!user) return bad("unauthorized", 401);
+  const uid = await getAuthUserId();
+  if (!uid) return bad("unauthorized", 401);
 
   const body = await req.json().catch(() => null);
   if (!body) return bad("invalid json");
@@ -85,13 +63,13 @@ export async function POST(req: Request) {
   const { data: prev } = await sb
     .from("goals")
     .select("y,m,w,d")
-    .eq("user_id", user.id)
+    .eq("user_id", uid)
     .maybeSingle();
 
   // upsert
   const { error: upErr } = await sb
     .from("goals")
-    .upsert({ user_id: user.id, ...nextGoals }, { onConflict: "user_id" });
+    .upsert({ user_id: uid, ...nextGoals }, { onConflict: "user_id" });
 
   if (upErr) return bad(upErr.message, 500);
 
@@ -107,7 +85,7 @@ export async function POST(req: Request) {
       if (nextT === null) continue;
       if (prevT === nextT) continue;
       inserts.push({
-        user_id: user.id,
+        user_id: uid,
         scope: s,
         target: nextT,
         meta: { prev: prevT, by: "manual" },

@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@/lib/supabase/serverAuth";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { encryptText } from "@/lib/crypto/enc";
