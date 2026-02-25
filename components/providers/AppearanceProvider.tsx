@@ -21,7 +21,6 @@ type Ctx = {
 
 const AppearanceContext = createContext<Ctx | null>(null);
 
-/** AppearanceContext를 사용하는 훅 */
 export function useAppearance(): Ctx {
   const ctx = useContext(AppearanceContext);
   if (!ctx) throw new Error("useAppearance must be used within AppearanceProvider");
@@ -35,25 +34,30 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const sb = useMemo(() => supabaseBrowser(), []);
 
   const reloadAppearance = useCallback(async () => {
-    const { data } = await sb.auth.getUser();
-    const uid = data?.user?.id || null;
-    setIsAuthed(!!uid);
-    if (!uid) return;
+    try {
+      const { data } = await sb.auth.getUser();
+      const uid = data?.user?.id || null;
+      setIsAuthed(!!uid);
+      if (!uid) return;
 
-    const r = await fetch("/api/settings", { cache: "no-store" });
-    const j = await r.json().catch(() => null);
-    if (!j?.ok) return;
+      const r = await fetch("/api/settings", { cache: "no-store" });
+      if (!r.ok) return; // 401 등 조용히 무시
 
-    // Bug fix: settings GET returns { ok, appearance } (not { ok, data: { appearance } })
-    const ap = j?.appearance || j?.data?.appearance || null;
-    if (!ap) return;
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) return;
 
-    const merged: AppearanceSettings = {
-      ...DEFAULT_APPEARANCE,
-      ...ap,
-      bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap?.bg || {}) },
-    };
-    setAppearance(merged);
+      const ap = j?.appearance || j?.data?.appearance || null;
+      if (!ap) return;
+
+      const merged: AppearanceSettings = {
+        ...DEFAULT_APPEARANCE,
+        ...ap,
+        bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap?.bg || {}) },
+      };
+      setAppearance(merged);
+    } catch {
+      // 조용히 실패 - 기본값 유지
+    }
   }, [sb]);
 
   const patchAppearance = useCallback((patch: Partial<AppearanceSettings>) => {

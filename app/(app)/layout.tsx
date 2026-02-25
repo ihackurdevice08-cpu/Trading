@@ -14,8 +14,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const sb = supabaseBrowser();
 
     const check = async () => {
-      const { data } = await sb.auth.getSession();
-      if (!data.session) {
+      // getSession 대신 getUser 사용 (서버에서 토큰 검증, 더 신뢰성 높음)
+      const { data, error } = await sb.auth.getUser();
+      if (error || !data.user) {
         router.replace("/login");
         return;
       }
