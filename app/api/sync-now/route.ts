@@ -12,7 +12,6 @@ function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, 
 
 const BITGET_BASE = "https://api.bitget.com";
 
-// Bitget API 호출 유틸
 async function bitgetGet(
   path: string,
   params: Record<string, string>,
@@ -20,16 +19,9 @@ async function bitgetGet(
 ) {
   const query = new URLSearchParams(params).toString();
   const timestamp = String(Date.now());
-  const sign = bitgetSign({
-    timestamp,
-    method: "GET",
-    requestPath: path,
-    queryString: query,
-    secret: creds.secret,
-  });
+  const sign = bitgetSign({ timestamp, method: "GET", requestPath: path, queryString: query, secret: creds.secret });
 
-  const url = `${BITGET_BASE}${path}?${query}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${BITGET_BASE}${path}?${query}`, {
     method: "GET",
     headers: {
       "ACCESS-KEY": creds.apiKey,
@@ -45,22 +37,21 @@ async function bitgetGet(
   return { ok: res.ok, status: res.status, data: j };
 }
 
-// fills_raw → manual_trades 집계
-// 같은 orderId의 fills를 포지션 단위로 묶어서 PnL 합산
-async function aggregateFillsToTrades(uid: string, accountId: string) {
+// fills_raw → manual_trades 집계 (시작 날짜 이후만)
+async function aggregateFills(uid: string, accountId: string, fromMs: number) {
   const sb = supabaseServer();
 
-  // 아직 manual_trades에 없는 fills 가져오기
   const { data: fills } = await sb
     .from("fills_raw")
     .select("*")
     .eq("user_id", uid)
     .eq("account_id", accountId)
+    .gte("ts_ms", fromMs)
     .order("ts_ms", { ascending: true });
 
   if (!fills || fills.length === 0) return 0;
 
-  // order_id 기준으로 그룹핑
+  // orderId 기준 그룹핑
   const groups: Record<string, any[]> = {};
   for (const f of fills) {
     const key = f.order_id || f.trade_id || String(f.ts_ms);
@@ -68,62 +59,63 @@ async function aggregateFillsToTrades(uid: string, accountId: string) {
     groups[key].push(f);
   }
 
-  let upserted = 0;
   const rows: any[] = [];
 
   for (const [orderId, group] of Object.entries(groups)) {
     const first = group[0];
+    const last = group[group.length - 1];
     const totalPnl = group.reduce((s, f) => s + (Number(f.pnl) || 0), 0);
     const totalFee = group.reduce((s, f) => s + (Number(f.fee) || 0), 0);
     const totalSize = group.reduce((s, f) => s + (Number(f.size) || 0), 0);
     const avgPrice = group.reduce((s, f) => s + (Number(f.price) || 0), 0) / group.length;
 
-    // side 정규화: buy/sell → long/short
     const rawSide = String(first.trade_side || first.side || "").toLowerCase();
-    const side = rawSide.includes("open") || rawSide === "buy" || rawSide.includes("long")
+    const side = (rawSide.includes("open") || rawSide === "buy" || rawSide.includes("long"))
       ? "long" : "short";
+
+    const symbol = String(first.symbol || "")
+      .replace("_UMCBL", "").replace("_DMCBL", "").replace("_CMCBL", "");
 
     rows.push({
       id: `bitget:${accountId}:${orderId}`,
       user_id: uid,
-      symbol: String(first.symbol || "").replace("_UMCBL", "").replace("USDT", "USDT"),
+      symbol,
       side,
       opened_at: first.ts_ms ? new Date(Number(first.ts_ms)).toISOString() : new Date().toISOString(),
-      closed_at: group[group.length - 1].ts_ms
-        ? new Date(Number(group[group.length - 1].ts_ms)).toISOString()
-        : null,
+      closed_at: last.ts_ms ? new Date(Number(last.ts_ms)).toISOString() : null,
       pnl: Number(totalPnl.toFixed(4)),
       fee: Number(totalFee.toFixed(4)),
       size: Number(totalSize.toFixed(6)),
       avg_price: Number(avgPrice.toFixed(4)),
       tags: ["bitget", "auto-sync"],
-      notes: `Bitget auto-sync | fills: ${group.length}`,
+      notes: `auto-sync | ${group.length} fill(s)`,
       source: "bitget",
       account_id: accountId,
     });
   }
 
-  if (rows.length > 0) {
-    const { error } = await sb
-      .from("manual_trades")
-      .upsert(rows, { onConflict: "id" });
-    if (!error) upserted = rows.length;
-  }
+  if (rows.length === 0) return 0;
 
-  return upserted;
+  const { error } = await sb.from("manual_trades").upsert(rows, { onConflict: "id" });
+  return error ? 0 : rows.length;
 }
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
-  if (!process.env.ENCRYPTION_SECRET) {
-    return bad("서버 설정 오류: ENCRYPTION_SECRET 환경변수 없음", 500);
-  }
+  if (!process.env.ENCRYPTION_SECRET) return bad("ENCRYPTION_SECRET 환경변수 없음", 500);
 
   const body = await req.json().catch(() => ({}));
-  // 특정 account_id만 동기화하거나 전체 동기화
-  const targetAccountId = body?.account_id || null;
+  const targetAccountId: string | null = body?.account_id || null;
+
+  // 시작 날짜: body.from이 없으면 30일 전 기본값
+  const fromDate: string = body?.from
+    ? String(body.from)
+    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const fromMs = new Date(fromDate + "T00:00:00Z").getTime();
+  const fromTimestamp = String(fromMs);
 
   const sb = supabaseServer();
 
@@ -133,15 +125,11 @@ export async function POST(req: Request) {
     .eq("user_id", uid)
     .eq("exchange", "bitget");
 
-  if (targetAccountId) {
-    query = query.eq("id", targetAccountId);
-  }
+  if (targetAccountId) query = query.eq("id", targetAccountId);
 
   const { data: accounts, error: aErr } = await query;
   if (aErr) return bad(aErr.message, 500);
-  if (!accounts || accounts.length === 0) {
-    return bad("등록된 Bitget 계정이 없습니다. Settings에서 API Key를 등록하세요.", 404);
-  }
+  if (!accounts || accounts.length === 0) return bad("등록된 Bitget 계정 없음. Settings에서 API Key를 등록하세요.", 404);
 
   const results: any[] = [];
 
@@ -152,35 +140,32 @@ export async function POST(req: Request) {
       secret = decryptText(acc.api_secret_enc);
       pass = decryptText(acc.passphrase_enc);
     } catch {
-      results.push({ id: acc.id, alias: acc.alias, error: "복호화 실패 (ENCRYPTION_SECRET 불일치)" });
+      results.push({ id: acc.id, alias: acc.alias, error: "복호화 실패" });
       continue;
     }
 
     const creds = { apiKey, secret, pass };
     let rawInserted = 0;
-    let errors: string[] = [];
+    const errors: string[] = [];
 
-    // 1) USDT-M Futures fill history (페이지네이션)
+    // Bitget fill-history 페이지네이션 (시작 날짜 기준)
     try {
       let endTime = "";
       let pageCount = 0;
-      const MAX_PAGES = 10; // 최대 10페이지 (500건)
+      const MAX_PAGES = 20; // 최대 1000건
 
       while (pageCount < MAX_PAGES) {
         const params: Record<string, string> = {
           productType: "USDT-FUTURES",
           pageSize: "50",
+          startTime: fromTimestamp,
         };
         if (endTime) params.endTime = endTime;
 
-        const { ok: isOk, data: json } = await bitgetGet(
-          "/api/v2/mix/order/fill-history",
-          params,
-          creds
-        );
+        const { ok: isOk, data: json } = await bitgetGet("/api/v2/mix/order/fill-history", params, creds);
 
         if (!isOk || json?.code !== "00000") {
-          errors.push(`fill-history API 오류: ${json?.msg || "unknown"}`);
+          errors.push(`API 오류: ${json?.msg || "unknown"} (code: ${json?.code})`);
           break;
         }
 
@@ -202,9 +187,9 @@ export async function POST(req: Request) {
             symbol: String(it.symbol ?? ""),
             side: it.side ?? null,
             trade_side: it.tradeSide ?? null,
-            price: it.price ? Number(it.price) : null,
-            size: it.size ? Number(it.size) : null,
-            fee: it.fee ? Number(it.fee) : null,
+            price: it.price != null ? Number(it.price) : null,
+            size: it.size != null ? Number(it.size) : null,
+            fee: it.fee != null ? Number(it.fee) : null,
             pnl: it.pnl != null ? Number(it.pnl) : null,
             ts_ms: ts || null,
             payload: it,
@@ -214,9 +199,9 @@ export async function POST(req: Request) {
         const { error: upErr } = await sb.from("fills_raw").upsert(rows, { onConflict: "id" });
         if (!upErr) rawInserted += rows.length;
 
-        // 다음 페이지: 가장 오래된 ts로 endTime 설정
+        // 다음 페이지 (더 오래된 것)
         const minTs = Math.min(...list.map((x: any) => Number(x.cTime ?? x.fillTime ?? x.ts ?? Infinity)));
-        if (minTs === Infinity || list.length < 50) break;
+        if (minTs === Infinity || minTs <= fromMs || list.length < 50) break;
         endTime = String(minTs - 1);
         pageCount++;
       }
@@ -224,29 +209,23 @@ export async function POST(req: Request) {
       errors.push(`fetch 오류: ${e?.message}`);
     }
 
-    // 2) fills_raw → manual_trades 집계
+    // 집계
     let aggregated = 0;
     try {
-      aggregated = await aggregateFillsToTrades(uid, acc.id);
+      aggregated = await aggregateFills(uid, acc.id, fromMs);
     } catch (e: any) {
       errors.push(`집계 오류: ${e?.message}`);
     }
 
-    results.push({
-      id: acc.id,
-      alias: acc.alias,
-      rawInserted,
-      aggregated,
-      errors: errors.length > 0 ? errors : undefined,
-    });
+    results.push({ id: acc.id, alias: acc.alias, rawInserted, aggregated, errors: errors.length ? errors : undefined });
   }
 
   const totalRaw = results.reduce((s, r) => s + (r.rawInserted || 0), 0);
   const totalAgg = results.reduce((s, r) => s + (r.aggregated || 0), 0);
 
-  // 대시보드 갱신 트리거
   return ok({
-    note: `동기화 완료. fills: ${totalRaw}건 저장, trades: ${totalAgg}건 집계`,
+    note: `${fromDate} 이후 동기화 완료 — fills ${totalRaw}건 저장, trades ${totalAgg}건 집계`,
+    from: fromDate,
     results,
   });
 }

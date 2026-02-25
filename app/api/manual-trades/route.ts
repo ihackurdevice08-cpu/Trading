@@ -5,8 +5,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function bad(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
+function bad(msg: string, status = 400) {
+  return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
 export async function GET(req: Request) {
@@ -14,27 +14,35 @@ export async function GET(req: Request) {
   if (!uid) return bad("unauthorized", 401);
 
   const url = new URL(req.url);
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
-  const symbol = url.searchParams.get("symbol");
-  const tag = url.searchParams.get("tag");
+  const from    = url.searchParams.get("from");    // YYYY-MM-DD
+  const to      = url.searchParams.get("to");      // YYYY-MM-DD
+  const symbol  = url.searchParams.get("symbol");
+  const tag     = url.searchParams.get("tag");
+  const limit   = Math.min(Number(url.searchParams.get("limit") || "500"), 2000);
+
+  // 시작일 기본값: 쿼리에 from이 없으면 이번 달 1일
+  const defaultFrom = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  })();
+  const fromDate = from || defaultFrom;
 
   let q = supabaseServer()
     .from("manual_trades")
-    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
+    .select("id,symbol,side,opened_at,closed_at,pnl,fee,size,avg_price,tags,notes,source,account_id")
     .eq("user_id", uid)
+    .gte("opened_at", fromDate + "T00:00:00.000Z")
     .order("opened_at", { ascending: false })
-    .limit(200);
+    .limit(limit);
 
-  if (from) q = q.gte("opened_at", from);
-  if (to) q = q.lte("opened_at", to);
+  if (to)     q = q.lte("opened_at", to + "T23:59:59.999Z");
   if (symbol) q = q.ilike("symbol", `%${symbol}%`);
-  if (tag) q = q.contains("tags", [tag]);
+  if (tag)    q = q.contains("tags", [tag]);
 
   const { data: rows, error } = await q;
   if (error) return bad(error.message, 500);
 
-  return NextResponse.json({ ok: true, trades: rows || [] });
+  return NextResponse.json({ ok: true, trades: rows || [], from: fromDate });
 }
 
 export async function POST(req: Request) {
@@ -42,16 +50,13 @@ export async function POST(req: Request) {
   if (!uid) return bad("unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
-
-  const symbol = String(body.symbol || "").trim().toUpperCase();
-  const side = String(body.side || "").trim().toLowerCase();
+  const symbol   = String(body.symbol || "").trim().toUpperCase();
+  const side     = String(body.side   || "").trim().toLowerCase();
   const opened_at = body.opened_at;
 
-  if (!symbol) return bad("symbol이 필요합니다.");
-  if (side !== "long" && side !== "short") return bad("side는 long/short만 가능합니다.");
-  if (!opened_at) return bad("opened_at이 필요합니다.");
-
-  const tags = Array.isArray(body.tags) ? body.tags.map((x: any) => String(x)) : [];
+  if (!symbol)   return bad("symbol 필요");
+  if (side !== "long" && side !== "short") return bad("side는 long/short");
+  if (!opened_at) return bad("opened_at 필요");
 
   const payload = {
     user_id: uid,
@@ -59,20 +64,21 @@ export async function POST(req: Request) {
     side,
     opened_at,
     closed_at: body.closed_at ?? null,
-    pnl: body.pnl ?? null,
-    tags,
-    notes: body.notes ?? null,
+    pnl:       body.pnl  != null ? Number(body.pnl)  : null,
+    fee:       body.fee  != null ? Number(body.fee)  : null,
+    size:      body.size != null ? Number(body.size) : null,
+    tags:      Array.isArray(body.tags) ? body.tags.map(String) : [],
+    notes:     body.notes ?? null,
+    source:    "manual",
   };
 
   const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
-    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
+    .select("id,symbol,side,opened_at,closed_at,pnl,fee,tags,notes,source")
     .single();
 
   if (error) return bad(error.message, 500);
-
-  // 대시보드 캐시 무효화를 위해 헤더 사용
   return NextResponse.json({ ok: true, trade: row });
 }
 
@@ -80,9 +86,8 @@ export async function DELETE(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
-  const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-  if (!id) return bad("id가 필요합니다.");
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return bad("id 필요");
 
   const { error } = await supabaseServer()
     .from("manual_trades")
