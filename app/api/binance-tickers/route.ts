@@ -3,20 +3,15 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function json(status: number, body: any) {
-  return NextResponse.json(body, { status });
-}
-
 function parseSymbols(s: string | null) {
-  const raw = (s || "BTCUSDT,ETHUSDT,SOLUSDT")
+  return (s || "BTCUSDT,ETHUSDT,SOLUSDT")
     .split(",")
     .map((x) => x.trim().toUpperCase())
-    .filter(Boolean);
-
-  return raw.slice(0, 20);
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
-async function fetchWithTimeout(url: string, ms = 3500) {
+async function fetchWithTimeout(url: string, ms = 4000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -24,9 +19,8 @@ async function fetchWithTimeout(url: string, ms = 3500) {
       signal: ctrl.signal,
       cache: "no-store",
       headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        accept: "application/json,text/plain,*/*",
+        "user-agent": "Mozilla/5.0 (compatible; TradingApp/1.0)",
+        accept: "application/json",
       },
     });
     return res;
@@ -41,40 +35,44 @@ export async function GET(req: Request) {
   const symJson = encodeURIComponent(JSON.stringify(symbols));
 
   const candidates = [
-    `https://fapi.binance.com/fapi/v1/ticker/price?symbols=${symJson}`,
-    `https://data-api.binance.vision/fapi/v1/ticker/price?symbols=${symJson}`,
+    `https://fapi.binance.com/fapi/v1/ticker/24hr?symbols=${symJson}`,
+    `https://api.binance.com/api/v3/ticker/24hr?symbols=${symJson}`,
+    `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${symJson}`,
   ];
 
   let lastErr = "";
+
   for (const url of candidates) {
     try {
       const r = await fetchWithTimeout(url, 4000);
-      if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        lastErr = `upstream ${r.status}: ${t.slice(0, 200)}`;
-        continue;
-      }
+      if (!r.ok) { lastErr = `upstream ${r.status}`; continue; }
 
       const j = await r.json().catch(() => null);
-      if (!j) {
-        lastErr = "upstream json parse failed";
-        continue;
-      }
+      if (!j) { lastErr = "json parse failed"; continue; }
 
       const arr = Array.isArray(j) ? j : [j];
-      const out: Record<string, any> = {};
+      const out: Record<string, { price: number; pct: number }> = {};
+
       for (const it of arr) {
         const sym = String(it?.symbol || "").toUpperCase();
-        const price = Number(it?.price);
-        if (sym && Number.isFinite(price)) out[sym] = { lastPrice: price };
+        if (!symbols.includes(sym)) continue;
+        const price = Number(it?.lastPrice ?? it?.price ?? NaN);
+        const pct = Number(it?.priceChangePercent ?? NaN);
+        if (sym && Number.isFinite(price)) out[sym] = { price, pct };
       }
 
-      return json(200, { ok: true, data: out, source: url });
+      for (const s of symbols) {
+        if (!out[s]) out[s] = { price: NaN, pct: NaN };
+      }
+
+      return NextResponse.json({ ok: true, data: out });
     } catch (e: any) {
       lastErr = e?.name === "AbortError" ? "timeout" : String(e?.message || e);
-      continue;
     }
   }
 
-  return json(500, { ok: false, error: `binance fetch failed: ${lastErr}` });
+  return NextResponse.json(
+    { ok: false, error: `binance fetch failed: ${lastErr}` },
+    { status: 500 }
+  );
 }
