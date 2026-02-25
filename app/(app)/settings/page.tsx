@@ -5,6 +5,17 @@ import { uploadBackground } from "./uploadBg";
 import { useAppearance } from "../../../components/providers/AppearanceProvider";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid var(--line-soft)",
+  background: "rgba(0,0,0,0.08)",
+  color: "var(--text-primary)",
+  outline: "none",
+  fontSize: 15,
+};
+
 function Card({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
     <div style={{ border: "1px solid var(--line-soft)", borderRadius: 16, padding: 16, background: "rgba(0,0,0,0.12)" }}>
@@ -96,20 +107,48 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [syncMsg, setSyncMsg] = useState("");
+  const [syncBusy, setSyncBusy] = useState(false);
 
-  
-  async function manualSync() {
-    setMsg("Syncing…");
+  async function loadAccounts() {
     try {
-      const res = await fetch("/api/sync-now", { method: "POST" });
-      const text = await res.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch {}
-      if (!res.ok) { setMsg(`Sync failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
-      setMsg((j && j.note) ? j.note : "Sync done.");
-    } catch (e) {
-      setMsg(`Sync failed: ${e?.message || e}`);
+      const r = await fetch("/api/exchange-accounts", { cache: "no-store" });
+      const j = await r.json();
+      if (j.ok) setAccounts(j.accounts || []);
+    } catch {}
+  }
+
+  useEffect(() => { loadAccounts(); }, []);
+
+  async function manualSync(accountId?: string) {
+    setSyncBusy(true);
+    setSyncMsg("동기화 중…");
+    try {
+      const res = await fetch("/api/sync-now", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(accountId ? { account_id: accountId } : {}),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setSyncMsg(`실패: ${j?.error || res.status}`); return; }
+      setSyncMsg(j?.note || "동기화 완료");
+      window.dispatchEvent(new Event("trades-updated"));
+    } catch (e: any) {
+      setSyncMsg(`오류: ${e?.message || e}`);
+    } finally {
+      setSyncBusy(false);
     }
+  }
+
+  async function deleteAccount(id: string) {
+    if (!window.confirm("이 계정을 삭제할까요?")) return;
+    try {
+      const r = await fetch(`/api/exchange-accounts?id=${id}`, { method: "DELETE" });
+      const j = await r.json();
+      if (j.ok) { loadAccounts(); setSyncMsg("계정 삭제 완료"); }
+      else setSyncMsg(j.error || "삭제 실패");
+    } catch (e: any) { setSyncMsg(e?.message); }
   }
 
 
@@ -137,28 +176,18 @@ export default function SettingsPage() {
 
 
   async function saveBitgetAccount() {
-    setMsg("");
-    const sb = supabaseBrowser();
-    const { data } = await sb.auth.getUser();
-    const user_id = data?.user?.id;
-
-    if (!user_id) {
-      setMsg("로그인이 필요합니다.");
-      return;
-    }
+    setSyncMsg("");
     if (!alias || !apiKey || !apiSecret || !passphrase) {
-      setMsg("Alias / API Key / Secret / Passphrase를 모두 입력하세요.");
+      setSyncMsg("Alias / API Key / Secret / Passphrase를 모두 입력하세요.");
       return;
     }
-
     setApiBusy(true);
-    setMsg("Registering Bitget account…");
+    setSyncMsg("계정 등록 중…");
     try {
       const r = await fetch("/api/exchange-accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id,
           exchange: "bitget",
           alias,
           apiKey,
@@ -166,23 +195,17 @@ export default function SettingsPage() {
           passphrase,
         }),
       });
-
-      const text = await r.text();
-      let j: any = null;
-      try { j = JSON.parse(text); } catch {}
-
+      const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) {
-        setMsg(`Register failed (${r.status}): ${j?.error || text}`);
+        setSyncMsg(`등록 실패: ${j?.error || r.status}`);
         return;
       }
-
-      await manualSync();
-
-      setApiKey("");
-      setApiSecret("");
-      setPassphrase("");
+      setSyncMsg("✅ 계정 등록 완료! 동기화 시작…");
+      setApiKey(""); setApiSecret(""); setPassphrase("");
+      await loadAccounts();
+      await manualSync(j.account?.id);
     } catch (e: any) {
-      setMsg(`Register failed: ${e?.message || "unknown error"}`);
+      setSyncMsg(`오류: ${e?.message || "unknown"}`);
     } finally {
       setApiBusy(false);
     }
@@ -238,93 +261,106 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      <Card title="Bitget API 연결" desc="현재는 Bitget만 지원합니다. 등록 즉시 동기화를 시작합니다.">
+      <Card title="Bitget API 연결" desc="API Key를 등록하면 거래 내역을 자동으로 불러옵니다. Read-only 권한만 필요합니다.">
         <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <Label>Account Alias</Label>
-            <input
-              value={alias}
-              onChange={(e) => setAlias(e.target.value)}
-              placeholder="Main / Prop / Sub ..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
 
-          <div>
-            <Label>API Key</Label>
-            <input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="bitget api key"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
+          {/* 상태 메시지 */}
+          {syncMsg && (
+            <div style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line-soft)", fontSize: 13, background: "rgba(0,0,0,0.04)" }}>
+              {syncMsg}
+            </div>
+          )}
 
-          <div>
-            <Label>API Secret</Label>
-            <input
-              value={apiSecret}
-              onChange={(e) => setApiSecret(e.target.value)}
-              placeholder="bitget api secret"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
+          {/* 등록된 계정 목록 */}
+          {accounts.length > 0 && (
+            <div>
+              <Label>등록된 계정</Label>
+              <div style={{ display: "grid", gap: 8 }}>
+                {accounts.map((acc) => (
+                  <div key={acc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "rgba(0,0,0,0.06)", flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <span style={{ fontWeight: 900, fontSize: 14 }}>{acc.alias}</span>
+                      <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.6 }}>{acc.exchange}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => manualSync(acc.id)}
+                        disabled={syncBusy}
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line-soft)", fontWeight: 800, fontSize: 12, cursor: "pointer", background: "transparent" }}
+                      >
+                        {syncBusy ? "동기화 중…" : "🔄 동기화"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAccount(acc.id)}
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(188,10,7,.3)", color: "#bc0a07", fontWeight: 800, fontSize: 12, cursor: "pointer", background: "transparent" }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => manualSync()}
+                  disabled={syncBusy}
+                  style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--line-hard)", fontWeight: 900, fontSize: 13, cursor: "pointer", background: "rgba(0,0,0,0.06)" }}
+                >
+                  {syncBusy ? "동기화 중…" : "🔄 전체 계정 동기화"}
+                </button>
+              </div>
+            </div>
+          )}
 
+          {/* 새 계정 등록 */}
           <div>
-            <Label>Passphrase</Label>
-            <input
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              placeholder="bitget passphrase"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid var(--line-soft)",
-                background: "rgba(0,0,0,0.08)",
-                color: "var(--text-primary)",
-              }}
-            />
+            <Label>{accounts.length > 0 ? "새 계정 추가" : "API Key 등록"}</Label>
+            <div style={{ display: "grid", gap: 8 }}>
+              <input
+                value={alias}
+                onChange={(e) => setAlias(e.target.value)}
+                placeholder="계정 이름 (예: Main, Prop)"
+                style={inputStyle}
+              />
+              <input
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="API Key"
+                style={inputStyle}
+                autoComplete="off"
+              />
+              <input
+                type="password"
+                value={apiSecret}
+                onChange={(e) => setApiSecret(e.target.value)}
+                placeholder="API Secret"
+                style={inputStyle}
+                autoComplete="off"
+              />
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder="Passphrase"
+                style={inputStyle}
+                autoComplete="off"
+              />
+              <div style={{ fontSize: 12, opacity: 0.6, lineHeight: 1.5 }}>
+                ⚠ Bitget에서 <b>Read-only</b> 권한으로만 발급하세요. IP 제한을 걸면 더 안전합니다.
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); saveBitgetAccount(); }}
+                disabled={apiBusy}
+                style={{ padding: "10px 14px", borderRadius: 12, border: "1px solid var(--line-hard)", background: "var(--text-primary)", color: "white", fontWeight: 900, cursor: "pointer", width: "fit-content" }}
+              >
+                {apiBusy ? "등록 중…" : "등록 & 동기화"}
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveBitgetAccount(); }}
-            disabled={apiBusy}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid var(--line-hard)",
-              background: "rgba(210,194,165,0.16)",
-              color: "var(--text-primary)",
-              fontWeight: 900,
-              cursor: "pointer",
-              width: "fit-content",
-            }}
-          >
-            {apiBusy ? "Registering…" : "Register & Sync now"}
-          </button>
         </div>
       </Card>
 
