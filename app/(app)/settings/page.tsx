@@ -294,7 +294,7 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => deleteAccount(acc.id)}
-                        style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(188,10,7,.3)", color: "#bc0a07", fontWeight: 800, fontSize: 12, cursor: "pointer", background: "transparent" }}
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(192,57,43,0.3)", color: "var(--red, #c0392b)", fontWeight: 800, fontSize: 12, cursor: "pointer", background: "transparent" }}
                       >
                         삭제
                       </button>

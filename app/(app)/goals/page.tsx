@@ -146,7 +146,7 @@ export default function GoalsPage() {
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 900 }}>Goals</h1>
 
-      {err && <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--line-soft,#eee)", marginBottom: 12, color: "#bc0a07", fontSize: 13 }}>{err}</div>}
+      {err && <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--line-soft,#eee)", marginBottom: 12, color: "var(--red, #c0392b)", fontSize: 13 }}>{err}</div>}
 
       {/* 누적 통계 */}
       <div style={{ border: "1px solid var(--line-soft,#eee)", padding: "12px 14px", borderRadius: 12, marginBottom: 14, background: "var(--panel,white)" }}>
@@ -259,7 +259,7 @@ export default function GoalsPage() {
               )}
               <div style={{ flex: 1 }} />
               <button onClick={() => archiveGoal(g)} disabled={busy} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--line-soft,#eee)", background: "transparent", cursor: "pointer", fontSize: 12, opacity: 0.7 }}>숨김</button>
-              <button onClick={() => hardDelete(g)} disabled={busy} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(188,10,7,.2)", color: "#bc0a07", background: "transparent", cursor: "pointer", fontSize: 12 }}>삭제</button>
+              <button onClick={() => hardDelete(g)} disabled={busy} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(188,10,7,.2)", color: "var(--red, #c0392b)", background: "transparent", cursor: "pointer", fontSize: 12 }}>삭제</button>
             </div>
           </div>
         );
@@ -277,7 +277,7 @@ export default function GoalsPage() {
               </div>
               <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                 <button onClick={() => archiveGoal(g)} style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid var(--line-soft,#eee)", background: "transparent", cursor: "pointer", fontSize: 12 }}>숨김</button>
-                <button onClick={() => hardDelete(g)} style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid rgba(188,10,7,.2)", color: "#bc0a07", background: "transparent", cursor: "pointer", fontSize: 12 }}>삭제</button>
+                <button onClick={() => hardDelete(g)} style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid rgba(188,10,7,.2)", color: "var(--red, #c0392b)", background: "transparent", cursor: "pointer", fontSize: 12 }}>삭제</button>
               </div>
             </div>
           ))}

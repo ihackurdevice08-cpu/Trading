@@ -1,24 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 function fmt(n: any) {
   const v = Number(n);
-  if (!Number.isFinite(v)) return "-";
+  if (!Number.isFinite(v)) return "—";
   const sign = v > 0 ? "+" : "";
-  return sign + v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return sign + v.toLocaleString("ko-KR", { maximumFractionDigits: 2 });
 }
 
 function pct(cur: number, tar: number) {
   if (!tar) return 0;
-  return Math.min(200, (cur / tar) * 100);
+  return Math.min(100, (cur / tar) * 100);
 }
 
-function PnLValue({ value }: { value: number | null }) {
-  if (value === null || !Number.isFinite(Number(value))) return <span>-</span>;
-  const v = Number(value);
-  const color = v > 0 ? "#0b7949" : v < 0 ? "#bc0a07" : "inherit";
-  return <span style={{ color, fontWeight: 700 }}>{fmt(v)}</span>;
+function PnLBadge({ v }: { v: number | null }) {
+  if (v == null || !Number.isFinite(v)) return <span style={{ opacity: 0.4 }}>—</span>;
+  const color = v > 0 ? "var(--green)" : v < 0 ? "var(--red)" : "inherit";
+  return <span style={{ color, fontWeight: 800 }}>{fmt(v)}</span>;
+}
+
+function StatCard({ icon, title, value, sub, accent }: {
+  icon: string; title: string; value: React.ReactNode; sub?: string; accent?: boolean;
+}) {
+  return (
+    <div style={{
+      border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
+      padding: "12px 14px", borderRadius: 12,
+      background: accent ? "rgba(184,154,90,0.06)" : "var(--panel, rgba(255,255,255,0.72))",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+        <span style={{ fontSize: 13, opacity: 0.5 }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.5, letterSpacing: 0.2 }}>{title}</span>
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -30,123 +48,113 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     try {
       const [a, b] = await Promise.all([
-        fetch("/api/dashboard", { cache: "no-store" }).then((r) => r.json()),
-        fetch("/api/goals-v2", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/dashboard",  { cache: "no-store" }).then(r => r.json()),
+        fetch("/api/goals-v2",   { cache: "no-store" }).then(r => r.json()),
       ]);
       if (a.ok) setStats(a.stats);
-      else setErr(a.error || "대시보드 로드 실패");
+      else      setErr(a.error || "데이터를 불러오지 못했습니다");
       if (b.ok) setGoals(b.goals || []);
       setLastUpdated(new Date());
     } catch (e: any) {
-      setErr(e?.message || "error");
+      setErr(e?.message || "네트워크 오류");
     }
   }, []);
 
   useEffect(() => {
     load();
-
-    // 30초 폴링 (15초→30초, 대시보드는 실시간 불필요)
-    const id = setInterval(load, 30000);
-
-    // 거래 추가/삭제 시 즉시 갱신
+    const id = setInterval(load, 30_000);
     window.addEventListener("trades-updated", load);
-
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("trades-updated", load);
-    };
+    return () => { clearInterval(id); window.removeEventListener("trades-updated", load); };
   }, [load]);
 
-  if (err) return <div style={{ padding: 20, color: "#bc0a07" }}>오류: {err}</div>;
-  if (!stats) return <div style={{ padding: 20, opacity: 0.7 }}>불러오는 중...</div>;
+  if (err)   return <ErrBox msg={err} />;
+  if (!stats) return <Loading />;
 
-  const activeGoals = goals.filter((g) => g.status === "active");
+  const activeGoals = goals.filter(g => g.status === "active");
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Dashboard</h1>
+    <div style={{ maxWidth: 1100 }}>
+
+      {/* 타이틀 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline",
+        marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>대시보드</h1>
         {lastUpdated && (
-          <span style={{ fontSize: 12, opacity: 0.55 }}>
-            {lastUpdated.toLocaleTimeString("ko-KR")} 기준
+          <span style={{ fontSize: 11, opacity: 0.4 }}>
+            {lastUpdated.toLocaleTimeString("ko-KR")} 기준 · 30초마다 갱신
           </span>
         )}
       </div>
 
       {/* PnL 카드 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-        <StatCard title="오늘" value={<PnLValue value={stats.todayPnL} />} sub="USDT" />
-        <StatCard title="이번 주" value={<PnLValue value={stats.weekPnL} />} sub="USDT" />
-        <StatCard title="이번 달" value={<PnLValue value={stats.monthPnL} />} sub="USDT" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, marginBottom: 10 }}>
+        <StatCard icon="◈" title="오늘"    value={<PnLBadge v={stats.todayPnL}  />} sub="USDT" />
+        <StatCard icon="◈" title="이번 주" value={<PnLBadge v={stats.weekPnL}   />} sub="USDT" />
+        <StatCard icon="◈" title="이번 달" value={<PnLBadge v={stats.monthPnL}  />} sub="USDT" />
       </div>
 
       {/* 거래 통계 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
-        <StatCard
-          title="총 거래"
-          value={<span>{stats.totalTrades ?? "-"}</span>}
-          sub="건"
-        />
-        <StatCard
-          title="승률"
-          value={
-            <span>
-              {stats.winRate != null ? `${stats.winRate.toFixed(1)}%` : "-"}
-            </span>
-          }
-          sub={stats.wins != null ? `${stats.wins}승 ${stats.losses}패` : ""}
-        />
-        <StatCard
-          title="실현된 거래"
-          value={<span>{stats.realizedTrades ?? "-"}</span>}
-          sub="PnL 입력됨"
-        />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, marginBottom: 20 }}>
+        <StatCard icon="◉" title="총 거래"  value={stats.totalTrades ?? "—"} sub="건" />
+        <StatCard icon="◎" title="승률"
+          value={stats.winRate != null ? `${stats.winRate.toFixed(1)}%` : "—"}
+          sub={stats.wins != null ? `${stats.wins}승 ${stats.losses}패` : ""} />
+        <StatCard icon="◉" title="PnL 기록" value={stats.realizedTrades ?? "—"} sub="건 입력" />
       </div>
 
-      {/* 진행 중인 목표 */}
+      {/* 진행중 목표 */}
       {activeGoals.length > 0 && (
-        <div>
-          <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 900 }}>진행중 목표</h2>
-          <div style={{ display: "grid", gap: 10 }}>
-            {activeGoals.map((g) => {
+        <section>
+          <h2 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 900, opacity: 0.7, letterSpacing: 0.3 }}>
+            ◎ 진행중 목표
+          </h2>
+          <div style={{ display: "grid", gap: 8 }}>
+            {activeGoals.map(g => {
               const cur = Number(g.current_value || 0);
               const tgt = Number(g.target_value || 1);
-              const progress = pct(cur, tgt);
+              const p = pct(cur, tgt);
               const isBool = g.type === "boolean";
               return (
-                <div key={g.id} style={{ border: "1px solid var(--line-soft,#eee)", padding: 12, borderRadius: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <b>{g.title}</b>
-                    <span style={{ opacity: 0.7, fontSize: 13 }}>
-                      {isBool ? "체크" : `${cur.toLocaleString()} / ${tgt.toLocaleString()}`}
+                <div key={g.id} style={{
+                  border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
+                  padding: "11px 14px", borderRadius: 12,
+                  background: "var(--panel, rgba(255,255,255,0.72))",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 800, fontSize: 14 }}>{g.title}</span>
+                    <span style={{ opacity: 0.55, fontSize: 12 }}>
+                      {isBool ? "체크" : `${cur.toLocaleString("ko-KR")} / ${tgt.toLocaleString("ko-KR")}`}
                     </span>
                   </div>
                   {!isBool && (
-                    <div style={{ background: "rgba(0,0,0,0.08)", height: 6, borderRadius: 999, overflow: "hidden" }}>
-                      <div style={{ width: progress + "%", height: "100%", background: "var(--accent,#333)", borderRadius: 999 }} />
+                    <div style={{ height: 5, borderRadius: 999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                      <div style={{ width: p + "%", height: "100%",
+                        background: "var(--accent, #B89A5A)", borderRadius: 999 }} />
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
-        </div>
+        </section>
       )}
+
+      <style>{`
+        :root { --green: #0b7949; --red: #c0392b; }
+      `}</style>
     </div>
   );
 }
 
-function StatCard({ title, value, sub }: { title: string; value: React.ReactNode; sub?: string }) {
+function ErrBox({ msg }: { msg: string }) {
   return (
-    <div style={{
-      border: "1px solid var(--line-soft,#eee)",
-      padding: 16,
-      borderRadius: 12,
-      background: "var(--panel,white)",
-    }}>
-      <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, opacity: 0.5, marginTop: 4 }}>{sub}</div>}
+    <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(192,57,43,0.08)",
+      border: "1px solid rgba(192,57,43,0.2)", color: "#c0392b", fontSize: 14 }}>
+      ◬ {msg}
     </div>
   );
+}
+function Loading() {
+  return <div style={{ padding: 20, opacity: 0.5, fontSize: 14 }}>불러오는 중…</div>;
 }

@@ -32,7 +32,7 @@ function fmt(n: any, d = 2) {
 }
 function pnlColor(v: number | null) {
   if (v == null || v === 0) return "inherit";
-  return v > 0 ? "#0b7949" : "#c0392b";
+  return v > 0 ? "var(--green, #0b7949)" : "var(--red, #c0392b)";
 }
 
 // ─────────────────────────── page ───────────────────────────
@@ -272,7 +272,7 @@ export default function TradeRecordsPage() {
             ...chip,
             fontWeight: sideFilter === v ? 900 : 600,
             background: sideFilter === v ? "rgba(0,0,0,0.10)" : "transparent",
-            color: v === "long" && sideFilter === v ? "#0b7949" : v === "short" && sideFilter === v ? "#c0392b" : "inherit",
+            color: v === "long" && sideFilter === v ? "var(--green, #0b7949)" : v === "short" && sideFilter === v ? "var(--red, #c0392b)" : "inherit",
           }}>
             {v === "" ? "전체" : v.toUpperCase()}
           </button>
@@ -333,7 +333,7 @@ export default function TradeRecordsPage() {
                 style={{ ...inp, resize: "vertical" }} />
             </div>
           </div>
-          {formErr && <div style={{ marginTop: 8, fontSize: 13, color: "#c0392b" }}>{formErr}</div>}
+          {formErr && <div style={{ marginTop: 8, fontSize: 13, color: "var(--red, #c0392b)" }}>{formErr}</div>}
           <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
             <button onClick={addTrade} style={btn1}>저장</button>
             <button onClick={() => setFormOpen(false)} style={btn2}>취소</button>
@@ -398,7 +398,7 @@ export default function TradeRecordsPage() {
               <div>
                 <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6,
                   background: t.side === "long" ? "rgba(11,121,73,0.12)" : "rgba(192,57,43,0.12)",
-                  color: t.side === "long" ? "#0b7949" : "#c0392b" }}>
+                  color: t.side === "long" ? "var(--green, #0b7949)" : "var(--red, #c0392b)" }}>
                   {t.side.toUpperCase()}
                 </span>
               </div>
@@ -490,5 +490,5 @@ const chip: React.CSSProperties = {
 const danger: React.CSSProperties = {
   padding: "5px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11,
   border: "1px solid rgba(192,57,43,.25)",
-  background: "rgba(192,57,43,.07)", color: "#c0392b", fontWeight: 700,
+  background: "rgba(192,57,43,.07)", color: "var(--red, #c0392b)", fontWeight: 700,
 };

@@ -40,7 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#F4F0E6",
+        background: "var(--bg, #F4F0E6)",
         fontSize: 15,
         opacity: 0.7,
       }}>
