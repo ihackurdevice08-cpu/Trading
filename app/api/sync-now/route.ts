@@ -108,19 +108,14 @@ function fillToRow(it: any, uid: string, accountId: string) {
   return {
     id:           `${uid}:${accountId}:${tradeId || orderId || ts}`,
     user_id:      uid,
-    account_id:   accountId,
     exchange:     "bitget",
-    product_type: "usdt-futures",
     trade_id:     tradeId  || null,
     order_id:     orderId  || null,
     symbol:       String(it.symbol ?? ""),
     side:         it.side  ?? null,
     trade_side:   it.tradeSide ?? null,
-    // ↓ 실제 필드명으로 수정
     price:        it.price      != null ? Number(it.price)      : null,
-    size:         it.baseVolume != null ? Number(it.baseVolume) : null,  // ← 수정
-    fee:          fee !== 0 ? fee : null,                                 // ← 수정
-    pnl:          it.profit     != null ? Number(it.profit)     : null,  // ← 수정 (pnl→profit)
+    pnl:          it.profit     != null ? Number(it.profit)     : null,
     ts_ms:        ts || null,
     payload:      it,
   };
@@ -135,9 +130,9 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
 
   const { data: fills } = await sb
     .from("fills_raw")
-    .select("*")
+    .select("id,user_id,exchange,trade_id,order_id,symbol,side,trade_side,price,pnl,ts_ms,payload")
     .eq("user_id", uid)
-    .eq("account_id", accountId)
+    .eq("exchange", "bitget")
     .gte("ts_ms", fromMs)
     .order("ts_ms", { ascending: true });
 
@@ -157,12 +152,12 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
     const first = group[0];
     const last  = group[group.length - 1];
 
-    // API에서 받은 값 합산
-    const totalPnl  = group.reduce((s, f) => s + (Number(f.pnl)  || 0), 0);
-    const totalSize = group.reduce((s, f) => s + (Number(f.size) || 0), 0);
+    // API에서 받은 값 합산 (size는 payload.baseVolume에서)
+    const totalPnl  = group.reduce((s, f) => s + (Number(f.pnl) || Number(f.payload?.profit) || 0), 0);
+    const totalSize = group.reduce((s, f) => s + (Number(f.payload?.baseVolume) || 0), 0);
     // 가중평균 진입가 (내부 계산)
     const avgPrice  = totalSize > 0
-      ? group.reduce((s, f) => s + (Number(f.price) || 0) * (Number(f.size) || 0), 0) / totalSize
+      ? group.reduce((s, f) => s + (Number(f.price) || 0) * (Number(f.payload?.baseVolume) || 0), 0) / totalSize
       : 0;
 
     const side   = parseSide(first.trade_side, first.side);
@@ -170,21 +165,22 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
 
     // PnL이 전혀 없는 pure open 포지션도 저장 (나중에 close fill이 오면 업데이트됨)
     rows.push({
-      id:         `bitget:${accountId}:${orderId}`,
-      user_id:    uid,
+      id:        `bitget:${accountId}:${orderId}`,
+      user_id:   uid,
       symbol,
       side,
-      opened_at:  first.ts_ms ? new Date(Number(first.ts_ms)).toISOString() : new Date().toISOString(),
-      closed_at:  last.ts_ms  ? new Date(Number(last.ts_ms )).toISOString() : null,
-      // ── API에서 받은 값 (계산 없음)
-      pnl:        Number(totalPnl.toFixed(4)),
-      size:       Number(totalSize.toFixed(6)),
-      // ── 내부 계산 값
-      avg_price:  Number(avgPrice.toFixed(4)),  // 가중평균가 (API에 없음)
-      tags:       ["bitget", "auto-sync"],
-      notes:      `auto-sync | fills: ${group.length}`,
-      source:     "bitget",
-      account_id: accountId,
+      opened_at: first.ts_ms ? new Date(Number(first.ts_ms)).toISOString() : new Date().toISOString(),
+      closed_at: last.ts_ms  ? new Date(Number(last.ts_ms )).toISOString() : null,
+      pnl:       Number(totalPnl.toFixed(4)),
+      tags:      ["bitget", "auto-sync"],
+      notes:     JSON.stringify({
+        source:    "bitget",
+        accountId,
+        fills:     group.length,
+        size:      Number(totalSize.toFixed(6)),
+        avg_price: Number(avgPrice.toFixed(4)),
+      }),
+      source:    "bitget",
     });
   }
 
@@ -193,7 +189,7 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
   const { error } = await sb.from("manual_trades").upsert(rows, { onConflict: "id" });
   if (error) {
     console.error("aggregate upsert error:", error.message);
-    return 0;
+    throw new Error("manual_trades upsert 실패: " + error.message);
   }
   return rows.length;
 }

@@ -9,8 +9,8 @@ const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ss
 type Trade = {
   id: string; symbol: string; side: "long" | "short";
   opened_at: string; closed_at: string | null;
-  pnl: number | null; fee: number | null; size: number | null;
-  tags: string[]; notes: string | null; source?: string;
+  pnl: number | null; notes: string | null;
+  tags: string[]; source?: string;
 };
 
 function thisMonthStart() {
@@ -142,7 +142,6 @@ export default function TradeRecordsPage() {
     const wins   = hasPnl.filter(t => (t.pnl ?? 0) > 0);
     const losses = hasPnl.filter(t => (t.pnl ?? 0) < 0);
     const totalPnl = hasPnl.reduce((s, t) => s + (t.pnl ?? 0), 0);
-    const totalFee = 0; // fee 컬럼 미사용
     const avgW = wins.length   ? wins.reduce((s,t)=>s+(t.pnl??0),0)   / wins.length   : null;
     const avgL = losses.length ? losses.reduce((s,t)=>s+(t.pnl??0),0) / losses.length : null;
     const wr   = hasPnl.length ? wins.length / hasPnl.length * 100 : null;
