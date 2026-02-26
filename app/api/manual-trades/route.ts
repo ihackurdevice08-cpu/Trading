@@ -20,20 +20,16 @@ export async function GET(req: Request) {
   const tag     = url.searchParams.get("tag");
   const limit   = Math.min(Number(url.searchParams.get("limit") || "500"), 2000);
 
-  // 시작일 기본값: 쿼리에 from이 없으면 이번 달 1일
-  const defaultFrom = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  })();
-  const fromDate = from || defaultFrom;
-
   let q = supabaseServer()
     .from("manual_trades")
-    .select("id,symbol,side,opened_at,closed_at,pnl,fee,size,avg_price,tags,notes,source,account_id")
+    .select("id,symbol,side,opened_at,closed_at,pnl,size,avg_price,tags,notes,source,account_id")
     .eq("user_id", uid)
-    .gte("opened_at", fromDate + "T00:00:00.000Z")
     .order("opened_at", { ascending: false })
     .limit(limit);
+
+  // from 있을 때만 날짜 필터 적용 (없으면 전체 조회)
+  const fromDate = from || null;
+  if (fromDate) q = q.gte("opened_at", fromDate + "T00:00:00.000Z");
 
   if (to)     q = q.lte("opened_at", to + "T23:59:59.999Z");
   if (symbol) q = q.ilike("symbol", `%${symbol}%`);
@@ -65,7 +61,6 @@ export async function POST(req: Request) {
     opened_at,
     closed_at: body.closed_at ?? null,
     pnl:       body.pnl  != null ? Number(body.pnl)  : null,
-    fee:       body.fee  != null ? Number(body.fee)  : null,
     size:      body.size != null ? Number(body.size) : null,
     tags:      Array.isArray(body.tags) ? body.tags.map(String) : [],
     notes:     body.notes ?? null,
@@ -75,7 +70,7 @@ export async function POST(req: Request) {
   const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
-    .select("id,symbol,side,opened_at,closed_at,pnl,fee,tags,notes,source")
+    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes,source")
     .single();
 
   if (error) return bad(error.message, 500);

@@ -159,7 +159,6 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
 
     // API에서 받은 값 합산
     const totalPnl  = group.reduce((s, f) => s + (Number(f.pnl)  || 0), 0);
-    const totalFee  = group.reduce((s, f) => s + (Number(f.fee)  || 0), 0);
     const totalSize = group.reduce((s, f) => s + (Number(f.size) || 0), 0);
     // 가중평균 진입가 (내부 계산)
     const avgPrice  = totalSize > 0
@@ -179,7 +178,6 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
       closed_at:  last.ts_ms  ? new Date(Number(last.ts_ms )).toISOString() : null,
       // ── API에서 받은 값 (계산 없음)
       pnl:        Number(totalPnl.toFixed(4)),
-      fee:        Number(totalFee.toFixed(4)),
       size:       Number(totalSize.toFixed(6)),
       // ── 내부 계산 값
       avg_price:  Number(avgPrice.toFixed(4)),  // 가중평균가 (API에 없음)
@@ -212,7 +210,7 @@ export async function POST(req: Request) {
 
   const fromDate: string = body?.from
     ? String(body.from)
-    : new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    : new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
 
   const fromMs = new Date(fromDate + "T00:00:00Z").getTime();
   const fromTimestamp = String(fromMs);

@@ -32,7 +32,7 @@ export default function TradeRecordsPage() {
   const { appearance, patchAppearance } = useAppearance();
   const rw = appearance.riskWidget ?? { dashboard: true, trades: true };
 
-  const [from, setFrom]             = useState(thisMonthStart);
+  const [from, setFrom]             = useState("");
   const [to, setTo]                 = useState("");
   const [symFilter, setSymFilter]   = useState("");
   const [sideFilter, setSideFilter] = useState<""|"long"|"short">("");
@@ -142,7 +142,7 @@ export default function TradeRecordsPage() {
     const wins   = hasPnl.filter(t => (t.pnl ?? 0) > 0);
     const losses = hasPnl.filter(t => (t.pnl ?? 0) < 0);
     const totalPnl = hasPnl.reduce((s, t) => s + (t.pnl ?? 0), 0);
-    const totalFee = filtered.reduce((s, t) => s + (t.fee ?? 0), 0);
+    const totalFee = 0; // fee 컬럼 미사용
     const avgW = wins.length   ? wins.reduce((s,t)=>s+(t.pnl??0),0)   / wins.length   : null;
     const avgL = losses.length ? losses.reduce((s,t)=>s+(t.pnl??0),0) / losses.length : null;
     const wr   = hasPnl.length ? wins.length / hasPnl.length * 100 : null;
@@ -178,15 +178,16 @@ export default function TradeRecordsPage() {
       {/* 날짜 범위 + 동기화 패널 */}
       <div style={panel}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={col}><span style={lbl}>집계 시작일</span>
+          <div style={col}><span style={lbl}>집계 시작일 <span style={{ opacity:.5 }}>(선택)</span></span>
             <input type="date" value={from} max={today()} onChange={e => setFrom(e.target.value)} style={inp} /></div>
           <div style={col}><span style={lbl}>종료일 <span style={{ opacity:.5 }}>(선택)</span></span>
             <input type="date" value={to} min={from} max={today()} onChange={e => setTo(e.target.value)} style={inp} /></div>
           <div style={col}><span style={lbl}>심볼</span>
-            <input value={symFilter} placeholder="BTC, ETH…" onChange={e => setSymFilter(e.target.value)} style={{ ...inp, width: 100 }} /></div>
+            <input value={symFilter} placeholder="전체 (선택)" onChange={e => setSymFilter(e.target.value)} style={{ ...inp, width: 100 }} /></div>
 
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {[
+              { label: "전체", fn: () => { setFrom(""); setTo(""); } },
               { label: "이번 달", fn: () => { setFrom(thisMonthStart()); setTo(""); } },
               { label: "이번 주", fn: () => {
                 const d = new Date(); const day = d.getDay() || 7;
@@ -309,7 +310,7 @@ export default function TradeRecordsPage() {
           <div style={{ padding: 24, textAlign: "center", opacity: .5, fontSize: 14 }}>불러오는 중…</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", opacity: .5, fontSize: 14 }}>
-            {from ? `${from} 이후 기록 없음` : "기록 없음"}
+            {from ? `${from} 이후 기록 없음` : "거래 기록 없음 — Bitget 동기화를 눌러주세요"}
           </div>
         ) : filtered.map((t, i) => {
           const isAuto  = t.source === "bitget";
