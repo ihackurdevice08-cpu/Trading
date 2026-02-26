@@ -88,7 +88,7 @@ export default function SettingsPage() {
     if (!riskSettings) return;
     const next = { ...riskSettings, ...patch };
     setRiskSettings(next);
-    setRiskMsg("Saving…");
+    setRiskMsg("저장 중…");
     try {
       const r = await fetch("/api/risk-settings", {
         method: "POST",
@@ -96,9 +96,9 @@ export default function SettingsPage() {
         body: JSON.stringify(next),
       });
       const j = await r.json();
-      setRiskMsg(j.ok ? "Saved." : j.error || "Save failed");
+      setRiskMsg(j.ok ? "저장 완료" : j.error || "저장 실패");
     } catch (e: any) {
-      setRiskMsg(e?.message || "Save failed");
+      setRiskMsg(e?.message || "저장 실패");
     }
   }
   
@@ -155,7 +155,7 @@ export default function SettingsPage() {
   
   async function saveNow() {
     setBusy(true);
-    setMsg("Saving…");
+    setMsg("저장 중…");
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
@@ -165,10 +165,10 @@ export default function SettingsPage() {
       const text = await res.text();
       let j = null;
       try { j = JSON.parse(text); } catch {}
-      if (!res.ok) { setMsg(`Save failed (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
-      setMsg((j && j.note) ? j.note : "Saved.");
+      if (!res.ok) { setMsg(`저장 실패 (${res.status}): ${(j && j.error) ? j.error : text}`); return; }
+      setMsg((j && j.note) ? j.note : "저장 완료");
     } catch (e) {
-      setMsg(`Save failed: ${e?.message || e}`);
+      setMsg(`저장 실패: ${e?.message || e}`);
     } finally {
       setBusy(false);
     }
@@ -214,7 +214,7 @@ export default function SettingsPage() {
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>Settings</div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.2 }}>설정</div>
         <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
           필요한 것만 천천히 조정하시면 됩니다. {isAuthed ? "현재 계정에 연결되어 있습니다." : "로그인 전입니다."}
         </div>
@@ -235,7 +235,7 @@ export default function SettingsPage() {
             cursor: "pointer",
           }}
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? "저장 중…" : "저장"}
         </button>
 
         <button
@@ -553,13 +553,65 @@ export default function SettingsPage() {
           </button>
         </div>
       </Card>
+
       {/* =====================================================
-          Appearance & Atmosphere (account-bound)
+          리스크 위젯 표시 설정
           ===================================================== */}
-      <Card title="Appearance & Atmosphere" desc="모든 취향 설정은 로그인한 계정에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.">
+      <Card title="리스크 위젯 표시" desc="대시보드와 거래기록 탭에서 리스크 현황 위젯을 표시할지 설정합니다. 최소 한 탭에는 항상 켜져 있어야 합니다.">
+        {(() => {
+          const rw = appearance.riskWidget ?? { dashboard: true, trades: true };
+          const canToggleDash   = rw.trades;    // 거래기록이 켜져 있어야 대시보드를 끌 수 있음
+          const canToggleTrades = rw.dashboard; // 대시보드가 켜져 있어야 거래기록을 끌 수 있음
+          return (
+            <div style={{ display: "grid", gap: 8 }}>
+              {[
+                { key: "dashboard" as const, label: "대시보드",  canToggle: canToggleDash   },
+                { key: "trades"    as const, label: "거래기록",  canToggle: canToggleTrades },
+              ].map(({ key, label, canToggle }) => (
+                <div key={key} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "11px 14px", borderRadius: 12,
+                  border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
+                  background: "rgba(0,0,0,0.04)",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>{label} 탭</div>
+                    <div style={{ fontSize: 12, opacity: .55, marginTop: 2 }}>
+                      {rw[key] ? "리스크 현황 표시 중" : "숨김"}
+                      {!canToggle && " · 마지막 활성 탭이므로 끌 수 없습니다"}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!canToggle) return;
+                      patchAppearance({ riskWidget: { ...rw, [key]: !rw[key] } });
+                    }}
+                    style={{
+                      padding: "7px 14px", borderRadius: 9, fontSize: 13, fontWeight: 800,
+                      cursor: canToggle ? "pointer" : "not-allowed",
+                      border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
+                      background: rw[key] ? "var(--text-primary, #111)" : "transparent",
+                      color:      rw[key] ? "white" : "var(--text-primary, #111)",
+                      opacity: canToggle ? 1 : .4,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {rw[key] ? "켜짐" : "꺼짐"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </Card>
+
+      {/* =====================================================
+          외관 설정 (account-bound)
+          ===================================================== */}
+      <Card title="외관 설정" desc="모든 취향 설정은 로그인한 계정에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.">
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Appearance & Atmosphere</div>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>외관 설정</div>
             <div style={{ color: "var(--text-muted)", marginTop: 6, lineHeight: 1.6 }}>
               모든 취향 설정은 <b>로그인한 계정</b>에 귀속됩니다. 다른 기기에서 로그인해도 그대로 유지됩니다.
             </div>
@@ -692,7 +744,7 @@ export default function SettingsPage() {
         </label>
       </Card>
       <Card
-        title="Background Media Upload"
+        title="배경 미디어 업로드"
         desc="이미지/영상 배경을 계정에 귀속해 저장합니다. 다른 기기에서도 동일하게 유지됩니다."
       >
         <div style={{ display: "grid", gap: 10 }}>

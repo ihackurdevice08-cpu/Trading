@@ -23,7 +23,7 @@ export default async function MePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+    <main style={{ padding: 24, fontFamily: "inherit" }}>
       <h1>내 정보</h1>
       <pre style={{ whiteSpace: "pre-wrap" }}>
 {JSON.stringify(user, null, 2)}

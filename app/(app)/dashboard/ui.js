@@ -150,7 +150,7 @@ export default function DashboardClient({ email, settings }) {
 }
 
 const S = {
-  page: { padding: 24, fontFamily: "system-ui", display: "grid", gap: 16 },
+  page: { padding: 24, fontFamily: "inherit", display: "grid", gap: 16 },
   header: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" },
   h1: { margin: 0 },
   sub: { opacity: 0.7, marginTop: 6 },

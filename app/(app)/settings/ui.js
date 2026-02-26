@@ -110,7 +110,7 @@ function Field({ label, value, setValue }) {
 }
 
 const S = {
-  page: { padding: 24, fontFamily: "system-ui", display: "grid", gap: 12 },
+  page: { padding: 24, fontFamily: "inherit", display: "grid", gap: 12 },
   header: { display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" },
   btn: { padding:"10px 14px", border:"1px solid #ddd", borderRadius:10, textDecoration:"none", color:"black", background:"white" },
   primary: { padding:"12px 16px", border:"1px solid #111", borderRadius:10, background:"#111", color:"white", cursor:"pointer", width:"fit-content" },

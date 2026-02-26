@@ -1,68 +1,71 @@
 export const metadata = {
-  title: "Man Cave OS",
+  title:       "Man Cave OS",
   description: "Private trading console",
+  viewport:    "width=device-width, initial-scale=1, viewport-fit=cover",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="ko">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        {/* 시스템 폰트 사용 — 별도 로드 없음, 즉시 렌더 */}
         <style>{`
-          *, *::before, *::after { box-sizing: border-box; }
+          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
           :root {
-            /* 배경/패널 */
-            --bg:          #F4F0E6;
-            --panel:       rgba(255,255,255,0.72);
-
-            /* 텍스트 */
-            --text-primary:   rgba(0,0,0,0.88);
-            --text:           rgba(0,0,0,0.88);
-            --text-secondary: rgba(0,0,0,0.65);
-            --text-muted:     rgba(0,0,0,0.45);
-
-            /* 선 */
-            --line-soft: rgba(0,0,0,0.09);
-            --line-hard: rgba(0,0,0,0.18);
-
-            /* 액센트 */
-            --accent: #B89A5A;
-
-            /* 상태 색상 — 전 앱 통일 */
-            --green: #0b7949;
-            --red:   #c0392b;
-            --amber: #d97706;
+            --bg:            #F4F0E6;
+            --panel:         rgba(255,255,255,0.72);
+            --text-primary:  rgba(0,0,0,0.88);
+            --text:          rgba(0,0,0,0.88);
+            --text-secondary:rgba(0,0,0,0.65);
+            --text-muted:    rgba(0,0,0,0.45);
+            --line-soft:     rgba(0,0,0,0.09);
+            --line-hard:     rgba(0,0,0,0.18);
+            --accent:        #B89A5A;
+            --green:         #0b7949;
+            --red:           #c0392b;
+            --amber:         #d97706;
           }
 
           html, body {
-            margin: 0; padding: 0;
             background: var(--bg);
             color: var(--text-primary);
-            font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
-                         "Noto Sans KR", "Segoe UI", sans-serif;
+            /* 시스템 한국어 폰트 스택 — 다운로드 없이 즉시 적용 */
+            font-family:
+              -apple-system, BlinkMacSystemFont,
+              "Apple SD Gothic Neo", "Noto Sans KR",
+              "Malgun Gothic", "맑은 고딕",
+              "Segoe UI", sans-serif;
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             overflow-x: hidden;
           }
 
+          /* 모든 입력/버튼 폰트 통일 */
           input, select, textarea, button {
             font-family: inherit;
             color: inherit;
-            font-size: max(16px, 1em);
           }
+          /* 모바일: 입력 시 줌 방지 (16px 이상) */
+          input, select, textarea { font-size: max(16px, 1em); }
           button { cursor: pointer; }
 
           /* 터치 하이라이트 제거 */
           * { -webkit-tap-highlight-color: transparent; }
-
-          /* 갤럭시 폴드 초소형 대응 */
-          @media (max-width: 320px) { html { font-size: 14px; } }
 
           /* iOS safe area */
           body {
             padding-left:  env(safe-area-inset-left);
             padding-right: env(safe-area-inset-right);
           }
+
+          /* 갤럭시 폴드 초소형 대응 */
+          @media (max-width: 320px) { html { font-size: 14px; } }
+
+          /* 스크롤바 얇게 (Webkit) */
+          ::-webkit-scrollbar       { width: 5px; height: 5px; }
+          ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 99px; }
         `}</style>
       </head>
       <body>{children}</body>

@@ -1,49 +1,41 @@
 /** @type {import('next').NextConfig} */
 
 const securityHeaders = [
-  // Clickjacking 방지
-  { key: "X-Frame-Options",         value: "DENY" },
-  // MIME 타입 스니핑 방지
-  { key: "X-Content-Type-Options",  value: "nosniff" },
-  // XSS 방지
-  { key: "X-XSS-Protection",        value: "1; mode=block" },
-  // Referrer 정보 최소화
-  { key: "Referrer-Policy",         value: "strict-origin-when-cross-origin" },
-  // 권한 최소화 (카메라/마이크/GPS 등 불필요한 API 차단)
-  { key: "Permissions-Policy",      value: "camera=(), microphone=(), geolocation=(), payment=()" },
-  // HSTS (HTTPS 강제, Vercel은 이미 적용되지만 명시)
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "X-Frame-Options",          value: "DENY" },
+  { key: "X-Content-Type-Options",   value: "nosniff" },
+  { key: "X-XSS-Protection",         value: "1; mode=block" },
+  { key: "Referrer-Policy",          value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy",       value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  { key: "Strict-Transport-Security",value: "max-age=63072000; includeSubDomains; preload" },
 ];
 
 const nextConfig = {
-  // 보안 헤더 적용
   async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: securityHeaders,
-      },
-    ];
+    return [{ source: "/(.*)", headers: securityHeaders }];
   },
 
-  // 이미지 도메인 허용 (Supabase Storage)
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/**",
-      },
+      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/**" },
     ],
+    // 이미지 최적화 품질 조정
+    formats: ["image/avif", "image/webp"],
   },
 
-  // 빌드 성능
-  swcMinify: true,
-  poweredByHeader: false, // "X-Powered-By: Next.js" 헤더 제거 (불필요한 정보 노출 방지)
+  // 성능 최적화
+  compress: true,              // gzip/brotli 압축
+  poweredByHeader: false,      // X-Powered-By 헤더 제거
+  swcMinify: true,             // SWC 미니파이어 (esbuild보다 빠름)
 
-  // TypeScript / ESLint 빌드 시 에러 무시 (배포 블로킹 방지)
+  // 빌드 시 에러 무시 (배포 블로킹 방지)
   typescript: { ignoreBuildErrors: true },
   eslint:     { ignoreDuringBuilds: true },
+
+  // 실험적 성능 기능
+  experimental: {
+    // 서버 컴포넌트 번들 최적화
+    optimizePackageImports: ["@supabase/ssr", "@supabase/supabase-js"],
+  },
 };
 
 module.exports = nextConfig;

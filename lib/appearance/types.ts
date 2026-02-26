@@ -27,6 +27,9 @@ export type AppearanceSettings = {
   maxRiskPct?: number;
   avgLossDangerPct?: number;
 
+  // Risk widget visibility per tab (둘 다 false 불가)
+  riskWidget?: { dashboard: boolean; trades: boolean };
+
   // Background
   bg?: {
     enabled?: boolean;
