@@ -30,7 +30,14 @@ export async function POST(req: Request) {
   if (!uid) return bad("unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
-  const { exchange, alias, apiKey, apiSecret, passphrase } = body || {};
+  // camelCase(apiKey) 또는 snake_case(api_key) 둘 다 허용
+  const {
+    exchange, alias, passphrase,
+    apiKey:    _ak,  api_key:    _ak2,
+    apiSecret: _as,  api_secret: _as2,
+  } = body || {};
+  const apiKey    = _ak    || _ak2;
+  const apiSecret = _as    || _as2;
 
   if (!exchange || !alias || !apiKey || !apiSecret || !passphrase) {
     return bad("exchange / alias / apiKey / apiSecret / passphrase 모두 필요합니다.");

@@ -108,7 +108,7 @@ function ChipGroup<T extends string>({
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       {options.map(o => (
         <button key={o.value} onClick={() => onChange(o.value)} style={{
-          padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+          padding: "7px 14px", borderRadius: 8, fontSize: 12,
           cursor: "pointer", border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
           background: value === o.value ? "rgba(0,0,0,0.09)" : "transparent",
           fontWeight: value === o.value ? 800 : 600,
@@ -197,7 +197,7 @@ export default function SettingsPage() {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
           exchange: "bitget", alias: alias.trim() || "Bitget",
-          api_key: apiKey.trim(), api_secret: apiSecret.trim(), passphrase: passphrase.trim(),
+          apiKey: apiKey.trim(), apiSecret: apiSecret.trim(), passphrase: passphrase.trim(),
         }),
       });
       const j = await r.json();
