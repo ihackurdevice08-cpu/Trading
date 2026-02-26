@@ -7,10 +7,14 @@ import { useAppearance } from "@/components/providers/AppearanceProvider";
 const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ssr: false });
 
 type Trade = {
-  id: string; symbol: string; side: "long" | "short";
-  opened_at: string; closed_at: string | null;
-  pnl: number | null; notes: string | null;
+  id: string;
+  symbol: string;
+  side: "long" | "short";
+  opened_at: string;
+  closed_at: string | null;
+  pnl: number | null;
   tags: string[];
+  notes: string | null;
 };
 
 function thisMonthStart() {
