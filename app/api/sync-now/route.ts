@@ -180,7 +180,6 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number) {
         size:      Number(totalSize.toFixed(6)),
         avg_price: Number(avgPrice.toFixed(4)),
       }),
-      source:    "bitget",
     });
   }
 

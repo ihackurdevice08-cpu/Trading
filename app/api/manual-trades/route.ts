@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
   let q = supabaseServer()
     .from("manual_trades")
-    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes,source")
+    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
     .eq("user_id", uid)
     .order("opened_at", { ascending: false })
     .limit(limit);
@@ -61,15 +61,14 @@ export async function POST(req: Request) {
     opened_at,
     closed_at: body.closed_at ?? null,
     pnl:       body.pnl  != null ? Number(body.pnl)  : null,
-    tags:      Array.isArray(body.tags) ? body.tags.map(String) : [],
+    tags:      Array.isArray(body.tags) ? [...body.tags.map(String), "manual"] : ["manual"],
     notes:     body.notes ?? null,
-    source:    "manual",
   };
 
   const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
-    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes,source")
+    .select("id,symbol,side,opened_at,closed_at,pnl,tags,notes")
     .single();
 
   if (error) return bad(error.message, 500);

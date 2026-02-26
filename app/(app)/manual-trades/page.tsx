@@ -10,7 +10,7 @@ type Trade = {
   id: string; symbol: string; side: "long" | "short";
   opened_at: string; closed_at: string | null;
   pnl: number | null; notes: string | null;
-  tags: string[]; source?: string;
+  tags: string[];
 };
 
 function thisMonthStart() {
@@ -132,8 +132,8 @@ export default function TradeRecordsPage() {
 
   const filtered = useMemo(() => trades.filter(t => {
     if (sideFilter && t.side !== sideFilter) return false;
-    if (srcFilter === "bitget"  && t.source !== "bitget") return false;
-    if (srcFilter === "manual"  && t.source === "bitget") return false;
+    if (srcFilter === "bitget"  && !t.tags?.includes("bitget")) return false;
+    if (srcFilter === "manual"  && t.tags?.includes("bitget")) return false;
     return true;
   }), [trades, sideFilter, srcFilter]);
 
@@ -310,7 +310,7 @@ export default function TradeRecordsPage() {
             {from ? `${from} 이후 기록 없음` : "거래 기록 없음 — Bitget 동기화를 눌러주세요"}
           </div>
         ) : filtered.map((t, i) => {
-          const isAuto  = t.source === "bitget";
+          const isAuto  = t.tags?.includes("bitget") ?? false;
           const cleanTags = (t.tags ?? []).filter(tag => !["auto-sync","bitget"].includes(tag));
           return (
             <div key={t.id} style={{
