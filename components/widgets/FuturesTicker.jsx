@@ -35,8 +35,6 @@ export default function FuturesTicker() {
   const [data,   setData]   = useState({});
   const [error,  setError]  = useState(false);
   const [loaded, setLoaded] = useState(false);
-  // "day" = UTC 당일 시초가 기준, "24h" = 24시간 rolling
-  const [mode, setMode] = useState("day");
   const timer = useRef(null);
 
   async function tick() {
@@ -44,13 +42,11 @@ export default function FuturesTicker() {
       const r = await fetch(API_URL, { cache: "no-store" });
       if (!r.ok) throw new Error(`${r.status}`);
       const j = await r.json();
-      if (!j?.ok || !j?.data) throw new Error("bad response");
+      if (!j?.ok || !j?.data) throw new Error("bad");
       setData(j.data);
       setError(false);
       setLoaded(true);
-    } catch {
-      setError(true);
-    }
+    } catch { setError(true); }
   }
 
   useEffect(() => {
@@ -61,21 +57,13 @@ export default function FuturesTicker() {
 
   const rows = useMemo(() =>
     SYMBOLS.map(s => {
-      const it = data[s] || {};
+      const it   = data[s] || {};
       const price = Number(it.price);
-      // 선택된 모드에 따라 변동률 결정
-      const pct   = mode === "day" ? Number(it.pctDay) : Number(it.pct24h);
-      const up    = Number.isFinite(pct) && pct > 0;
-      const down  = Number.isFinite(pct) && pct < 0;
-      return { symbol: s, base: s.replace("USDT", ""), price, pct, up, down };
+      const pct   = Number(it.pctDay);
+      return { symbol: s, base: s.replace("USDT", ""), price, pct,
+               up: pct > 0, down: pct < 0 };
     }),
-  [data, mode]);
-
-  const pctColor = (r) =>
-    !loaded ? "rgba(255,255,255,0.30)"
-    : r.up   ? "#2ecc71"
-    : r.down ? "#e74c3c"
-    : "rgba(255,255,255,0.50)";
+  [data]);
 
   return (
     <div style={{
@@ -87,34 +75,23 @@ export default function FuturesTicker() {
     }}>
       <div style={{
         display: "flex", alignItems: "center",
-        padding: "0 10px", height: 50, gap: 6,
+        padding: "0 12px", height: 50, gap: 6,
         overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none",
       }}>
 
-        {/* 상태 + 모드 토글 */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.30)", letterSpacing: 0.5 }}>
-            {error ? "⚠ ERR" : loaded ? "LIVE·5s" : "…"}
-          </span>
-          {/* 모드 토글 버튼 */}
-          <button
-            onClick={() => setMode(m => m === "day" ? "24h" : "day")}
-            style={{
-              all: "unset", cursor: "pointer",
-              fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
-              color: "rgba(255,255,255,0.45)",
-              padding: "1px 5px", borderRadius: 4,
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-            title={mode === "day" ? "UTC 당일 시초가 기준 · 클릭하면 24h 롤링으로 전환" : "24시간 롤링 변동률 · 클릭하면 당일 기준으로 전환"}
-          >
-            {mode === "day" ? "TODAY" : "24H"}
-          </button>
+        <div style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: 0.5, whiteSpace: "nowrap", flexShrink: 0,
+          color: error ? "#e74c3c" : loaded ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.20)",
+        }}>
+          {error ? "⚠ ERR" : loaded ? "LIVE · 5s" : "…"}
+        </div>
+
+        <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.20)", flexShrink: 0 }}>
+          UTC
         </div>
 
         <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.10)", flexShrink: 0 }} />
 
-        {/* 코인 버튼들 */}
         {rows.map(r => (
           <button
             key={r.symbol}
@@ -123,13 +100,14 @@ export default function FuturesTicker() {
             style={{
               all: "unset", cursor: "pointer",
               display: "inline-flex", alignItems: "center", gap: 7,
-              padding: "5px 11px", borderRadius: 9,
+              padding: "5px 11px", borderRadius: 9, flexShrink: 0,
               background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.09)",
-              flexShrink: 0, transition: "background 0.12s",
+              transition: "background 0.12s",
             }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.11)"}
             onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+            title={`UTC 00:00 시초가 대비 변동률`}
           >
             <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.80)", minWidth: 28 }}>
               {r.base}
@@ -142,7 +120,11 @@ export default function FuturesTicker() {
             </span>
             <span style={{
               fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
-              color: pctColor(r), minWidth: 50, textAlign: "right",
+              minWidth: 52, textAlign: "right",
+              color: !loaded ? "rgba(255,255,255,0.25)"
+                : r.up   ? "#2ecc71"
+                : r.down ? "#e74c3c"
+                : "rgba(255,255,255,0.45)",
             }}>
               {loaded ? fmtPct(r.pct) : "—"}
             </span>
@@ -150,10 +132,7 @@ export default function FuturesTicker() {
         ))}
 
         <div style={{ flex: 1 }} />
-
-        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.18)", flexShrink: 0, whiteSpace: "nowrap" }}>
-          Binance
-        </span>
+        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)", flexShrink: 0 }}>Binance</span>
       </div>
     </div>
   );
