@@ -1,5 +1,5 @@
 // 실제 themes.ts의 THEMES 키와 일치해야 함
-export type ThemeId = "linen" | "resort" | "noir" | "vault" | "dune";
+export type ThemeId = "linen" | "resort" | "noir" | "vault" | "dune" | "lounge";
 export type NavLayout = "top" | "side";
 export type BackgroundFit = "cover" | "contain";
 export type BackgroundType = "none" | "image" | "video";

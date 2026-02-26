@@ -27,15 +27,17 @@ export default function RootLayout({ children }) {
             --amber:         #d97706;
           }
 
+          :root {
+            /* 폰트 변수 — AppearanceProvider가 테마에 따라 동적으로 교체 */
+            --font-body:    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Segoe UI", sans-serif;
+            --font-mono:    "SF Mono", "Fira Code", "Consolas", monospace;
+            --font-display: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+          }
+
           html, body {
             background: var(--bg);
             color: var(--text-primary);
-            /* 시스템 한국어 폰트 스택 — 다운로드 없이 즉시 적용 */
-            font-family:
-              -apple-system, BlinkMacSystemFont,
-              "Apple SD Gothic Neo", "Noto Sans KR",
-              "Malgun Gothic", "맑은 고딕",
-              "Segoe UI", sans-serif;
+            font-family: var(--font-body);
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             overflow-x: hidden;

@@ -6,7 +6,7 @@ import React, {
 } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { AppearanceSettings } from "@/lib/appearance/types";
-import { applyThemeVars } from "@/lib/appearance/themes";
+import { applyThemeVars, applyFontScheme } from "@/lib/appearance/themes";
 
 const DEFAULT_APPEARANCE: AppearanceSettings = {
   themeId:    "linen",
@@ -102,7 +102,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     if (!r.ok || !j?.ok) throw new Error(j?.error || "저장 실패");
   }, [appearance, sb]);
 
-  useEffect(() => { applyThemeVars(appearance.themeId); }, [appearance.themeId]);
+  useEffect(() => {
+    applyThemeVars(appearance.themeId);
+    applyFontScheme(appearance.themeId);
+  }, [appearance.themeId]);
   useEffect(() => { reloadAppearance(); }, [reloadAppearance]);
 
   const value: Ctx = { appearance, patchAppearance, saveAppearance, reloadAppearance, isAuthed };
