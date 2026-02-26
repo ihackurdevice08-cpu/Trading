@@ -146,7 +146,7 @@ export default function TradeRecordsPage() {
     const avgL = losses.length ? losses.reduce((s,t)=>s+(t.pnl??0),0) / losses.length : null;
     const wr   = hasPnl.length ? wins.length / hasPnl.length * 100 : null;
     const rr   = avgW && avgL  ? Math.abs(avgW / avgL) : null;
-    return { totalPnl, totalFee, wins: wins.length, losses: losses.length, wr, rr, n: filtered.length };
+    return { totalPnl, wins: wins.length, losses: losses.length, wr, rr, n: filtered.length };
   }, [filtered]);
 
   return (
@@ -221,8 +221,6 @@ export default function TradeRecordsPage() {
         {([
           ["거래",   `${stats.n}건`],
           ["PnL",    `${stats.totalPnl >= 0 ? "+" : ""}${fmt(stats.totalPnl)} USDT`, stats.totalPnl],
-          ["수수료", `-${fmt(Math.abs(stats.totalFee))} USDT`],
-          ["순수익", `${(stats.totalPnl + stats.totalFee) >= 0 ? "+" : ""}${fmt(stats.totalPnl + stats.totalFee)} USDT`, stats.totalPnl + stats.totalFee],
           ["승률",   stats.wr  != null ? `${fmt(stats.wr, 1)}%`    : "—"],
           ["승/패",  `${stats.wins}W / ${stats.losses}L`],
           ["손익비", stats.rr  != null ? `1 : ${fmt(stats.rr, 2)}` : "—"],
@@ -351,7 +349,7 @@ export default function TradeRecordsPage() {
                 {t.pnl == null ? "—" : `${t.pnl > 0 ? "+" : ""}${fmt(t.pnl)}`}
               </div>
               <div style={{ textAlign: "right", fontSize: 12, opacity: .6 }}>
-                {t.fee != null ? fmt(t.fee) : "—"}
+                {"—"}
               </div>
 
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -372,7 +370,6 @@ export default function TradeRecordsPage() {
             <span>PnL: <b style={{ color: pnlColor(stats.totalPnl) }}>
               {stats.totalPnl >= 0 ? "+" : ""}{fmt(stats.totalPnl)}
             </b> USDT</span>
-            {stats.totalFee !== 0 && <span>수수료: {fmt(Math.abs(stats.totalFee))} USDT</span>}
           </div>
         )}
       </div>
