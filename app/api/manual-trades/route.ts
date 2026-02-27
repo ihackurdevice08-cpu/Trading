@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
   let q = supabaseServer()
     .from("manual_trades")
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes")
+    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
     .eq("user_id", uid)
     .order("opened_at", { ascending: false })
     .limit(limit);
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   const { data: row, error } = await supabaseServer()
     .from("manual_trades")
     .insert(payload)
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes")
+    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
     .single();
 
   if (error) return bad(error.message, 500);
@@ -91,4 +91,26 @@ export async function DELETE(req: Request) {
 
   if (error) return bad(error.message, 500);
   return NextResponse.json({ ok: true });
+}
+
+export async function PATCH(req: Request) {
+  const uid = await getAuthUserId();
+  if (!uid) return bad("unauthorized", 401);
+
+  const body     = await req.json().catch(() => ({}));
+  const { ids, group_id } = body;
+
+  if (!Array.isArray(ids) || ids.length === 0) return bad("ids 필요");
+
+  const sb = supabaseServer();
+
+  // 각 trade의 group_id 업데이트
+  const { error } = await sb
+    .from("manual_trades")
+    .update({ group_id: group_id ?? null })
+    .in("id", ids)
+    .eq("user_id", uid);
+
+  if (error) return bad(error.message, 500);
+  return NextResponse.json({ ok: true, updated: ids.length });
 }

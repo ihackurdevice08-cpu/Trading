@@ -109,14 +109,17 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
   // 펀딩피: symbol 없음 or trade_side = "funding_fee" or size = 0 or price = 0
   const tradeFills = fills.filter(f => {
     const ts = Number(f.ts_ms);
-    if (ts > 0 && ts < fromMs) return false;             // 날짜 필터 (JS)
-    const size = Number(f.size);
-    const price = Number(f.price);
+    if (ts > 0 && ts < fromMs) return false;              // 날짜 필터
+    const size     = Number(f.size);
+    const price    = Number(f.price);
     const tradeSide = String(f.trade_side || f.payload?.tradeSide || "").toLowerCase();
-    if (size <= 0) return false;                          // 펀딩피/리베이트 = size 0
-    if (price <= 0) return false;                        // 가격 없는 행 제외
-    if (tradeSide === "funding_fee") return false;        // 명시적 펀딩피
-    if (tradeSide === "settle") return false;             // 정산
+    if (size  <= 0) return false;                          // 펀딩피/리베이트
+    if (price <= 0) return false;                          // 가격 없는 행
+    if (tradeSide === "funding_fee") return false;
+    if (tradeSide === "settle")      return false;
+    // ★ close fill만 집계 (open = 진입, close = 청산)
+    const isClose = tradeSide.includes("close");
+    if (!isClose) return false;
     return true;
   });
 
@@ -170,6 +173,7 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
         avg_price: Number(avgPrice.toFixed(4)),
         account:   accountId,
       }),
+      group_id:  null,
     });
   }
 
