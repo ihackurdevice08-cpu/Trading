@@ -42,10 +42,16 @@ async function bitgetGet(
 function parseSide(tradeSide: string, side: string): "long" | "short" {
   const ts = String(tradeSide || "").toLowerCase();
   const s  = String(side      || "").toLowerCase();
+  // hedge mode: open_long, close_long, open_short, close_short
   if (ts.includes("long"))  return "long";
   if (ts.includes("short")) return "short";
+  // one-way mode: buy_single, sell_single
   if (ts.includes("buy"))   return "long";
   if (ts.includes("sell"))  return "short";
+  // Bitget one-way: trade_side = "open"/"close", side = "buy"/"sell"
+  // open + buy = 롱 진입, open + sell = 숏 진입
+  // close + buy = 숏 청산(롱), close + sell = 롱 청산(숏)  ← 실제 포지션 방향
+  // side만으로는 방향 확실하지 않으므로 payload.posSide 우선 사용
   return s === "buy" ? "long" : "short";
 }
 
@@ -84,23 +90,46 @@ function fillToRow(it: any, uid: string, accountId: string) {
 
 // fills_raw → manual_trades 집계
 // manual_trades 실제 컬럼: id, user_id, symbol, side, opened_at, closed_at, pnl, tags, notes
-async function aggregateFills(uid: string, accountId: string, fromMs: number): Promise<number> {
+async function aggregateFills(uid: string, accountId: string, fromMs: number): Promise<{ count: number; debug: any }> {
   const sb = supabaseServer();
 
+  // ts_ms가 text 타입일 수 있어 JS에서 필터링
   const { data: fills, error: fErr } = await sb
     .from("fills_raw")
-    .select("id, order_id, trade_id, symbol, side, trade_side, price, size, fee, pnl, ts_ms")
+    .select("id, order_id, trade_id, symbol, side, trade_side, price, size, fee, pnl, ts_ms, payload")
     .eq("user_id", uid)
     .eq("account_id", accountId)
-    .gte("ts_ms", fromMs)
     .order("ts_ms", { ascending: true });
 
   if (fErr) throw new Error("fills_raw 조회 실패: " + fErr.message);
-  if (!fills || fills.length === 0) return 0;
+  if (!fills || fills.length === 0) return { count: 0, debug: { reason: "fills 없음 (account_id 불일치?)", fromMs, accountId } };
+
+  // 실제 거래 fill만 필터 (펀딩피/리베이트/이자 제외)
+  // 실제 거래: size > 0 이고 trade_side가 open/close/open_long 등
+  // 펀딩피: symbol 없음 or trade_side = "funding_fee" or size = 0 or price = 0
+  const tradeFills = fills.filter(f => {
+    const ts = Number(f.ts_ms);
+    if (ts > 0 && ts < fromMs) return false;             // 날짜 필터 (JS)
+    const size = Number(f.size);
+    const price = Number(f.price);
+    const tradeSide = String(f.trade_side || f.payload?.tradeSide || "").toLowerCase();
+    if (size <= 0) return false;                          // 펀딩피/리베이트 = size 0
+    if (price <= 0) return false;                        // 가격 없는 행 제외
+    if (tradeSide === "funding_fee") return false;        // 명시적 펀딩피
+    if (tradeSide === "settle") return false;             // 정산
+    return true;
+  });
+
+  if (tradeFills.length === 0) return { count: 0, debug: {
+    fills_total: fills.length,
+    reason: "실제 거래 fill 없음 (전부 펀딩피/리베이트?)",
+    sample: tradeFills[0] || fills[0],
+    fromMs,
+  }};
 
   // order_id 기준 그룹핑
   const groups: Record<string, any[]> = {};
-  for (const f of fills) {
+  for (const f of tradeFills) {
     const key = String(f.order_id || f.trade_id || f.id);
     if (!groups[key]) groups[key] = [];
     groups[key].push(f);
@@ -118,7 +147,11 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
       ? group.reduce((s, f) => s + (Number(f.price) || 0) * (Number(f.size) || 0), 0) / totalSize
       : 0;
 
-    const side   = parseSide(String(first.trade_side || ""), String(first.side || ""));
+    // posSide 있으면 우선 사용 (long/short 명시)
+    const posSide = String(first.payload?.posSide || "").toLowerCase();
+    const side    = posSide === "long" || posSide === "short"
+      ? posSide as "long" | "short"
+      : parseSide(String(first.trade_side || ""), String(first.side || ""));
     const symbol = String(first.symbol || "").replace(/_UMCBL|_DMCBL|_CMCBL/g, "");
 
     rows.push({
@@ -140,11 +173,15 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
     });
   }
 
-  if (rows.length === 0) return 0;
+  if (rows.length === 0) return { count: 0, debug: {
+    fills_total: fills.length, trade_fills: tradeFills.length,
+    sample: tradeFills[0] || fills[0],
+    reason: "rows 없음 — order_id/trade_id 확인 필요"
+  }};
 
   const { error } = await sb.from("manual_trades").upsert(rows, { onConflict: "id" });
   if (error) throw new Error("manual_trades upsert 실패: " + error.message);
-  return rows.length;
+  return { count: rows.length, debug: { fills_count: fills.length, groups: Object.keys(groups).length, sample_row: rows[0] } };
 }
 
 export async function POST(req: Request) {
@@ -232,14 +269,18 @@ export async function POST(req: Request) {
     }
 
     let aggregated = 0;
+    let aggDebug: any = null;
     try {
-      aggregated = await aggregateFills(uid, acc.id, fromMs);
+      const ar = await aggregateFills(uid, acc.id, fromMs);
+      aggregated = ar.count;
+      aggDebug   = ar.debug;
     } catch (e: any) {
       errors.push(`집계 오류: ${e?.message}`);
     }
 
     results.push({ id: acc.id, alias: acc.alias, rawInserted, aggregated,
-      errors: errors.length ? errors : undefined, _debug: debugSample });
+      errors: errors.length ? errors : undefined,
+      _debug: debugSample, _aggDebug: aggDebug });
   }
 
   const totalRaw = results.reduce((s, r) => s + (r.rawInserted || 0), 0);
