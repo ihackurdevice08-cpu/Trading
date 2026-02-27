@@ -9,7 +9,7 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-// ── 확정 컬럼: id, user_id, symbol, side, opened_at, closed_at, pnl, tags, notes ──
+const SELECT_COLS = "id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id";
 
 export async function GET(req: Request) {
   const uid = await getAuthUserId();
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
   let q = supabaseServer()
     .from("manual_trades")
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
+    .select(SELECT_COLS)
     .eq("user_id", uid)
     .order("opened_at", { ascending: false })
     .limit(limit);
@@ -34,10 +34,10 @@ export async function GET(req: Request) {
   if (symbol) q = q.ilike("symbol", `%${symbol}%`);
   if (tag)    q = q.contains("tags", [tag]);
 
-  const { data: rows, error } = await q;
+  const { data, error } = await q;
   if (error) return bad(error.message, 500);
 
-  return NextResponse.json({ ok: true, trades: rows || [], from: from || null });
+  return NextResponse.json({ ok: true, trades: data || [], from: from || null });
 }
 
 export async function POST(req: Request) {
@@ -45,35 +45,55 @@ export async function POST(req: Request) {
   if (!uid) return bad("unauthorized", 401);
 
   const body      = await req.json().catch(() => ({}));
-  const symbol    = String(body.symbol  || "").trim().toUpperCase();
-  const side      = String(body.side    || "").trim().toLowerCase();
+  const symbol    = String(body.symbol || "").trim().toUpperCase();
+  const side      = String(body.side   || "").trim().toLowerCase();
   const opened_at = body.opened_at;
 
-  if (!symbol)   return bad("symbol 필요");
-  if (side !== "long" && side !== "short") return bad("side는 long/short");
-  if (!opened_at) return bad("opened_at 필요");
+  if (!symbol)                                     return bad("symbol 필요");
+  if (side !== "long" && side !== "short")         return bad("side는 long/short");
+  if (!opened_at)                                  return bad("opened_at 필요");
+  if (body.pnl != null && isNaN(Number(body.pnl))) return bad("pnl은 숫자여야 합니다");
 
-  const payload = {
-    user_id:   uid,
-    symbol,
-    side,
-    opened_at,
-    closed_at: body.closed_at ?? null,
-    pnl:       body.pnl != null ? Number(body.pnl) : null,
-    tags:      Array.isArray(body.tags)
-                 ? [...body.tags.map(String), "manual"]
-                 : ["manual"],
-    notes:     body.notes ?? null,
-  };
-
-  const { data: row, error } = await supabaseServer()
+  const { data, error } = await supabaseServer()
     .from("manual_trades")
-    .insert(payload)
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
+    .insert({
+      user_id:   uid,
+      symbol,
+      side,
+      opened_at,
+      closed_at: body.closed_at ?? null,
+      pnl:       body.pnl != null ? Number(body.pnl) : null,
+      tags:      Array.isArray(body.tags) ? [...body.tags.map(String), "manual"] : ["manual"],
+      notes:     body.notes ?? null,
+    })
+    .select(SELECT_COLS)
     .single();
 
   if (error) return bad(error.message, 500);
-  return NextResponse.json({ ok: true, trade: row });
+  return NextResponse.json({ ok: true, trade: data });
+}
+
+export async function PATCH(req: Request) {
+  const uid = await getAuthUserId();
+  if (!uid) return bad("unauthorized", 401);
+
+  const body = await req.json().catch(() => ({}));
+  const { ids, group_id } = body;
+
+  if (!Array.isArray(ids) || ids.length === 0) return bad("ids 필요");
+  // ids 최대 100개 제한 (대량 업데이트 방지)
+  if (ids.length > 100) return bad("ids는 최대 100개");
+  // group_id 형식 검증 (grp_ 접두어 또는 null)
+  if (group_id != null && typeof group_id !== "string") return bad("group_id는 문자열 또는 null");
+
+  const { error } = await supabaseServer()
+    .from("manual_trades")
+    .update({ group_id: group_id ?? null })
+    .in("id", ids)
+    .eq("user_id", uid); // 본인 데이터만 수정
+
+  if (error) return bad(error.message, 500);
+  return NextResponse.json({ ok: true, updated: ids.length });
 }
 
 export async function DELETE(req: Request) {
@@ -87,30 +107,8 @@ export async function DELETE(req: Request) {
     .from("manual_trades")
     .delete()
     .eq("id", id)
-    .eq("user_id", uid);
+    .eq("user_id", uid); // 본인 데이터만 삭제
 
   if (error) return bad(error.message, 500);
   return NextResponse.json({ ok: true });
-}
-
-export async function PATCH(req: Request) {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
-
-  const body     = await req.json().catch(() => ({}));
-  const { ids, group_id } = body;
-
-  if (!Array.isArray(ids) || ids.length === 0) return bad("ids 필요");
-
-  const sb = supabaseServer();
-
-  // 각 trade의 group_id 업데이트
-  const { error } = await sb
-    .from("manual_trades")
-    .update({ group_id: group_id ?? null })
-    .in("id", ids)
-    .eq("user_id", uid);
-
-  if (error) return bad(error.message, 500);
-  return NextResponse.json({ ok: true, updated: ids.length });
 }
