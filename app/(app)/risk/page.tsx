@@ -44,8 +44,13 @@ export default function RiskPage() {
         body: JSON.stringify(next),
       });
       const j = await r.json();
-      setMsg(j.ok ? "✓ 저장됨" : j.error || "저장 실패");
-      if (j.ok) { setSettings(next); load(); }
+      if (j.ok) {
+        if (j.settings) setSettings(j.settings);
+        setMsg("✓ 저장됨");
+        load();
+      } else {
+        setMsg(j.error || "저장 실패");
+      }
     } catch (e: any) { setMsg(e?.message || "저장 실패"); }
     finally { setSaving(false); }
   }

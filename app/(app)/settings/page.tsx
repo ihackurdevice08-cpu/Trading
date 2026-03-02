@@ -222,7 +222,13 @@ export default function SettingsPage() {
         body: JSON.stringify(next),
       });
       const j = await r.json();
-      setRiskMsg(j.ok ? "✓ 저장 완료" : j.error || "저장 실패");
+      if (j.ok) {
+        // 서버가 반환한 실제 저장값으로 상태 갱신 (0 덮어쓰기 방지)
+        if (j.settings) setRiskSettings(j.settings);
+        setRiskMsg("✓ 저장 완료");
+      } else {
+        setRiskMsg(j.error || "저장 실패");
+      }
     } catch (e: any) { setRiskMsg(e?.message || "저장 실패"); }
   }
 

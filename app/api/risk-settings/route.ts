@@ -5,9 +5,26 @@ import { supabaseServer } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function ok(data: any) { return NextResponse.json({ ok: true, ...data }); }
+function ok(data: any)  { return NextResponse.json({ ok: true,  ...data }); }
 function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, error: msg }, { status }); }
-const n = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+// 숫자 변환 - 빈 값은 null 반환 (0으로 덮어쓰지 않음)
+function toNum(v: any): number | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// DB 기본값
+const DEFAULTS = {
+  seed_usd:               10000,
+  max_dd_usd:             500,
+  max_dd_pct:             5,
+  max_daily_loss_usd:     300,
+  max_daily_loss_pct:     3,
+  max_consecutive_losses: 3,
+  manual_trading_state:   "auto",
+};
 
 export async function GET() {
   const uid = await getAuthUserId();
@@ -20,15 +37,13 @@ export async function GET() {
     .maybeSingle();
 
   const settings = {
-    seed_usd: n(rs?.seed_usd ?? 10000),
-    max_dd_usd: n(rs?.max_dd_usd ?? 500),
-    max_dd_pct: n(rs?.max_dd_pct ?? 5),
-    max_daily_loss_usd: n(rs?.max_daily_loss_usd ?? 300),
-    max_daily_loss_pct: n(rs?.max_daily_loss_pct ?? 3),
-    max_consecutive_losses: Number(rs?.max_consecutive_losses ?? 3),
-    max_trades_per_day: Number(rs?.max_trades_per_day ?? 20),
-    max_trades_per_hour: Number(rs?.max_trades_per_hour ?? 8),
-    manual_trading_state: String(rs?.manual_trading_state ?? "auto"),
+    seed_usd:               rs?.seed_usd               ?? DEFAULTS.seed_usd,
+    max_dd_usd:             rs?.max_dd_usd             ?? DEFAULTS.max_dd_usd,
+    max_dd_pct:             rs?.max_dd_pct             ?? DEFAULTS.max_dd_pct,
+    max_daily_loss_usd:     rs?.max_daily_loss_usd     ?? DEFAULTS.max_daily_loss_usd,
+    max_daily_loss_pct:     rs?.max_daily_loss_pct     ?? DEFAULTS.max_daily_loss_pct,
+    max_consecutive_losses: rs?.max_consecutive_losses ?? DEFAULTS.max_consecutive_losses,
+    manual_trading_state:   rs?.manual_trading_state   ?? DEFAULTS.manual_trading_state,
   };
 
   return ok({ settings });
@@ -40,17 +55,31 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
 
+  // 기존 값 먼저 조회 (부분 업데이트 지원)
+  const { data: existing } = await supabaseServer()
+    .from("risk_settings")
+    .select("*")
+    .eq("user_id", uid)
+    .maybeSingle();
+
+  // 보내온 값이 있으면 사용, 없으면 기존값, 없으면 기본값
+  function pick(key: string, def: any) {
+    const sent = toNum(body[key]);
+    if (sent !== null) return sent;                    // 새 값
+    if (existing?.[key] != null) return existing[key]; // 기존 DB 값
+    return def;                                        // 기본값
+  }
+
   const payload = {
-    user_id: uid,
-    seed_usd: n(body.seed_usd),
-    max_dd_usd: n(body.max_dd_usd),
-    max_dd_pct: n(body.max_dd_pct),
-    max_daily_loss_usd: n(body.max_daily_loss_usd),
-    max_daily_loss_pct: n(body.max_daily_loss_pct),
-    max_consecutive_losses: Number(body.max_consecutive_losses || 3),
-    max_trades_per_day: Number(body.max_trades_per_day || 20),
-    max_trades_per_hour: Number(body.max_trades_per_hour || 8),
-    manual_trading_state: String(body.manual_trading_state ?? "auto"),
+    user_id:               uid,
+    seed_usd:              pick("seed_usd",               DEFAULTS.seed_usd),
+    max_dd_usd:            pick("max_dd_usd",             DEFAULTS.max_dd_usd),
+    max_dd_pct:            pick("max_dd_pct",             DEFAULTS.max_dd_pct),
+    max_daily_loss_usd:    pick("max_daily_loss_usd",     DEFAULTS.max_daily_loss_usd),
+    max_daily_loss_pct:    pick("max_daily_loss_pct",     DEFAULTS.max_daily_loss_pct),
+    max_consecutive_losses: pick("max_consecutive_losses", DEFAULTS.max_consecutive_losses),
+    // 문자열 필드
+    manual_trading_state:  body.manual_trading_state ?? existing?.manual_trading_state ?? DEFAULTS.manual_trading_state,
   };
 
   const { error } = await supabaseServer()
@@ -58,5 +87,5 @@ export async function POST(req: Request) {
     .upsert(payload, { onConflict: "user_id" });
 
   if (error) return bad(error.message, 500);
-  return ok({});
+  return ok({ settings: payload });
 }
