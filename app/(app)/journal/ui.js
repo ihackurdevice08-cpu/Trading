@@ -12,7 +12,7 @@ export default function JournalClient({ initial }) {
     try {
       const r = await fetch("/api/journal", { cache: "no-store" });
       const j = await r.json();
-      if (j?.ok) setRows(j.rows || []);
+      if (j?.ok) setRows(j.entries || []);
     } catch {}
   }
 

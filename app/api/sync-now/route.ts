@@ -230,6 +230,7 @@ export async function POST(req: Request) {
     const creds        = { apiKey, secret, pass };
     let   rawInserted  = 0;
     const errors: string[] = [];
+    let   debugSample: any = null;
 
     try {
       let idLessThan = "";
@@ -253,6 +254,8 @@ export async function POST(req: Request) {
         const list: any[] = json?.data?.fillList ?? json?.data?.list ?? [];
         if (!Array.isArray(list) || list.length === 0) break;
 
+        if (pageCount === 0) debugSample = { fields: Object.keys(list[0]), first: list[0] };
+
         const rows = list.map(it => fillToRow(it, uid, acc.id));
         const { error: upErr } = await sb.from("fills_raw").upsert(rows, { onConflict: "id" });
         if (upErr) { errors.push(`fills_raw 저장 실패: ${upErr.message}`); break; }
@@ -270,18 +273,18 @@ export async function POST(req: Request) {
     }
 
     let aggregated = 0;
+    let aggDebug: any = null;
     try {
       const ar = await aggregateFills(uid, acc.id, fromMs);
       aggregated = ar.count;
+      aggDebug   = ar.debug;
     } catch (e: any) {
       errors.push(`집계 오류: ${e?.message}`);
     }
 
-    results.push({
-      id: acc.id, alias: acc.alias,
-      rawInserted, aggregated,
+    results.push({ id: acc.id, alias: acc.alias, rawInserted, aggregated,
       errors: errors.length ? errors : undefined,
-    });
+      _debug: debugSample, _aggDebug: aggDebug });
   }
 
   const totalRaw = results.reduce((s, r) => s + (r.rawInserted || 0), 0);
