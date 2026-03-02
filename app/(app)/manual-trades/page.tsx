@@ -49,8 +49,14 @@ export default function TradeRecordsPage() {
   const { appearance, patchAppearance } = useAppearance();
   const rw = appearance.riskWidget ?? { dashboard: true, trades: true };
 
-  const [from, setFrom]           = useState("");
-  const [to, setTo]               = useState("");
+  const [from, setFrom] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("trades_from") ?? "";
+  });
+  const [to, setTo] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("trades_to") ?? "";
+  });
   const [symFilter, setSymFilter] = useState("");
   const [sideFilter, setSideFilter] = useState<""|"long"|"short">("");
   const [srcFilter, setSrcFilter]   = useState<""|"bitget"|"manual">("");
@@ -100,7 +106,7 @@ export default function TradeRecordsPage() {
     return () => window.removeEventListener("trades-updated", h);
   }, [load]);
 
-  async function syncBitget() {
+  async function syncAndLoad() {
     setSyncing(true);
     setSyncLog(`⏳ ${from || "전체"} 기간 Bitget 동기화 중…`);
     try {
@@ -110,9 +116,9 @@ export default function TradeRecordsPage() {
       });
       const j = await r.json();
       setSyncLog(j.ok ? `✅ ${j.note}` : `❌ ${j.error}`);
-      if (j.ok) { window.dispatchEvent(new Event("trades-updated")); await load(); }
+      if (j.ok) { window.dispatchEvent(new Event("trades-updated")); }
     } catch (e: any) { setSyncLog("❌ " + e?.message); }
-    finally { setSyncing(false); }
+    finally { setSyncing(false); await load(); }
   }
 
   async function addTrade() {
@@ -417,35 +423,36 @@ export default function TradeRecordsPage() {
       <div style={panel}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={col}><span style={lbl}>시작일 <span style={{ opacity:.5 }}>(선택)</span></span>
-            <input type="date" value={from} max={today()} onChange={e => setFrom(e.target.value)} style={inp} /></div>
+            <input type="date" value={from} max={today()} onChange={e => { setFrom(e.target.value); localStorage.setItem("trades_from", e.target.value); }} style={inp} /></div>
           <div style={col}><span style={lbl}>종료일 <span style={{ opacity:.5 }}>(선택)</span></span>
-            <input type="date" value={to} min={from} max={today()} onChange={e => setTo(e.target.value)} style={inp} /></div>
+            <input type="date" value={to} min={from} max={today()} onChange={e => { setTo(e.target.value); localStorage.setItem("trades_to", e.target.value); }} style={inp} /></div>
           <div style={col}><span style={lbl}>심볼 <span style={{ opacity:.5 }}>(선택)</span></span>
             <input value={symFilter} placeholder="전체" onChange={e => setSymFilter(e.target.value)} style={{ ...inp, width: 100 }} /></div>
 
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {[
-              { label: "전체",   fn: () => { setFrom(""); setTo(""); } },
-              { label: "이번 달", fn: () => { setFrom(thisMonthStart()); setTo(""); } },
+              { label: "전체",   fn: () => { setFrom(""); setTo(""); localStorage.setItem("trades_from",""); localStorage.setItem("trades_to",""); } },
+              { label: "이번 달", fn: () => { const v=thisMonthStart(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
               { label: "이번 주", fn: () => {
                 const d = new Date(); const day = d.getDay() || 7;
                 const mon = new Date(d); mon.setDate(d.getDate() - day + 1);
-                setFrom(mon.toISOString().slice(0,10)); setTo("");
+                const v = mon.toISOString().slice(0,10);
+                setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to","");
               }},
-              { label: "오늘",   fn: () => { setFrom(today()); setTo(""); } },
+              { label: "오늘",   fn: () => { const v=today(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
               { label: "3개월",  fn: () => {
                 const d = new Date(); d.setMonth(d.getMonth() - 3);
-                setFrom(d.toISOString().slice(0,10)); setTo("");
+                const v = d.toISOString().slice(0,10);
+                setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to","");
               }},
             ].map(({ label, fn }) => (
               <button key={label} onClick={fn} style={chip}>{label}</button>
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => load()} disabled={loading} style={btn2}>{loading ? "로딩…" : "조회"}</button>
-            <button onClick={syncBitget} disabled={syncing} style={btn1}>{syncing ? "동기화 중…" : "⚡ Bitget 동기화"}</button>
-          </div>
+          <button onClick={syncAndLoad} disabled={syncing || loading} style={btn1}>
+            {syncing ? "동기화 중…" : loading ? "로딩…" : "⚡ 동기화 & 조회"}
+          </button>
         </div>
         {syncLog && (
           <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13,
