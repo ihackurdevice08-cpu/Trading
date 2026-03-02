@@ -469,7 +469,7 @@ export default function TradeRecordsPage() {
           ["PnL",    `${stats.totalPnl >= 0 ? "+" : ""}${fmt(stats.totalPnl)} USDT`, stats.totalPnl],
           ["승률",   stats.wr  != null ? `${fmt(stats.wr, 1)}%`    : "—"],
           ["승/패",  `${stats.wins}W / ${stats.losses}L`],
-          ["손익비", stats.rr  != null ? `1 : ${fmt(stats.rr, 2)}` : "—"],
+          ["손익비", stats.rr  != null ? fmt(stats.rr, 2) : "—"],
         ] as [string, string, number?][]).map(([label, value, colorVal]) => (
           <div key={label} style={{ padding: "10px 12px", borderRadius: 10,
             border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "var(--panel,rgba(255,255,255,0.72))" }}>
