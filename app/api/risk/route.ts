@@ -95,7 +95,8 @@ export async function GET() {
 
   const equityNow    = seed + cumPnl;
   const pnlPct       = seed ? (cumPnl / seed) * 100 : 0;
-  const ddPct        = peakEquity ? (maxDdUsd / peakEquity) * 100 : 0;
+  // 낙폭 % = 현재 자산 대비 하락폭
+  const ddPct        = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
   const dailyLossUsd = Math.min(0, todayPnl);
   const dailyLossPct = seed ? (dailyLossUsd / seed) * 100 : 0;
   const tradesToday    = byDayCount[today]        || 0;
