@@ -226,6 +226,48 @@ export default function SettingsPage() {
     } catch (e: any) { setRiskMsg(e?.message || "저장 실패"); }
   }
 
+  // USDT ↔ % 자동 계산 헬퍼
+  function toN(v: any) { const n = Number(v); return Number.isFinite(n) ? n : null; }
+  function onDdUsd(v: string) {
+    const usd = toN(v); const seed = toN(riskSettings?.seed_usd);
+    const next: any = { ...riskSettings, max_dd_usd: v };
+    if (usd != null && seed != null && seed > 0)
+      next.max_dd_pct = Number(((usd / seed) * 100).toFixed(2));
+    setRiskSettings(next);
+  }
+  function onDdPct(v: string) {
+    const pct = toN(v); const seed = toN(riskSettings?.seed_usd);
+    const next: any = { ...riskSettings, max_dd_pct: v };
+    if (pct != null && seed != null && seed > 0)
+      next.max_dd_usd = Number(((pct / 100) * seed).toFixed(2));
+    setRiskSettings(next);
+  }
+  function onDailyUsd(v: string) {
+    const usd = toN(v); const seed = toN(riskSettings?.seed_usd);
+    const next: any = { ...riskSettings, max_daily_loss_usd: v };
+    if (usd != null && seed != null && seed > 0)
+      next.max_daily_loss_pct = Number(((usd / seed) * 100).toFixed(2));
+    setRiskSettings(next);
+  }
+  function onDailyPct(v: string) {
+    const pct = toN(v); const seed = toN(riskSettings?.seed_usd);
+    const next: any = { ...riskSettings, max_daily_loss_pct: v };
+    if (pct != null && seed != null && seed > 0)
+      next.max_daily_loss_usd = Number(((pct / 100) * seed).toFixed(2));
+    setRiskSettings(next);
+  }
+  function onSeedChange(v: string) {
+    const seed = toN(v);
+    const next: any = { ...riskSettings, seed_usd: v };
+    if (seed != null && seed > 0) {
+      const ddUsd    = toN(riskSettings?.max_dd_usd);
+      const dailyUsd = toN(riskSettings?.max_daily_loss_usd);
+      if (ddUsd    != null) next.max_dd_pct         = Number(((ddUsd    / seed) * 100).toFixed(2));
+      if (dailyUsd != null) next.max_daily_loss_pct = Number(((dailyUsd / seed) * 100).toFixed(2));
+    }
+    setRiskSettings(next);
+  }
+
   // 리스크 위젯 토글
   const rw = appearance.riskWidget ?? { dashboard: true, trades: true };
   function toggleRw(tab: "dashboard" | "trades") {
@@ -383,27 +425,68 @@ export default function SettingsPage() {
               </div>
 
               {/* 수치 입력 */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
-                {([
-                  ["시드 (USDT)",         "seed_usd"              ],
-                  ["최대 낙폭 (USDT)",    "max_dd_usd"            ],
-                  ["최대 낙폭 (%)",       "max_dd_pct"            ],
-                  ["일 최대 손실 (USDT)", "max_daily_loss_usd"    ],
-                  ["일 최대 손실 (%)",    "max_daily_loss_pct"    ],
-                  ["최대 연속 손실",      "max_consecutive_losses"],
-                  ["일 최대 거래 수",     "max_trades_per_day"    ],
-                  ["시간당 최대 거래",    "max_trades_per_hour"   ],
-                ] as [string, string][]).map(([label, key]) => (
-                  <div key={key} style={fieldWrap}>
-                    <span style={lbl}>{label}</span>
-                    <input
-                      value={riskSettings[key] ?? ""}
-                      onChange={e => setRiskSettings((p: any) => ({ ...p, [key]: e.target.value }))}
-                      onBlur={() => saveRisk({})}
-                      style={inp}
-                    />
+              <div style={{ display: "grid", gap: 12 }}>
+                {/* 시드 */}
+                <div style={fieldWrap}>
+                  <span style={lbl}>시드 (USDT)</span>
+                  <input type="number" min="0"
+                    value={riskSettings.seed_usd ?? ""}
+                    onChange={e => onSeedChange(e.target.value)}
+                    onBlur={() => saveRisk({})} style={inp} />
+                </div>
+
+                {/* 최대 낙폭 */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>최대 낙폭</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={fieldWrap}>
+                      <span style={lbl}>USDT</span>
+                      <input type="number" min="0"
+                        value={riskSettings.max_dd_usd ?? ""}
+                        onChange={e => onDdUsd(e.target.value)}
+                        onBlur={() => saveRisk({})} style={inp} />
+                    </div>
+                    <div style={fieldWrap}>
+                      <span style={lbl}>%</span>
+                      <input type="number" min="0"
+                        value={riskSettings.max_dd_pct ?? ""}
+                        onChange={e => onDdPct(e.target.value)}
+                        onBlur={() => saveRisk({})} style={inp} />
+                    </div>
                   </div>
-                ))}
+                  <div style={{ fontSize: 11, opacity: .4, marginTop: 4 }}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+                </div>
+
+                {/* 일 최대 손실 */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>일 최대 손실</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={fieldWrap}>
+                      <span style={lbl}>USDT</span>
+                      <input type="number" min="0"
+                        value={riskSettings.max_daily_loss_usd ?? ""}
+                        onChange={e => onDailyUsd(e.target.value)}
+                        onBlur={() => saveRisk({})} style={inp} />
+                    </div>
+                    <div style={fieldWrap}>
+                      <span style={lbl}>%</span>
+                      <input type="number" min="0"
+                        value={riskSettings.max_daily_loss_pct ?? ""}
+                        onChange={e => onDailyPct(e.target.value)}
+                        onBlur={() => saveRisk({})} style={inp} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, opacity: .4, marginTop: 4 }}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+                </div>
+
+                {/* 최대 연속 손실 */}
+                <div style={fieldWrap}>
+                  <span style={lbl}>최대 연속 손실 (횟수)</span>
+                  <input type="number" min="0"
+                    value={riskSettings.max_consecutive_losses ?? ""}
+                    onChange={e => setRiskSettings((p: any) => ({ ...p, max_consecutive_losses: e.target.value }))}
+                    onBlur={() => saveRisk({})} style={inp} />
+                </div>
               </div>
               <div style={{ fontSize: 11, opacity: .45 }}>입력 후 포커스를 벗어나면 자동 저장됩니다.</div>
             </div>
