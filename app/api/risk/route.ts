@@ -98,7 +98,7 @@ export async function GET() {
   // 낙폭 % = 현재 자산 대비 하락폭
   const ddPct        = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
   const dailyLossUsd = Math.min(0, todayPnl);
-  const dailyLossPct = seed ? (dailyLossUsd / seed) * 100 : 0;
+  const dailyLossPct = equityNow > 0 ? (dailyLossUsd / equityNow) * 100 : 0; // 현재 자산 기준
   const tradesToday    = byDayCount[today]        || 0;
   const tradesThisHour = byHourCount[currentHour] || 0;
 

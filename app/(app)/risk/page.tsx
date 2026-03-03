@@ -56,49 +56,48 @@ export default function RiskPage() {
   }
 
   // USDT ↔ % 자동 계산
+  // % 계산 기준 = 현재 자산 (seed + 누적PnL)
+  function getBase() {
+    const eq = toN(risk?.stats?.equityNow);
+    if (eq != null && eq > 0) return eq;
+    return toN(settings?.seed_usd) ?? 0;
+  }
+
   function onDdUsd(v: string) {
     const usd  = toN(v);
-    const seed = toN(settings?.seed_usd);
+    const base = getBase();
     const next: any = { ...settings, max_dd_usd: v };
-    if (usd != null && seed != null && seed > 0)
-      next.max_dd_pct = Number(((usd / seed) * 100).toFixed(2));
+    if (usd != null && base > 0)
+      next.max_dd_pct = Number(((usd / base) * 100).toFixed(2));
     setSettings(next);
   }
   function onDdPct(v: string) {
     const pct  = toN(v);
-    const seed = toN(settings?.seed_usd);
+    const base = getBase();
     const next: any = { ...settings, max_dd_pct: v };
-    if (pct != null && seed != null && seed > 0)
-      next.max_dd_usd = Number(((pct / 100) * seed).toFixed(2));
+    if (pct != null && base > 0)
+      next.max_dd_usd = Number(((pct / 100) * base).toFixed(2));
     setSettings(next);
   }
   function onDailyUsd(v: string) {
     const usd  = toN(v);
-    const seed = toN(settings?.seed_usd);
+    const base = getBase();
     const next: any = { ...settings, max_daily_loss_usd: v };
-    if (usd != null && seed != null && seed > 0)
-      next.max_daily_loss_pct = Number(((usd / seed) * 100).toFixed(2));
+    if (usd != null && base > 0)
+      next.max_daily_loss_pct = Number(((usd / base) * 100).toFixed(2));
     setSettings(next);
   }
   function onDailyPct(v: string) {
     const pct  = toN(v);
-    const seed = toN(settings?.seed_usd);
+    const base = getBase();
     const next: any = { ...settings, max_daily_loss_pct: v };
-    if (pct != null && seed != null && seed > 0)
-      next.max_daily_loss_usd = Number(((pct / 100) * seed).toFixed(2));
+    if (pct != null && base > 0)
+      next.max_daily_loss_usd = Number(((pct / 100) * base).toFixed(2));
     setSettings(next);
   }
   function onSeed(v: string) {
-    // 시드 변경 시 USDT → % 재계산
-    const seed = toN(v);
-    const next: any = { ...settings, seed_usd: v };
-    if (seed != null && seed > 0) {
-      const ddUsd    = toN(settings?.max_dd_usd);
-      const dailyUsd = toN(settings?.max_daily_loss_usd);
-      if (ddUsd    != null) next.max_dd_pct         = Number(((ddUsd    / seed) * 100).toFixed(2));
-      if (dailyUsd != null) next.max_daily_loss_pct = Number(((dailyUsd / seed) * 100).toFixed(2));
-    }
-    setSettings(next);
+    // 시드는 최초 입금액 기준 — % 자동계산은 equityNow 기준이므로 시드 변경 시 재계산 불필요
+    setSettings({ ...settings, seed_usd: v });
   }
 
   if (!risk || !settings) return <div style={{ padding: 20, opacity: 0.5 }}>불러오는 중…</div>;
@@ -158,9 +157,12 @@ export default function RiskPage() {
       <div style={{ padding: 14, border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
         borderRadius: 12, background: "var(--panel, rgba(255,255,255,0.72))", display: "grid", gap: 14 }}>
 
-        {/* 시드 */}
-        <Field label="시드 (USDT)" value={settings.seed_usd ?? ""}
-          onChange={onSeed} onBlur={() => save()} />
+        {/* 현재 자산 기준 안내 */}
+        <div style={{ padding: "10px 12px", borderRadius: 9, background: "rgba(0,0,0,0.03)",
+          border: "1px solid var(--line-soft,rgba(0,0,0,.08))", fontSize: 12, opacity: 0.7 }}>
+          ◈ 한도 계산 기준: <b>현재 자산 {fmt(s.equityNow)} USDT</b>
+          <span style={{ opacity: 0.6 }}> (최초 시드 {fmt(s.seed)} + 누적 PnL {s.cumPnl >= 0 ? "+" : ""}{fmt(s.cumPnl)})</span>
+        </div>
 
         {/* 최대 낙폭 */}
         <div>

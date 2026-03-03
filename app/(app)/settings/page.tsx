@@ -432,15 +432,6 @@ export default function SettingsPage() {
 
               {/* 수치 입력 */}
               <div style={{ display: "grid", gap: 12 }}>
-                {/* 시드 */}
-                <div style={fieldWrap}>
-                  <span style={lbl}>시드 (USDT)</span>
-                  <input type="number" min="0"
-                    value={riskSettings.seed_usd ?? ""}
-                    onChange={e => onSeedChange(e.target.value)}
-                    onBlur={() => saveRisk({})} style={inp} />
-                </div>
-
                 {/* 최대 낙폭 */}
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>최대 낙폭</div>
