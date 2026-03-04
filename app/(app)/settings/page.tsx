@@ -142,13 +142,15 @@ export default function SettingsPage() {
   // 외관 저장 메시지
   const [saveMsg, setSaveMsg] = useState("");
 
-  // ── 로드 ────────────────────────────────────────────────────
+  // ── 로드 (병렬) ─────────────────────────────────────────────
   useEffect(() => {
-    loadAccounts();
-    fetch("/api/risk-settings", { cache: "no-store" })
-      .then(r => r.json())
-      .then(j => { if (j.ok) setRiskSettings(j.settings); })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/exchange-accounts", { cache: "no-store" }).then(r => r.json()),
+      fetch("/api/risk-settings",     { cache: "no-store" }).then(r => r.json()),
+    ]).then(([acc, risk]) => {
+      if (acc.ok)  setAccounts(acc.accounts || []);
+      if (risk.ok) setRiskSettings(risk.settings);
+    }).catch(() => {});
   }, []);
 
   async function loadAccounts() {
