@@ -19,16 +19,20 @@ export default function RiskPage() {
   const [settings, setSettings] = useState<any>(null);
   const [msg,      setMsg]      = useState("");
   const [saving,   setSaving]   = useState(false);
+  const [cycles,   setCycles]   = useState<any[]>([]);
+  const [cycling,  setCycling]  = useState(false);
 
   const load = useCallback(async () => {
     setMsg("");
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch("/api/risk",          { cache: "no-store" }).then(r => r.json()),
         fetch("/api/risk-settings", { cache: "no-store" }).then(r => r.json()),
+        fetch("/api/risk-cycle",    { cache: "no-store" }).then(r => r.json()),
       ]);
       if (r1.ok) setRisk(r1);              else setMsg(r1.error  || "리스크 데이터 로드 실패");
       if (r2.ok) setSettings(r2.settings); else setMsg(r2.error  || "설정 로드 실패");
+      if (r3.ok) setCycles(r3.cycles || []);
     } catch (e: any) { setMsg(e?.message || "네트워크 오류"); }
   }, []);
 
@@ -53,6 +57,20 @@ export default function RiskPage() {
       }
     } catch (e: any) { setMsg(e?.message || "저장 실패"); }
     finally { setSaving(false); }
+  }
+
+  async function startNewCycle() {
+    if (!confirm("새 사이클을 시작할까요?\n현재 자산을 기준으로 리스크 계산이 리셋됩니다.")) return;
+    setCycling(true);
+    try {
+      const r = await fetch("/api/risk-cycle", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ equity_snapshot: risk?.stats?.equityNow }),
+      });
+      const j = await r.json();
+      if (j.ok) { setMsg("✓ 새 사이클 시작됨"); load(); }
+      else setMsg(j.error || "사이클 시작 실패");
+    } finally { setCycling(false); }
   }
 
   // USDT ↔ % 자동 계산
@@ -202,6 +220,33 @@ export default function RiskPage() {
           </span>
         </div>
       </div>
+      {/* 새 사이클 시작 */}
+      <div style={{ marginTop: 8, paddingTop: 14,
+        borderTop: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
+        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>사이클 관리</div>
+        <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 10, lineHeight: 1.6 }}>
+          거래 사이클을 마무리하고 새로 시작할 때 누릅니다.<br/>
+          현재 자산({fmt(s.equityNow)} USDT)이 새 기준점으로 기록됩니다.
+        </div>
+        <button onClick={startNewCycle} disabled={cycling} style={{
+          padding: "9px 16px", borderRadius: 9,
+          border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
+          background: "transparent", fontWeight: 800, fontSize: 13,
+          cursor: cycling ? "not-allowed" : "pointer" }}>
+          {cycling ? "처리 중…" : "◈ 새 사이클 시작"}
+        </button>
+        {cycles.length > 0 && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+            {cycles.slice(0, 3).map(c => (
+              <div key={c.id} style={{ fontSize: 11, opacity: 0.5 }}>
+                {c.started_at?.slice(0, 10)} — 자산 {fmt(c.equity_snapshot)} USDT 기준
+                {c.note ? ` · ${c.note}` : ""}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
