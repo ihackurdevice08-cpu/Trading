@@ -169,8 +169,7 @@ export default function DashboardPage() {
           sub={`시드 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
           color={pnlColor(s.equityNow - s.seed)} />
         <StatCard label="총 출금"        value={`${fmt(s.totalWithdrawal)} USDT`} />
-        <StatCard label="계좌 잔류 수익" value={`${sign(s.retainedProfit)}${fmt(s.retainedProfit)} USDT`}
-          sub="현재자산 - 남은원금" color={pnlColor(s.retainedProfit)} />
+
         <StatCard label="이번 달 승률"   value={`${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
           sub={`${s.wins}승 ${s.losses}패 / ${s.totalTrades}건`} />
       </div>
