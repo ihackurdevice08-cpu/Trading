@@ -26,6 +26,7 @@ const DEFAULTS = {
   max_daily_loss_pct:     3,
   max_consecutive_losses: 3,
   manual_trading_state:   "auto",
+  pnl_from:               null,  // 누적 PnL 기산일 (null = 전체)
 };
 
 export async function GET() {
@@ -48,6 +49,7 @@ export async function GET() {
     max_daily_loss_pct:     rs?.max_daily_loss_pct     ?? DEFAULTS.max_daily_loss_pct,
     max_consecutive_losses: rs?.max_consecutive_losses ?? DEFAULTS.max_consecutive_losses,
     manual_trading_state:   rs?.manual_trading_state   ?? DEFAULTS.manual_trading_state,
+    pnl_from:               rs?.pnl_from               ?? DEFAULTS.pnl_from,
   };
 
   return ok({ settings });
@@ -86,6 +88,7 @@ export async function POST(req: Request) {
     max_consecutive_losses: pick("max_consecutive_losses", DEFAULTS.max_consecutive_losses),
     // 문자열 필드
     manual_trading_state:  body.manual_trading_state ?? existing?.manual_trading_state ?? DEFAULTS.manual_trading_state,
+    pnl_from:              body.pnl_from !== undefined ? (body.pnl_from || null) : (existing?.pnl_from ?? DEFAULTS.pnl_from),
   };
 
   const { error } = await supabaseServer()

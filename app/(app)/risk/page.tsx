@@ -60,15 +60,22 @@ export default function RiskPage() {
   }
 
   async function startNewCycle() {
-    if (!confirm("새 사이클을 시작할까요?\n현재 자산을 기준으로 리스크 계산이 리셋됩니다.")) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (!confirm(`새 사이클을 시작할까요?\n${today}부터 누적 PnL을 새로 계산합니다.`)) return;
     setCycling(true);
     try {
-      const r = await fetch("/api/risk-cycle", {
+      // 1. 사이클 스냅샷 저장
+      await fetch("/api/risk-cycle", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ equity_snapshot: risk?.stats?.equityNow }),
       });
+      // 2. pnl_from을 오늘로 설정
+      const r = await fetch("/api/risk-settings", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pnl_from: today }),
+      });
       const j = await r.json();
-      if (j.ok) { setMsg("✓ 새 사이클 시작됨"); load(); }
+      if (j.ok) { setMsg(`✓ 새 사이클 시작 — ${today}부터 누적`); load(); }
       else setMsg(j.error || "사이클 시작 실패");
     } finally { setCycling(false); }
   }
@@ -259,15 +266,42 @@ export default function RiskPage() {
         borderTop: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
         <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>사이클 관리</div>
         <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 10, lineHeight: 1.6 }}>
-          거래 사이클을 마무리하고 새로 시작할 때 누릅니다.<br/>
-          현재 자산({fmt(s.equityNow)} USDT)이 새 기준점으로 기록됩니다.
+          누적 PnL 기산일을 직접 설정하거나, 새 사이클 시작 버튼을 눌러 오늘부터 새로 계산합니다.
         </div>
+
+        {/* 기산일 직접 설정 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>누적 PnL 기산일</span>
+            <input type="date" max={new Date().toISOString().slice(0,10)}
+              value={settings?.pnl_from?.slice(0,10) ?? ""}
+              onChange={e => setSettings((p: any) => ({ ...p, pnl_from: e.target.value || null }))}
+              onBlur={() => save({ pnl_from: settings?.pnl_from || null })}
+              style={{ padding: "8px 10px", borderRadius: 9, fontSize: 13,
+                border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
+                background: "rgba(0,0,0,.03)", color: "inherit", outline: "none" }} />
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 16 }}>
+            {settings?.pnl_from
+              ? `${settings.pnl_from.slice(0,10)} 이후 거래만 집계`
+              : "전체 기간 집계 중"}
+          </div>
+          {settings?.pnl_from && (
+            <button onClick={() => { setSettings((p: any) => ({ ...p, pnl_from: null })); save({ pnl_from: null }); }}
+              style={{ marginTop: 16, padding: "6px 10px", borderRadius: 7, fontSize: 11,
+                border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+                background: "transparent", cursor: "pointer", opacity: 0.6 }}>
+              전체로 초기화
+            </button>
+          )}
+        </div>
+
         <button onClick={startNewCycle} disabled={cycling} style={{
           padding: "9px 16px", borderRadius: 9,
           border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
           background: "transparent", fontWeight: 800, fontSize: 13,
           cursor: cycling ? "not-allowed" : "pointer" }}>
-          {cycling ? "처리 중…" : "◈ 새 사이클 시작"}
+          {cycling ? "처리 중…" : "◈ 새 사이클 시작 (오늘부터)"}
         </button>
         {cycles.length > 0 && (
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>

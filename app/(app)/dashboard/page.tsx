@@ -132,7 +132,10 @@ export default function DashboardPage() {
         <StatCard label="오늘 PnL"    value={`${sign(s.todayPnL)}${fmt(s.todayPnL)}`}  sub="USDT" color={pnlColor(s.todayPnL)} />
         <StatCard label="이번 주 PnL" value={`${sign(s.weekPnL)}${fmt(s.weekPnL)}`}    sub="USDT" color={pnlColor(s.weekPnL)} />
         <StatCard label="이번 달 PnL" value={`${sign(s.monthPnL)}${fmt(s.monthPnL)}`}  sub="USDT" color={pnlColor(s.monthPnL)} />
-        <StatCard label="누적 PnL"    value={`${sign(s.cumPnl)}${fmt(s.cumPnl)}`}       sub="USDT" color={pnlColor(s.cumPnl)} />
+        <StatCard label="누적 PnL"
+          value={`${sign(s.cumPnl)}${fmt(s.cumPnl)}`}
+          sub={s.pnlFrom ? `${s.pnlFrom.slice(0,10)} 이후` : "전체 기간"}
+          color={pnlColor(s.cumPnl)} />
       </div>
 
       {/* 계좌 현황 */}

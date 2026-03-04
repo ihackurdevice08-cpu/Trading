@@ -29,12 +29,16 @@ export async function GET() {
     // 1. 리스크 설정
     sb.from("risk_settings").select("*").eq("user_id", uid).maybeSingle(),
 
-    // 2. 전체 거래 시계열 → cumPnl + maxDD
-    sb.from("manual_trades")
-      .select("pnl, opened_at")
-      .eq("user_id", uid)
-      .not("pnl", "is", null)
-      .order("opened_at", { ascending: true }),
+    // 2. 거래 시계열 → cumPnl + maxDD (pnl_from 이후)
+    (() => {
+      let q = sb.from("manual_trades")
+        .select("pnl, opened_at")
+        .eq("user_id", uid)
+        .not("pnl", "is", null)
+        .order("opened_at", { ascending: true });
+      // pnl_from은 settings 로드 후에 알 수 있어 여기선 전체 — 아래에서 JS 필터
+      return q;
+    })(),
 
     // 3. 오늘 거래
     sb.from("manual_trades")
@@ -63,6 +67,7 @@ export async function GET() {
   const rs = rsResult.data;
   const settings = {
     seed_usd:               n(rs?.seed_usd               ?? 10000),
+    pnl_from:               rs?.pnl_from ?? null,
     max_dd_usd:             n(rs?.max_dd_usd             ?? 500),
     max_dd_pct:             n(rs?.max_dd_pct             ?? 5),
     max_daily_loss_usd:     n(rs?.max_daily_loss_usd     ?? 300),
@@ -75,11 +80,14 @@ export async function GET() {
 
   const seed = settings.seed_usd;
 
-  // cumPnl + maxDD — 루프 1번으로 동시 계산
+  const pnlFromMs = settings.pnl_from ? new Date(settings.pnl_from).getTime() : 0;
+
+  // cumPnl + maxDD — 루프 1번으로 동시 계산 (pnl_from 이후만)
   let cumPnl     = 0;
   let peakEquity = seed;
   let maxDdUsd   = 0;
   for (const r of (timeSeriesResult.data || [])) {
+    if (pnlFromMs && new Date(r.opened_at).getTime() < pnlFromMs) continue;
     cumPnl += n(r.pnl);
     const eq = seed + cumPnl;
     if (eq > peakEquity) peakEquity = eq;

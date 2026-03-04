@@ -48,14 +48,15 @@ export async function GET() {
       .eq("user_id", uid).order("opened_at", { ascending: false }).limit(5),
     // 출금 합계
     sb.from("withdrawals").select("amount,source").eq("user_id", uid),
-    // 리스크 설정
-    sb.from("risk_settings").select("seed_usd").eq("user_id", uid).maybeSingle(),
+    // 리스크 설정 (seed + pnl_from)
+    sb.from("risk_settings").select("seed_usd, pnl_from").eq("user_id", uid).maybeSingle(),
   ]);
 
   const list     = tradesRes.data  || [];
   const recent   = recentRes.data  || [];
   const wdList   = withdrawRes.data || [];
   const seed     = Number(riskRes.data?.seed_usd || 10000);
+  const pnlFrom  = riskRes.data?.pnl_from || null;  // null = 전체 기간
 
   // 기간별 PnL
   let sumMonth = 0, sumWeek = 0, sumToday = 0;
@@ -98,9 +99,10 @@ export async function GET() {
       winRate: d.count > 0 ? Math.round((d.wins / d.count) * 100) : 0,
     }));
 
-  // 누적 PnL (전체 기간)
-  const { data: allTrades } = await sb
-    .from("manual_trades").select("pnl").eq("user_id", uid);
+  // 누적 PnL (pnl_from 이후 기간)
+  let cumPnlQuery = sb.from("manual_trades").select("pnl").eq("user_id", uid);
+  if (pnlFrom) cumPnlQuery = cumPnlQuery.gte("opened_at", pnlFrom);
+  const { data: allTrades } = await cumPnlQuery;
   const cumPnl = (allTrades || []).reduce((s, r) => s + (Number(r.pnl) || 0), 0);
 
   // 출금 합계
@@ -139,6 +141,7 @@ export async function GET() {
       cumPnl:           Number(cumPnl.toFixed(2)),
       equityNow:        Number(equityNow.toFixed(2)),
       seed,
+      pnlFrom,
       totalWithdrawal:  Number(totalWithdrawal.toFixed(2)),
       profitWithdrawal: Number(profitWithdrawal.toFixed(2)),
       seedWithdrawal:   Number(seedWithdrawal.toFixed(2)),
