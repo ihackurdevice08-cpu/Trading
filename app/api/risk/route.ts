@@ -66,6 +66,8 @@ export async function GET() {
     max_daily_loss_pct:     n(rs?.max_daily_loss_pct     ?? 3),
     max_consecutive_losses: Number(rs?.max_consecutive_losses ?? 3),
     manual_trading_state:   String(rs?.manual_trading_state   ?? "auto"),
+    dd_mode:                String(rs?.dd_mode ?? "drawdown"),  // drawdown | floor
+    dd_floor_usd:           rs?.dd_floor_usd != null ? Number(rs.dd_floor_usd) : null,
   };
 
   const seed = settings.seed_usd;
@@ -105,8 +107,17 @@ export async function GET() {
 
   // 상태 판단
   const reasons: string[] = [];
-  if (maxDdUsd >= settings.max_dd_usd || ddPct >= settings.max_dd_pct)
-    reasons.push("드로다운");
+
+  // 낙폭 경고: 방식에 따라 분기
+  if (settings.dd_mode === "floor") {
+    // 절대 잔고 하한선 방식
+    if (settings.dd_floor_usd !== null && equityNow <= settings.dd_floor_usd)
+      reasons.push("잔고 하한선 도달");
+  } else {
+    // 기본: 피크 대비 낙폭 방식
+    if (maxDdUsd >= settings.max_dd_usd || ddPct >= settings.max_dd_pct)
+      reasons.push("드로다운");
+  }
   if (Math.abs(dailyLossUsd) >= settings.max_daily_loss_usd || Math.abs(dailyLossPct) >= settings.max_daily_loss_pct)
     reasons.push("일 손실");
   if (consecLoss >= settings.max_consecutive_losses)
@@ -128,6 +139,8 @@ export async function GET() {
       todayPnl, dailyLossUsd, dailyLossPct,
       tradesToday, tradesThisHour,
       consecLoss, maxConsecLoss: consecLoss,
+      ddMode: settings.dd_mode,
+      ddFloorUsd: settings.dd_floor_usd,
     },
   });
 }

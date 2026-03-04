@@ -436,24 +436,56 @@ export default function SettingsPage() {
               <div style={{ display: "grid", gap: 12 }}>
                 {/* 최대 낙폭 */}
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>최대 낙폭</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <div style={fieldWrap}>
-                      <span style={lbl}>USDT</span>
-                      <input type="number" min="0"
-                        value={riskSettings.max_dd_usd ?? ""}
-                        onChange={e => onDdUsd(e.target.value)}
-                        onBlur={() => saveRisk({})} style={inp} />
-                    </div>
-                    <div style={fieldWrap}>
-                      <span style={lbl}>%</span>
-                      <input type="number" min="0"
-                        value={riskSettings.max_dd_pct ?? ""}
-                        onChange={e => onDdPct(e.target.value)}
-                        onBlur={() => saveRisk({})} style={inp} />
-                    </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 8 }}>최대 낙폭 방식</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                    {([
+                      { val: "drawdown", label: "낙폭 방식",   sub: "피크 대비 하락" },
+                      { val: "floor",    label: "잔고 하한선", sub: "절대 금액 기준" },
+                    ] as const).map(({ val, label, sub }) => (
+                      <div key={val}
+                        onClick={() => saveRisk({ dd_mode: val })}
+                        style={{
+                          padding: "9px 12px", borderRadius: 10, cursor: "pointer",
+                          border: `1.5px solid ${(riskSettings.dd_mode ?? "drawdown") === val ? "var(--accent,#B89A5A)" : "var(--line-soft,rgba(0,0,0,.1))"}`,
+                          background: (riskSettings.dd_mode ?? "drawdown") === val ? "rgba(184,154,90,0.08)" : "transparent",
+                          transition: "all .15s",
+                        }}>
+                        <div style={{ fontWeight: 800, fontSize: 12 }}>{label}</div>
+                        <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{sub}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: 11, opacity: .4, marginTop: 4 }}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+
+                  {(riskSettings.dd_mode ?? "drawdown") === "floor" ? (
+                    <div style={fieldWrap}>
+                      <span style={lbl}>잔고 하한선 (USDT)</span>
+                      <input type="number" min="0"
+                        value={riskSettings.dd_floor_usd ?? ""}
+                        onChange={e => setRiskSettings((p: any) => ({ ...p, dd_floor_usd: e.target.value }))}
+                        onBlur={() => saveRisk({})} style={inp} />
+                      <span style={{ fontSize: 11, opacity: .4, marginTop: 2 }}>잔고가 이 금액 아래로 내려가면 경고</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <div style={fieldWrap}>
+                          <span style={lbl}>USDT</span>
+                          <input type="number" min="0"
+                            value={riskSettings.max_dd_usd ?? ""}
+                            onChange={e => onDdUsd(e.target.value)}
+                            onBlur={() => saveRisk({})} style={inp} />
+                        </div>
+                        <div style={fieldWrap}>
+                          <span style={lbl}>%</span>
+                          <input type="number" min="0"
+                            value={riskSettings.max_dd_pct ?? ""}
+                            onChange={e => onDdPct(e.target.value)}
+                            onBlur={() => saveRisk({})} style={inp} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, opacity: .4, marginTop: 4 }}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 일 최대 손실 */}

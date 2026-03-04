@@ -20,6 +20,8 @@ const DEFAULTS = {
   seed_usd:               10000,
   max_dd_usd:             500,
   max_dd_pct:             5,
+  dd_mode:                "drawdown",  // drawdown | floor
+  dd_floor_usd:           null,        // 절대 잔고 하한선
   max_daily_loss_usd:     300,
   max_daily_loss_pct:     3,
   max_consecutive_losses: 3,
@@ -40,6 +42,8 @@ export async function GET() {
     seed_usd:               rs?.seed_usd               ?? DEFAULTS.seed_usd,
     max_dd_usd:             rs?.max_dd_usd             ?? DEFAULTS.max_dd_usd,
     max_dd_pct:             rs?.max_dd_pct             ?? DEFAULTS.max_dd_pct,
+    dd_mode:                rs?.dd_mode                ?? DEFAULTS.dd_mode,
+    dd_floor_usd:           rs?.dd_floor_usd            ?? DEFAULTS.dd_floor_usd,
     max_daily_loss_usd:     rs?.max_daily_loss_usd     ?? DEFAULTS.max_daily_loss_usd,
     max_daily_loss_pct:     rs?.max_daily_loss_pct     ?? DEFAULTS.max_daily_loss_pct,
     max_consecutive_losses: rs?.max_consecutive_losses ?? DEFAULTS.max_consecutive_losses,
@@ -75,6 +79,8 @@ export async function POST(req: Request) {
     seed_usd:              pick("seed_usd",               DEFAULTS.seed_usd),
     max_dd_usd:            pick("max_dd_usd",             DEFAULTS.max_dd_usd),
     max_dd_pct:            pick("max_dd_pct",             DEFAULTS.max_dd_pct),
+    dd_mode:               body.dd_mode ?? existing?.dd_mode ?? DEFAULTS.dd_mode,
+    dd_floor_usd:          toNum(body.dd_floor_usd) ?? existing?.dd_floor_usd ?? DEFAULTS.dd_floor_usd,
     max_daily_loss_usd:    pick("max_daily_loss_usd",     DEFAULTS.max_daily_loss_usd),
     max_daily_loss_pct:    pick("max_daily_loss_pct",     DEFAULTS.max_daily_loss_pct),
     max_consecutive_losses: pick("max_consecutive_losses", DEFAULTS.max_consecutive_losses),

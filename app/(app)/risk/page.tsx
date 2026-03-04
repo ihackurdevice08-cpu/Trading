@@ -184,14 +184,48 @@ export default function RiskPage() {
 
         {/* 최대 낙폭 */}
         <div>
-          <div style={groupLabel}>최대 낙폭</div>
-          <div style={twoCol}>
-            <Field label="USDT" value={settings.max_dd_usd ?? ""}
-              onChange={onDdUsd} onBlur={() => save()} />
-            <Field label="%" value={settings.max_dd_pct ?? ""}
-              onChange={onDdPct} onBlur={() => save()} />
+          <div style={groupLabel}>최대 낙폭 방식</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {([
+              { val: "drawdown", label: "낙폭 방식", sub: "피크 대비 X% / USDT 하락 시" },
+              { val: "floor",    label: "잔고 하한선", sub: "잔고가 X USDT 아래로 내려가면" },
+            ] as const).map(({ val, label, sub }) => (
+              <div key={val}
+                onClick={() => { setSettings({ ...settings, dd_mode: val }); save({ dd_mode: val }); }}
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                  border: `1.5px solid ${settings.dd_mode === val ? "var(--accent,#B89A5A)" : "var(--line-soft,rgba(0,0,0,.1))"}`,
+                  background: settings.dd_mode === val ? "rgba(184,154,90,0.08)" : "transparent",
+                  transition: "all .15s",
+                }}>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>{label}</div>
+                <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{sub}</div>
+              </div>
+            ))}
           </div>
-          <div style={hint}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+
+          {settings.dd_mode === "floor" ? (
+            <div>
+              <Field label="잔고 하한선 (USDT) — 이 금액 아래로 내려가면 경고"
+                value={settings.dd_floor_usd ?? ""}
+                onChange={v => setSettings({ ...settings, dd_floor_usd: v })}
+                onBlur={() => save()} />
+              <div style={hint}>
+                현재 자산 {fmt(s.equityNow)} USDT
+                {settings.dd_floor_usd ? ` · 여유 ${fmt(s.equityNow - Number(settings.dd_floor_usd))} USDT` : ""}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={twoCol}>
+                <Field label="USDT" value={settings.max_dd_usd ?? ""}
+                  onChange={onDdUsd} onBlur={() => save()} />
+                <Field label="%" value={settings.max_dd_pct ?? ""}
+                  onChange={onDdPct} onBlur={() => save()} />
+              </div>
+              <div style={hint}>둘 중 하나만 입력하면 나머지가 자동 계산됩니다.</div>
+            </div>
+          )}
         </div>
 
         {/* 일 최대 손실 */}
