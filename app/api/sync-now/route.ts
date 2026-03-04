@@ -89,13 +89,11 @@ function fillToRow(it: any, uid: string, accountId: string) {
 }
 
 // fills_raw → manual_trades 집계
-// manual_trades 실제 컬럼: id, user_id, symbol, side, opened_at, closed_at, pnl, tags, notes
+// PnL = 청산 손익(profit) + 전체 수수료(open+close) + 펀딩피
+// → 실제 잔고 변동과 일치하는 값
 async function aggregateFills(uid: string, accountId: string, fromMs: number): Promise<{ count: number; debug: any }> {
   const sb = supabaseServer();
 
-  // DB에서 fromMs 이후 데이터만 가져오기 (JS 필터 제거)
-  // ts_ms는 문자열로 저장되어 있어 gte 필터는 문자열 비교 → JS에서 숫자 비교
-  // 단 limit 없이 전체 가져오되 fromMs로 최대한 줄임
   const fromMsStr = String(fromMs);
   const { data: fills, error: fErr } = await sb
     .from("fills_raw")
@@ -106,54 +104,72 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
     .order("ts_ms", { ascending: true });
 
   if (fErr) throw new Error("fills_raw 조회 실패: " + fErr.message);
-  if (!fills || fills.length === 0) return { count: 0, debug: { reason: "fills 없음 (account_id 불일치?)", fromMs, accountId } };
+  if (!fills || fills.length === 0) return { count: 0, debug: { reason: "fills 없음", fromMs, accountId } };
 
-  const tradeFills = fills.filter(f => {
+  // 전체 fill을 세 종류로 분류
+  const closeFills:   any[] = [];  // 청산 fill (손익 발생)
+  const feeFills:     any[] = [];  // open fill (수수료만)
+  const fundingFills: any[] = [];  // 펀딩피
+
+  for (const f of fills) {
     const ts = Number(f.ts_ms);
-    if (ts > 0 && ts < fromMs) return false;              // 혹시 문자열 비교 차이 보정
-    const size     = Number(f.size);
-    const price    = Number(f.price);
-    const tradeSide = String(f.trade_side || f.payload?.tradeSide || "").toLowerCase();
-    if (size  <= 0) return false;                          // 펀딩피/리베이트
-    if (price <= 0) return false;                          // 가격 없는 행
-    if (tradeSide === "funding_fee") return false;
-    if (tradeSide === "settle")      return false;
-    // ★ close fill만 집계 (open = 진입, close = 청산)
-    const isClose = tradeSide.includes("close");
-    if (!isClose) return false;
-    return true;
-  });
+    if (ts > 0 && ts < fromMs) continue;
 
-  if (tradeFills.length === 0) return { count: 0, debug: {
+    const tradeSide = String(f.trade_side || f.payload?.tradeSide || "").toLowerCase();
+    const size  = Number(f.size  || 0);
+    const price = Number(f.price || 0);
+
+    if (tradeSide === "funding_fee" || tradeSide === "settle") {
+      fundingFills.push(f);
+    } else if (tradeSide.includes("close") && size > 0 && price > 0) {
+      closeFills.push(f);
+    } else if (tradeSide.includes("open") && size > 0 && price > 0) {
+      feeFills.push(f);  // open fill: 수수료만 반영
+    }
+  }
+
+  if (closeFills.length === 0 && fundingFills.length === 0) return { count: 0, debug: {
     fills_total: fills.length,
-    reason: "실제 거래 fill 없음 (전부 펀딩피/리베이트?)",
-    sample: tradeFills[0] || fills[0],
+    reason: "청산 fill 없음",
+    sample: fills[0],
     fromMs,
   }};
 
-  // order_id 기준 그룹핑
-  const groups: Record<string, any[]> = {};
-  for (const f of tradeFills) {
+  // ── 포지션 단위 집계 (close fill 기준) ──────────────────────
+  // open fill의 수수료를 order_id로 매칭해서 합산
+  const openFeeByOrder: Record<string, number> = {};
+  for (const f of feeFills) {
+    const key = String(f.order_id || f.trade_id || "");
+    if (key) openFeeByOrder[key] = (openFeeByOrder[key] || 0) + Number(f.fee || 0);
+  }
+
+  // close fill → order_id 그룹핑
+  const closeGroups: Record<string, any[]> = {};
+  for (const f of closeFills) {
     const key = String(f.order_id || f.trade_id || f.id);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(f);
+    if (!closeGroups[key]) closeGroups[key] = [];
+    closeGroups[key].push(f);
   }
 
   const rows: any[] = [];
-  for (const [orderId, group] of Object.entries(groups)) {
+
+  for (const [orderId, group] of Object.entries(closeGroups)) {
     const first = group[0];
     const last  = group[group.length - 1];
 
-    const totalPnl  = group.reduce((s, f) => s + (Number(f.pnl)  || 0), 0);
+    const closePnl  = group.reduce((s, f) => s + (Number(f.pnl) || 0), 0);  // 청산 손익
+    const closeFee  = group.reduce((s, f) => s + (Number(f.fee) || 0), 0);  // 청산 수수료
+    const openFee   = openFeeByOrder[orderId] || 0;                           // 진입 수수료
     const totalSize = group.reduce((s, f) => s + (Number(f.size) || 0), 0);
-    const totalFee  = group.reduce((s, f) => s + (Number(f.fee)  || 0), 0);
     const avgPrice  = totalSize > 0
       ? group.reduce((s, f) => s + (Number(f.price) || 0) * (Number(f.size) || 0), 0) / totalSize
       : 0;
 
-    // posSide 있으면 우선 사용 (long/short 명시)
+    // 실제 PnL = 청산손익 + 청산수수료(음수) + 진입수수료(음수)
+    const realPnl = closePnl + closeFee + openFee;
+
     const posSide = String(first.payload?.posSide || "").toLowerCase();
-    const side    = posSide === "long" || posSide === "short"
+    const side = posSide === "long" || posSide === "short"
       ? posSide as "long" | "short"
       : parseSide(String(first.trade_side || ""), String(first.side || ""));
     const symbol = String(first.symbol || "").replace(/_UMCBL|_DMCBL|_CMCBL/g, "");
@@ -165,28 +181,63 @@ async function aggregateFills(uid: string, accountId: string, fromMs: number): P
       side,
       opened_at: first.ts_ms ? new Date(Number(first.ts_ms)).toISOString() : new Date().toISOString(),
       closed_at: last.ts_ms  ? new Date(Number(last.ts_ms)).toISOString()  : null,
-      pnl:       Number(totalPnl.toFixed(4)),
+      pnl:       Number(realPnl.toFixed(4)),
       tags:      ["bitget", "auto-sync"],
       notes:     JSON.stringify({
         fills:     group.length,
         size:      Number(totalSize.toFixed(6)),
-        fee:       Number(totalFee.toFixed(4)),
+        close_fee: Number(closeFee.toFixed(4)),
+        open_fee:  Number(openFee.toFixed(4)),
+        pnl_raw:   Number(closePnl.toFixed(4)),
         avg_price: Number(avgPrice.toFixed(4)),
         account:   accountId,
       }),
+      group_id: null,
+    });
+  }
+
+  // ── 펀딩피: 날짜별로 하나의 row로 집계 ───────────────────────
+  const fundingByDay: Record<string, { pnl: number; ts: number }> = {};
+  for (const f of fundingFills) {
+    const ts  = Number(f.ts_ms || 0);
+    const day = new Date(ts).toISOString().slice(0, 10);
+    if (!fundingByDay[day]) fundingByDay[day] = { pnl: 0, ts };
+    // 펀딩피 금액: fee 또는 pnl 컬럼 (Bitget은 둘 다 올 수 있음)
+    fundingByDay[day].pnl += Number(f.fee || f.pnl || 0);
+  }
+
+  for (const [day, { pnl, ts }] of Object.entries(fundingByDay)) {
+    if (pnl === 0) continue;
+    rows.push({
+      id:        `bitget:${accountId}:funding:${day}`,
+      user_id:   uid,
+      symbol:    "FUNDING",
+      side:      "long",
+      opened_at: new Date(ts).toISOString(),
+      closed_at: new Date(ts).toISOString(),
+      pnl:       Number(pnl.toFixed(4)),
+      tags:      ["bitget", "funding-fee"],
+      notes:     JSON.stringify({ type: "funding_fee", day, account: accountId }),
       group_id:  null,
     });
   }
 
-  if (rows.length === 0) return { count: 0, debug: {
-    fills_total: fills.length, trade_fills: tradeFills.length,
-    sample: tradeFills[0] || fills[0],
-    reason: "rows 없음 — order_id/trade_id 확인 필요"
-  }};
+  if (rows.length === 0) return { count: 0, debug: { reason: "집계 결과 없음" } };
 
   const { error } = await sb.from("manual_trades").upsert(rows, { onConflict: "id" });
   if (error) throw new Error("manual_trades upsert 실패: " + error.message);
-  return { count: rows.length, debug: { fills_count: fills.length, groups: Object.keys(groups).length, sample_row: rows[0] } };
+
+  return {
+    count: rows.length,
+    debug: {
+      close_fills: closeFills.length,
+      open_fills: feeFills.length,
+      funding_fills: fundingFills.length,
+      positions: Object.keys(closeGroups).length,
+      funding_rows: Object.keys(fundingByDay).length,
+      sample_row: rows[0],
+    }
+  };
 }
 
 export async function POST(req: Request) {
