@@ -25,7 +25,6 @@ const nextConfig = {
   // 성능 최적화
   compress: true,              // gzip/brotli 압축
   poweredByHeader: false,      // X-Powered-By 헤더 제거
-  swcMinify: true,             // SWC 미니파이어 (esbuild보다 빠름)
 
   // 빌드 시 에러 무시 (배포 블로킹 방지)
   typescript: { ignoreBuildErrors: true },
