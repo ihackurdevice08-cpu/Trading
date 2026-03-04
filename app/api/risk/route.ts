@@ -20,50 +20,23 @@ export async function GET(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
+  // ?from=YYYY-MM-DD → 누적 PnL 기산일
   const url     = new URL(req.url);
-  const pnlFrom = url.searchParams.get("from") || null;  // 누적 기산일
+  const pnlFrom = url.searchParams.get("from") || null;
+  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
   const sb = supabaseServer();
   const todayUTC    = todayKST_UTC();
   const thisHourUTC = thisHourKST_UTC();
 
-  // 딱 3개 쿼리만, 완전 병렬
   const [rsResult, timeSeriesResult, todayResult, hourResult, recentResult, withdrawResult] = await Promise.all([
-    // 1. 리스크 설정
     sb.from("risk_settings").select("*").eq("user_id", uid).maybeSingle(),
-
-    // 2. 거래 시계열 → cumPnl + maxDD (pnl_from 이후)
-    (() => {
-      let q = sb.from("manual_trades")
-        .select("pnl, opened_at")
-        .eq("user_id", uid)
-        .not("pnl", "is", null)
-        .order("opened_at", { ascending: true });
-      // pnl_from은 settings 로드 후에 알 수 있어 여기선 전체 — 아래에서 JS 필터
-      return q;
-    })(),
-
-    // 3. 오늘 거래
-    sb.from("manual_trades")
-      .select("pnl")
-      .eq("user_id", uid)
-      .gte("opened_at", todayUTC),
-
-    // 4. 이번 시간 카운트
-    sb.from("manual_trades")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", uid)
-      .gte("opened_at", thisHourUTC),
-
-    // 5. 연속 손실용 최근 50건
-    sb.from("manual_trades")
-      .select("pnl")
-      .eq("user_id", uid)
-      .not("pnl", "is", null)
-      .order("opened_at", { ascending: false })
-      .limit(50),
-
-    // 6. 출금 합계 (현재 자산 계산용)
+    sb.from("manual_trades").select("pnl, opened_at").eq("user_id", uid)
+      .not("pnl", "is", null).order("opened_at", { ascending: true }),
+    sb.from("manual_trades").select("pnl").eq("user_id", uid).gte("opened_at", todayUTC),
+    sb.from("manual_trades").select("id", { count: "exact", head: true }).eq("user_id", uid).gte("opened_at", thisHourUTC),
+    sb.from("manual_trades").select("pnl").eq("user_id", uid)
+      .not("pnl", "is", null).order("opened_at", { ascending: false }).limit(50),
     sb.from("withdrawals").select("amount").eq("user_id", uid),
   ]);
 
@@ -76,19 +49,22 @@ export async function GET(req: Request) {
     max_daily_loss_pct:     n(rs?.max_daily_loss_pct     ?? 3),
     max_consecutive_losses: Number(rs?.max_consecutive_losses ?? 3),
     manual_trading_state:   String(rs?.manual_trading_state   ?? "auto"),
-    dd_mode:                String(rs?.dd_mode ?? "drawdown"),  // drawdown | floor
+    dd_mode:                String(rs?.dd_mode ?? "drawdown"),
     dd_floor_usd:           rs?.dd_floor_usd != null ? Number(rs.dd_floor_usd) : null,
   };
 
   const seed = settings.seed_usd;
+  const totalWithdrawal = (withdrawResult.data || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
-  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
-
-  // cumPnl + maxDD — 루프 1번으로 동시 계산 (pnl_from 이후만)
+  // cumPnl + maxDD (pnlFrom 이후만 집계)
   let cumPnl     = 0;
   let peakEquity = seed;
   let maxDdUsd   = 0;
+  // 현재 자산용 전체 cumPnl (기산일 무관)
+  let totalCumPnl = 0;
+
   for (const r of (timeSeriesResult.data || [])) {
+    totalCumPnl += n(r.pnl);
     if (pnlFromMs && new Date(r.opened_at).getTime() < pnlFromMs) continue;
     cumPnl += n(r.pnl);
     const eq = seed + cumPnl;
@@ -97,38 +73,29 @@ export async function GET(req: Request) {
     if (dd > maxDdUsd) maxDdUsd = dd;
   }
 
-  const totalWithdrawal = (withdrawResult.data || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
-  const equityNow    = seed + cumPnl - totalWithdrawal;
-  const pnlPct       = seed > 0 ? (cumPnl / seed) * 100 : 0;
-  const ddPct        = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
+  // 현재 자산은 항상 전체 기간 기준
+  const equityNow = seed + totalCumPnl - totalWithdrawal;
+  const pnlPct    = seed > 0 ? (cumPnl / seed) * 100 : 0;
+  const ddPct     = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
 
-  // 오늘
-  const todayRows    = todayResult.data || [];
-  const todayPnl     = todayRows.reduce((s, r) => s + n(r.pnl), 0);
-  const tradesToday  = todayRows.length;
+  const todayRows      = todayResult.data || [];
+  const todayPnl       = todayRows.reduce((s, r) => s + n(r.pnl), 0);
+  const tradesToday    = todayRows.length;
   const tradesThisHour = hourResult.count ?? 0;
+  const dailyLossUsd   = Math.min(0, todayPnl);
+  const dailyLossPct   = equityNow > 0 ? (dailyLossUsd / equityNow) * 100 : 0;
 
-  // 일 손실
-  const dailyLossUsd = Math.min(0, todayPnl);
-  const dailyLossPct = equityNow > 0 ? (dailyLossUsd / equityNow) * 100 : 0;
-
-  // 연속 손실 (최신순 → 연속으로 음수인 것만)
   let consecLoss = 0;
   for (const r of (recentResult.data || [])) {
     if (n(r.pnl) < 0) consecLoss++;
     else break;
   }
 
-  // 상태 판단
   const reasons: string[] = [];
-
-  // 낙폭 경고: 방식에 따라 분기
   if (settings.dd_mode === "floor") {
-    // 절대 잔고 하한선 방식
     if (settings.dd_floor_usd !== null && equityNow <= settings.dd_floor_usd)
       reasons.push("잔고 하한선 도달");
   } else {
-    // 기본: 피크 대비 낙폭 방식
     if (maxDdUsd >= settings.max_dd_usd || ddPct >= settings.max_dd_pct)
       reasons.push("드로다운");
   }

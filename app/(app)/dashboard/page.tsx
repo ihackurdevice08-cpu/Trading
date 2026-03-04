@@ -22,7 +22,6 @@ function StatCard({ label, value, sub, color }: { label: string; value: React.Re
   );
 }
 
-// 미니 바 차트 (일별 PnL)
 function DailyBarChart({ data }: { data: { date: string; pnl: number }[] }) {
   if (!data?.length) return null;
   const max = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
@@ -33,17 +32,15 @@ function DailyBarChart({ data }: { data: { date: string; pnl: number }[] }) {
       <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 10 }}>◈ 이번 달 일별 PnL</div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, overflowX: "auto" }}>
         {data.map(d => {
-          const h    = Math.max(4, Math.abs(d.pnl) / max * 56);
-          const pos  = d.pnl >= 0;
-          const day  = d.date.slice(8);
+          const h   = Math.max(4, Math.abs(d.pnl) / max * 56);
+          const pos = d.pnl >= 0;
           return (
             <div key={d.date} style={{ display: "flex", flexDirection: "column",
               alignItems: "center", flex: "0 0 auto", minWidth: 20 }}
               title={`${d.date}: ${sign(d.pnl)}${fmt(d.pnl)} USDT`}>
               <div style={{ width: 14, height: h, borderRadius: 3,
-                background: pos ? "var(--green,#0b7949)" : "var(--red,#c0392b)",
-                opacity: 0.8 }} />
-              <div style={{ fontSize: 9, opacity: 0.4, marginTop: 2 }}>{day}</div>
+                background: pos ? "var(--green,#0b7949)" : "var(--red,#c0392b)", opacity: 0.8 }} />
+              <div style={{ fontSize: 9, opacity: 0.4, marginTop: 2 }}>{d.date.slice(8)}</div>
             </div>
           );
         })}
@@ -63,22 +60,23 @@ export default function DashboardPage() {
   const [dailyPnl,    setDailyPnl]    = useState<any[]>([]);
   const [err,         setErr]         = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [pnlFrom, setPnlFrom] = useState<string>("");
-  const [savingFrom, setSavingFrom] = useState(false);
+  const [pnlFrom,     setPnlFrom]     = useState<string>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("pnl_from") ?? "") : ""
+  );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (from?: string) => {
+    const f = from !== undefined ? from : (typeof window !== "undefined" ? localStorage.getItem("pnl_from") ?? "" : "");
     try {
+      const qs = f ? `?from=${encodeURIComponent(f)}` : "";
       const [a, b] = await Promise.all([
-        fetch("/api/dashboard", { cache: "no-store" }).then(r => r.json()),
-        fetch("/api/goals-v2",  { cache: "no-store" }).then(r => r.json()),
+        fetch(`/api/dashboard${qs}`, { cache: "no-store" }).then(r => r.json()),
+        fetch("/api/goals-v2",       { cache: "no-store" }).then(r => r.json()),
       ]);
       if (a.ok) {
         setStats(a.stats);
         setRecent(a.recent || []);
         setTopSymbols(a.topSymbols || []);
         setDailyPnl(a.dailyPnl || []);
-        // DB에 저장된 pnl_from으로 동기화
-        setPnlFrom(a.stats?.pnlFrom?.slice(0, 10) ?? "");
       } else { setErr(a.error || "불러오기 실패"); }
       if (b.ok) setGoals(b.goals || []);
       setLastUpdated(new Date());
@@ -92,16 +90,10 @@ export default function DashboardPage() {
     return () => { clearInterval(id); window.removeEventListener("trades-updated", load); };
   }, [load]);
 
-  async function handlePnlFromChange(val: string) {
+  function handlePnlFromChange(val: string) {
     setPnlFrom(val);
-    setSavingFrom(true);
-    try {
-      await fetch("/api/risk-settings", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pnl_from: val || null }),
-      });
-      await load();
-    } finally { setSavingFrom(false); }
+    localStorage.setItem("pnl_from", val);
+    load(val);
   }
 
   function toggleRiskWidget() {
@@ -115,8 +107,8 @@ export default function DashboardPage() {
     color: "var(--red,#c0392b)" }}>◬ {err}</div>;
   if (!stats) return <div style={{ padding: 20, opacity: .5, fontSize: 14 }}>불러오는 중…</div>;
 
-  const activeGoals = goals.filter(g => g.status === "active");
   const s = stats;
+  const activeGoals = goals.filter(g => g.status === "active");
 
   return (
     <div style={{ maxWidth: 1100 }}>
@@ -131,27 +123,22 @@ export default function DashboardPage() {
               {lastUpdated.toLocaleTimeString("ko-KR")} 기준
             </span>
           )}
-
           {/* 누적 PnL 기산일 */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" }}>누적 기준</span>
             <input type="date" value={pnlFrom}
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => handlePnlFromChange(e.target.value)}
-              disabled={savingFrom}
               style={{ padding: "3px 8px", borderRadius: 7, fontSize: 11,
                 border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
-                background: "rgba(0,0,0,.04)", color: "inherit", outline: "none",
-                opacity: savingFrom ? 0.5 : 1 }} />
-            {pnlFrom && !savingFrom && (
+                background: "rgba(0,0,0,.04)", color: "inherit", outline: "none" }} />
+            {pnlFrom && (
               <button onClick={() => handlePnlFromChange("")}
                 style={{ padding: "3px 7px", borderRadius: 6, fontSize: 11,
                   border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
                   background: "transparent", cursor: "pointer", opacity: 0.5 }}>✕</button>
             )}
-            {savingFrom && <span style={{ fontSize: 10, opacity: 0.4 }}>저장 중…</span>}
           </div>
-
           <button onClick={toggleRiskWidget} style={{
             padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
             cursor: "pointer", border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
@@ -177,25 +164,20 @@ export default function DashboardPage() {
 
       {/* 계좌 현황 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>
-        <StatCard label="최초 시드"       value={`${fmt(s.seed)} USDT`} />
-        <StatCard label="현재 자산"       value={`${fmt(s.equityNow)} USDT`}
+        <StatCard label="최초 시드"      value={`${fmt(s.seed)} USDT`} />
+        <StatCard label="현재 자산"      value={`${fmt(s.equityNow)} USDT`}
           sub={`시드 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
           color={pnlColor(s.equityNow - s.seed)} />
-        <StatCard label="총 발생 수익"    value={`${sign(s.cumPnl)}${fmt(s.cumPnl)} USDT`} color={pnlColor(s.cumPnl)} />
-        <StatCard label="총 출금"         value={`${fmt(s.totalWithdrawal)} USDT`} />
-        <StatCard label="계좌 잔류 수익"  value={`${sign(s.retainedProfit)}${fmt(s.retainedProfit)} USDT`}
-          sub="현재 자산 - 남은 원금"
-          color={pnlColor(s.retainedProfit)} />
-        <StatCard label="이번 달 승률"    value={`${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
+        <StatCard label="총 출금"        value={`${fmt(s.totalWithdrawal)} USDT`} />
+        <StatCard label="계좌 잔류 수익" value={`${sign(s.retainedProfit)}${fmt(s.retainedProfit)} USDT`}
+          sub="현재자산 - 남은원금" color={pnlColor(s.retainedProfit)} />
+        <StatCard label="이번 달 승률"   value={`${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
           sub={`${s.wins}승 ${s.losses}패 / ${s.totalTrades}건`} />
       </div>
 
-      {/* 일별 PnL 차트 */}
       <DailyBarChart data={dailyPnl} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-
-        {/* 심볼별 성과 TOP5 */}
         {topSymbols.length > 0 && (
           <div style={{ padding: "14px 16px", borderRadius: 12,
             border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
@@ -203,13 +185,10 @@ export default function DashboardPage() {
             <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 10 }}>◉ 심볼별 PnL (이번 달)</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {topSymbols.map(sym => (
-                <div key={sym.symbol} style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", gap: 8 }}>
+                <div key={sym.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div>
                     <span style={{ fontWeight: 800, fontSize: 13 }}>{sym.symbol}</span>
-                    <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>
-                      {sym.count}건 · {sym.winRate}%
-                    </span>
+                    <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>{sym.count}건 · {sym.winRate}%</span>
                   </div>
                   <span style={{ fontWeight: 800, fontSize: 13, color: pnlColor(sym.pnl) }}>
                     {sign(sym.pnl)}{fmt(sym.pnl)}
@@ -219,8 +198,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
-        {/* 최근 거래 5건 */}
         {recent.length > 0 && (
           <div style={{ padding: "14px 16px", borderRadius: 12,
             border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
@@ -228,12 +205,10 @@ export default function DashboardPage() {
             <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 10 }}>◎ 최근 거래</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {recent.map(t => (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between",
-                  alignItems: "center", gap: 8 }}>
+                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div>
                     <span style={{ fontWeight: 800, fontSize: 13 }}>{t.symbol}</span>
-                    <span style={{ fontSize: 10, fontWeight: 800, marginLeft: 5, padding: "1px 5px",
-                      borderRadius: 4,
+                    <span style={{ fontSize: 10, fontWeight: 800, marginLeft: 5, padding: "1px 5px", borderRadius: 4,
                       background: t.side === "long" ? "rgba(11,121,73,0.12)" : "rgba(192,57,43,0.12)",
                       color: t.side === "long" ? "var(--green,#0b7949)" : "var(--red,#c0392b)" }}>
                       {t.side?.toUpperCase()}
@@ -242,8 +217,7 @@ export default function DashboardPage() {
                       {t.opened_at?.slice(0, 16).replace("T", " ")}
                     </div>
                   </div>
-                  <span style={{ fontWeight: 800, fontSize: 13,
-                    color: t.pnl != null ? pnlColor(toN(t.pnl)) : "inherit" }}>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: t.pnl != null ? pnlColor(toN(t.pnl)) : "inherit" }}>
                     {t.pnl != null ? `${sign(toN(t.pnl))}${fmt(t.pnl)}` : "—"}
                   </span>
                 </div>
@@ -253,24 +227,19 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* 진행중 목표 */}
       {activeGoals.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 8, letterSpacing: 0.3 }}>
-            ◎ 진행중 목표
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 8, letterSpacing: 0.3 }}>◎ 진행중 목표</div>
           <div style={{ display: "grid", gap: 8 }}>
             {activeGoals.map(g => {
-              const cur    = toN(g.current_value);
-              const tgt    = toN(g.target_value || 1);
-              const p      = Math.min(100, tgt > 0 ? (cur / tgt) * 100 : 0);
+              const cur = toN(g.current_value), tgt = toN(g.target_value || 1);
+              const p = Math.min(100, tgt > 0 ? (cur / tgt) * 100 : 0);
               const isBool = g.type === "boolean";
               return (
                 <div key={g.id} style={{ padding: "11px 14px", borderRadius: 12,
                   border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
                   background: "var(--panel,rgba(255,255,255,0.72))" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 800, fontSize: 14 }}>{g.title}</span>
                     <span style={{ opacity: .55, fontSize: 12 }}>
                       {isBool ? "체크" : `${cur.toLocaleString("ko-KR")} / ${tgt.toLocaleString("ko-KR")}`}
