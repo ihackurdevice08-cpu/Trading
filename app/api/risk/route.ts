@@ -25,11 +25,11 @@ export async function GET() {
   const thisHourUTC = thisHourKST_UTC();
 
   // 딱 3개 쿼리만, 완전 병렬
-  const [rsResult, timeSeriesResult, todayResult, hourResult, recentResult] = await Promise.all([
+  const [rsResult, timeSeriesResult, todayResult, hourResult, recentResult, withdrawResult] = await Promise.all([
     // 1. 리스크 설정
     sb.from("risk_settings").select("*").eq("user_id", uid).maybeSingle(),
 
-    // 2. 전체 거래 시계열 (pnl + opened_at 한 번만) → cumPnl + maxDD 동시 계산
+    // 2. 전체 거래 시계열 → cumPnl + maxDD
     sb.from("manual_trades")
       .select("pnl, opened_at")
       .eq("user_id", uid)
@@ -42,7 +42,7 @@ export async function GET() {
       .eq("user_id", uid)
       .gte("opened_at", todayUTC),
 
-    // 4. 이번 시간 카운트만
+    // 4. 이번 시간 카운트
     sb.from("manual_trades")
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid)
@@ -55,6 +55,9 @@ export async function GET() {
       .not("pnl", "is", null)
       .order("opened_at", { ascending: false })
       .limit(50),
+
+    // 6. 출금 합계 (현재 자산 계산용)
+    sb.from("withdrawals").select("amount").eq("user_id", uid),
   ]);
 
   const rs = rsResult.data;
@@ -84,7 +87,8 @@ export async function GET() {
     if (dd > maxDdUsd) maxDdUsd = dd;
   }
 
-  const equityNow    = seed + cumPnl;
+  const totalWithdrawal = (withdrawResult.data || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const equityNow    = seed + cumPnl - totalWithdrawal;
   const pnlPct       = seed > 0 ? (cumPnl / seed) * 100 : 0;
   const ddPct        = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
 
@@ -139,6 +143,7 @@ export async function GET() {
       todayPnl, dailyLossUsd, dailyLossPct,
       tradesToday, tradesThisHour,
       consecLoss, maxConsecLoss: consecLoss,
+      totalWithdrawal: Number(totalWithdrawal.toFixed(2)),
       ddMode: settings.dd_mode,
       ddFloorUsd: settings.dd_floor_usd,
     },

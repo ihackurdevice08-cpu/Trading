@@ -101,13 +101,22 @@ export async function GET() {
   // 누적 PnL (전체 기간)
   const { data: allTrades } = await sb
     .from("manual_trades").select("pnl").eq("user_id", uid);
-  const cumPnl     = (allTrades || []).reduce((s, r) => s + (Number(r.pnl) || 0), 0);
-  const equityNow  = seed + cumPnl;
+  const cumPnl = (allTrades || []).reduce((s, r) => s + (Number(r.pnl) || 0), 0);
 
   // 출금 합계
-  const totalWithdrawal = wdList.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalWithdrawal  = wdList.reduce((s, r) => s + Number(r.amount || 0), 0);
   const profitWithdrawal = wdList.filter(r => r.source === "profit")
     .reduce((s, r) => s + Number(r.amount || 0), 0);
+  const seedWithdrawal   = wdList.filter(r => r.source === "seed")
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
+
+  // 현재 자산 = 최초 시드 + 누적 수익 - 전체 출금
+  const equityNow = seed + cumPnl - totalWithdrawal;
+
+  // 순수익 = 누적 수익 - 수익 출금분 (계좌에 남아있는 수익)
+  // 단순하게: 현재 자산 - (최초 시드 - 원금회수)
+  const effectiveSeed = seed - seedWithdrawal;   // 실제 남은 원금
+  const retainedProfit = equityNow - effectiveSeed; // 계좌에 남은 순수익
 
   // 일별 PnL (이번 달, 차트용)
   const dailyMap: Record<string, number> = {};
@@ -127,12 +136,13 @@ export async function GET() {
       todayPnL: sumToday, weekPnL: sumWeek, monthPnL: sumMonth,
       totalTrades: list.length, realizedTrades: realizedCount,
       wins: win, losses: loss, winRate,
-      cumPnl: Number(cumPnl.toFixed(2)),
-      equityNow: Number(equityNow.toFixed(2)),
+      cumPnl:           Number(cumPnl.toFixed(2)),
+      equityNow:        Number(equityNow.toFixed(2)),
       seed,
-      totalWithdrawal: Number(totalWithdrawal.toFixed(2)),
+      totalWithdrawal:  Number(totalWithdrawal.toFixed(2)),
       profitWithdrawal: Number(profitWithdrawal.toFixed(2)),
-      netProfit: Number((cumPnl - profitWithdrawal).toFixed(2)),
+      seedWithdrawal:   Number(seedWithdrawal.toFixed(2)),
+      retainedProfit:   Number(retainedProfit.toFixed(2)),
     },
     recent,
     topSymbols,

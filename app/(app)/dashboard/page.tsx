@@ -137,12 +137,17 @@ export default function DashboardPage() {
 
       {/* 계좌 현황 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>
-        <StatCard label="최초 시드"     value={`${fmt(s.seed)} USDT`} />
-        <StatCard label="현재 자산"     value={`${fmt(s.equityNow)} USDT`} color={pnlColor(s.equityNow - s.seed)} />
-        <StatCard label="총 출금"       value={`${fmt(s.totalWithdrawal)} USDT`} />
-        <StatCard label="순 수익 (미출금)" value={`${sign(s.netProfit)}${fmt(s.netProfit)} USDT`} color={pnlColor(s.netProfit)} />
-        <StatCard label="이번 달 거래"  value={`${s.totalTrades}건`} sub={`승률 ${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`} />
-        <StatCard label="승/패"         value={`${s.wins}W / ${s.losses}L`} />
+        <StatCard label="최초 시드"       value={`${fmt(s.seed)} USDT`} />
+        <StatCard label="현재 자산"       value={`${fmt(s.equityNow)} USDT`}
+          sub={`시드 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
+          color={pnlColor(s.equityNow - s.seed)} />
+        <StatCard label="총 발생 수익"    value={`${sign(s.cumPnl)}${fmt(s.cumPnl)} USDT`} color={pnlColor(s.cumPnl)} />
+        <StatCard label="총 출금"         value={`${fmt(s.totalWithdrawal)} USDT`} />
+        <StatCard label="계좌 잔류 수익"  value={`${sign(s.retainedProfit)}${fmt(s.retainedProfit)} USDT`}
+          sub="현재 자산 - 남은 원금"
+          color={pnlColor(s.retainedProfit)} />
+        <StatCard label="이번 달 승률"    value={`${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
+          sub={`${s.wins}승 ${s.losses}패 / ${s.totalTrades}건`} />
       </div>
 
       {/* 일별 PnL 차트 */}
