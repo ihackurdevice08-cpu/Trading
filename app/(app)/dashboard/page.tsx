@@ -63,6 +63,8 @@ export default function DashboardPage() {
   const [dailyPnl,    setDailyPnl]    = useState<any[]>([]);
   const [err,         setErr]         = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [pnlFrom, setPnlFrom] = useState<string>("");
+  const [savingFrom, setSavingFrom] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +77,8 @@ export default function DashboardPage() {
         setRecent(a.recent || []);
         setTopSymbols(a.topSymbols || []);
         setDailyPnl(a.dailyPnl || []);
+        // DB에 저장된 pnl_from으로 동기화
+        setPnlFrom(a.stats?.pnlFrom?.slice(0, 10) ?? "");
       } else { setErr(a.error || "불러오기 실패"); }
       if (b.ok) setGoals(b.goals || []);
       setLastUpdated(new Date());
@@ -87,6 +91,18 @@ export default function DashboardPage() {
     window.addEventListener("trades-updated", load);
     return () => { clearInterval(id); window.removeEventListener("trades-updated", load); };
   }, [load]);
+
+  async function handlePnlFromChange(val: string) {
+    setPnlFrom(val);
+    setSavingFrom(true);
+    try {
+      await fetch("/api/risk-settings", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pnl_from: val || null }),
+      });
+      await load();
+    } finally { setSavingFrom(false); }
+  }
 
   function toggleRiskWidget() {
     const next = !rw.dashboard;
@@ -109,12 +125,33 @@ export default function DashboardPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
         marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>대시보드</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {lastUpdated && (
             <span style={{ fontSize: 11, opacity: .4 }}>
               {lastUpdated.toLocaleTimeString("ko-KR")} 기준
             </span>
           )}
+
+          {/* 누적 PnL 기산일 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" }}>누적 기준</span>
+            <input type="date" value={pnlFrom}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => handlePnlFromChange(e.target.value)}
+              disabled={savingFrom}
+              style={{ padding: "3px 8px", borderRadius: 7, fontSize: 11,
+                border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
+                background: "rgba(0,0,0,.04)", color: "inherit", outline: "none",
+                opacity: savingFrom ? 0.5 : 1 }} />
+            {pnlFrom && !savingFrom && (
+              <button onClick={() => handlePnlFromChange("")}
+                style={{ padding: "3px 7px", borderRadius: 6, fontSize: 11,
+                  border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+                  background: "transparent", cursor: "pointer", opacity: 0.5 }}>✕</button>
+            )}
+            {savingFrom && <span style={{ fontSize: 10, opacity: 0.4 }}>저장 중…</span>}
+          </div>
+
           <button onClick={toggleRiskWidget} style={{
             padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
             cursor: "pointer", border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
@@ -134,7 +171,7 @@ export default function DashboardPage() {
         <StatCard label="이번 달 PnL" value={`${sign(s.monthPnL)}${fmt(s.monthPnL)}`}  sub="USDT" color={pnlColor(s.monthPnL)} />
         <StatCard label="누적 PnL"
           value={`${sign(s.cumPnl)}${fmt(s.cumPnl)}`}
-          sub={s.pnlFrom ? `${s.pnlFrom.slice(0,10)} 이후` : "전체 기간"}
+          sub={pnlFrom ? `${pnlFrom} 이후` : "전체 기간"}
           color={pnlColor(s.cumPnl)} />
       </div>
 

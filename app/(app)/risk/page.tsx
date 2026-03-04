@@ -21,12 +21,15 @@ export default function RiskPage() {
   const [saving,   setSaving]   = useState(false);
   const [cycles,   setCycles]   = useState<any[]>([]);
   const [cycling,  setCycling]  = useState(false);
+  const [pnlFrom,  setPnlFrom]  = useState<string>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("pnl_from") ?? "") : ""
+  );
 
   const load = useCallback(async () => {
     setMsg("");
     try {
       const [r1, r2, r3] = await Promise.all([
-        fetch("/api/risk",          { cache: "no-store" }).then(r => r.json()),
+        fetch(`/api/risk${pnlFrom ? "?from=" + encodeURIComponent(pnlFrom) : ""}`, { cache: "no-store" }).then(r => r.json()),
         fetch("/api/risk-settings", { cache: "no-store" }).then(r => r.json()),
         fetch("/api/risk-cycle",    { cache: "no-store" }).then(r => r.json()),
       ]);
@@ -64,20 +67,21 @@ export default function RiskPage() {
     if (!confirm(`새 사이클을 시작할까요?\n${today}부터 누적 PnL을 새로 계산합니다.`)) return;
     setCycling(true);
     try {
-      // 1. 사이클 스냅샷 저장
+      // 스냅샷 저장
       await fetch("/api/risk-cycle", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ equity_snapshot: risk?.stats?.equityNow }),
       });
-      // 2. pnl_from을 오늘로 설정
-      const r = await fetch("/api/risk-settings", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pnl_from: today }),
-      });
-      const j = await r.json();
-      if (j.ok) { setMsg(`✓ 새 사이클 시작 — ${today}부터 누적`); load(); }
-      else setMsg(j.error || "사이클 시작 실패");
+      // 기산일을 오늘로 (localStorage)
+      handlePnlFromChange(today);
+      setMsg(`✓ 새 사이클 시작 — ${today}부터 누적`);
+      load();
     } finally { setCycling(false); }
+  }
+
+  function handlePnlFromChange(val: string) {
+    setPnlFrom(val);
+    localStorage.setItem("pnl_from", val);
   }
 
   // USDT ↔ % 자동 계산
@@ -274,20 +278,17 @@ export default function RiskPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>누적 PnL 기산일</span>
             <input type="date" max={new Date().toISOString().slice(0,10)}
-              value={settings?.pnl_from?.slice(0,10) ?? ""}
-              onChange={e => setSettings((p: any) => ({ ...p, pnl_from: e.target.value || null }))}
-              onBlur={() => save({ pnl_from: settings?.pnl_from || null })}
+              value={pnlFrom}
+              onChange={e => handlePnlFromChange(e.target.value)}
               style={{ padding: "8px 10px", borderRadius: 9, fontSize: 13,
                 border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
                 background: "rgba(0,0,0,.03)", color: "inherit", outline: "none" }} />
           </div>
           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 16 }}>
-            {settings?.pnl_from
-              ? `${settings.pnl_from.slice(0,10)} 이후 거래만 집계`
-              : "전체 기간 집계 중"}
+            {pnlFrom ? `${pnlFrom} 이후 거래만 집계` : "전체 기간 집계 중"}
           </div>
-          {settings?.pnl_from && (
-            <button onClick={() => { setSettings((p: any) => ({ ...p, pnl_from: null })); save({ pnl_from: null }); }}
+          {pnlFrom && (
+            <button onClick={() => handlePnlFromChange("")}
               style={{ marginTop: 16, padding: "6px 10px", borderRadius: 7, fontSize: 11,
                 border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
                 background: "transparent", cursor: "pointer", opacity: 0.6 }}>

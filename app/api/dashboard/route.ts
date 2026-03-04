@@ -29,9 +29,13 @@ function startOfMonthKST(): Date {
   return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
+
+  // ?from=YYYY-MM-DD 로 누적 PnL 기산일 설정 (없으면 전체)
+  const url     = new URL(req.url);
+  const pnlFrom = url.searchParams.get("from") || null;
 
   const fromToday = kstBoundary(0).toISOString();
   const fromWeek  = startOfWeekKST().toISOString();
@@ -99,9 +103,9 @@ export async function GET() {
       winRate: d.count > 0 ? Math.round((d.wins / d.count) * 100) : 0,
     }));
 
-  // 누적 PnL (pnl_from 이후 기간)
+  // 누적 PnL (pnlFrom 이후 기간)
   let cumPnlQuery = sb.from("manual_trades").select("pnl").eq("user_id", uid);
-  if (pnlFrom) cumPnlQuery = cumPnlQuery.gte("opened_at", pnlFrom);
+  if (pnlFrom) cumPnlQuery = cumPnlQuery.gte("opened_at", new Date(pnlFrom).toISOString());
   const { data: allTrades } = await cumPnlQuery;
   const cumPnl = (allTrades || []).reduce((s, r) => s + (Number(r.pnl) || 0), 0);
 
@@ -141,7 +145,7 @@ export async function GET() {
       cumPnl:           Number(cumPnl.toFixed(2)),
       equityNow:        Number(equityNow.toFixed(2)),
       seed,
-      pnlFrom,
+      pnlFrom: pnlFrom ?? null,
       totalWithdrawal:  Number(totalWithdrawal.toFixed(2)),
       profitWithdrawal: Number(profitWithdrawal.toFixed(2)),
       seedWithdrawal:   Number(seedWithdrawal.toFixed(2)),

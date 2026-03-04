@@ -16,9 +16,12 @@ function thisHourKST_UTC(): string {
   return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), kst.getUTCHours()) - 9 * 3600_000).toISOString();
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+
+  const url     = new URL(req.url);
+  const pnlFrom = url.searchParams.get("from") || null;  // 누적 기산일
 
   const sb = supabaseServer();
   const todayUTC    = todayKST_UTC();
@@ -67,7 +70,6 @@ export async function GET() {
   const rs = rsResult.data;
   const settings = {
     seed_usd:               n(rs?.seed_usd               ?? 10000),
-    pnl_from:               rs?.pnl_from ?? null,
     max_dd_usd:             n(rs?.max_dd_usd             ?? 500),
     max_dd_pct:             n(rs?.max_dd_pct             ?? 5),
     max_daily_loss_usd:     n(rs?.max_daily_loss_usd     ?? 300),
@@ -80,7 +82,7 @@ export async function GET() {
 
   const seed = settings.seed_usd;
 
-  const pnlFromMs = settings.pnl_from ? new Date(settings.pnl_from).getTime() : 0;
+  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
   // cumPnl + maxDD — 루프 1번으로 동시 계산 (pnl_from 이후만)
   let cumPnl     = 0;
