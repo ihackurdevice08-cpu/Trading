@@ -93,23 +93,24 @@ function fillToRow(it: any, uid: string, accountId: string) {
 async function aggregateFills(uid: string, accountId: string, fromMs: number): Promise<{ count: number; debug: any }> {
   const sb = supabaseServer();
 
-  // ts_ms가 text 타입일 수 있어 JS에서 필터링
+  // DB에서 fromMs 이후 데이터만 가져오기 (JS 필터 제거)
+  // ts_ms는 문자열로 저장되어 있어 gte 필터는 문자열 비교 → JS에서 숫자 비교
+  // 단 limit 없이 전체 가져오되 fromMs로 최대한 줄임
+  const fromMsStr = String(fromMs);
   const { data: fills, error: fErr } = await sb
     .from("fills_raw")
     .select("id, order_id, trade_id, symbol, side, trade_side, price, size, fee, pnl, ts_ms, payload")
     .eq("user_id", uid)
     .eq("account_id", accountId)
+    .gte("ts_ms", fromMsStr)
     .order("ts_ms", { ascending: true });
 
   if (fErr) throw new Error("fills_raw 조회 실패: " + fErr.message);
   if (!fills || fills.length === 0) return { count: 0, debug: { reason: "fills 없음 (account_id 불일치?)", fromMs, accountId } };
 
-  // 실제 거래 fill만 필터 (펀딩피/리베이트/이자 제외)
-  // 실제 거래: size > 0 이고 trade_side가 open/close/open_long 등
-  // 펀딩피: symbol 없음 or trade_side = "funding_fee" or size = 0 or price = 0
   const tradeFills = fills.filter(f => {
     const ts = Number(f.ts_ms);
-    if (ts > 0 && ts < fromMs) return false;              // 날짜 필터
+    if (ts > 0 && ts < fromMs) return false;              // 혹시 문자열 비교 차이 보정
     const size     = Number(f.size);
     const price    = Number(f.price);
     const tradeSide = String(f.trade_side || f.payload?.tradeSide || "").toLowerCase();
@@ -197,8 +198,9 @@ export async function POST(req: Request) {
   const targetAccountId = body?.account_id || null;
   const fromDate        = body?.from
     ? String(body.from)
-    : new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
-  const fromMs          = new Date(fromDate + "T00:00:00Z").getTime();
+    : new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);  // 기본 30일
+  // KST 기준으로 하루 더 여유 있게 (UTC 변환 오차 방지)
+  const fromMs          = new Date(fromDate + "T00:00:00Z").getTime() - 9 * 3600_000;
   const fromTimestamp   = String(fromMs);
 
   const sb = supabaseServer();
