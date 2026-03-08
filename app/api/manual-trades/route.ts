@@ -97,17 +97,24 @@ export async function PATCH(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
-  const body     = await req.json().catch(() => ({}));
-  const { ids, group_id } = body;
+  const body = await req.json().catch(() => ({}));
+  const { ids, group_id, notes, tags } = body;
 
   if (!Array.isArray(ids) || ids.length === 0) return bad("ids 필요");
 
   const sb = supabaseServer();
 
-  // 각 trade의 group_id 업데이트
+  // 업데이트할 필드 동적 구성
+  const update: Record<string, any> = {};
+  if ("group_id" in body) update.group_id = group_id ?? null;
+  if ("notes"    in body) update.notes    = notes ?? null;
+  if ("tags"     in body && Array.isArray(tags)) update.tags = tags;
+
+  if (Object.keys(update).length === 0) return bad("업데이트할 필드 없음");
+
   const { error } = await sb
     .from("manual_trades")
-    .update({ group_id: group_id ?? null })
+    .update(update)
     .in("id", ids)
     .eq("user_id", uid);
 
