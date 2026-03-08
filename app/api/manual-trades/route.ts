@@ -1,15 +1,31 @@
 import { NextResponse } from "next/server";
-import { getAuthUserId } from "@/lib/supabase/serverAuth";
-import { supabaseServer } from "@/lib/supabase/server";
+import { getAuthUserId } from "@/lib/firebase/serverAuth";
+import { adminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function bad(msg: string, status = 400) {
-  return NextResponse.json({ ok: false, error: msg }, { status });
-}
+function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, error: msg }, { status }); }
 
-// ── 확정 컬럼: id, user_id, symbol, side, opened_at, closed_at, pnl, tags, notes ──
+function docToTrade(d: FirebaseFirestore.DocumentSnapshot) {
+  const data = d.data() ?? {};
+  return {
+    id:         d.id,
+    symbol:     data.symbol,
+    side:       data.side,
+    opened_at:  data.opened_at instanceof Date
+                  ? data.opened_at.toISOString()
+                  : (data.opened_at?.toDate?.()?.toISOString() ?? data.opened_at),
+    closed_at:  data.closed_at instanceof Date
+                  ? data.closed_at.toISOString()
+                  : (data.closed_at?.toDate?.()?.toISOString() ?? data.closed_at ?? null),
+    pnl:        data.pnl ?? null,
+    tags:       data.tags ?? [],
+    notes:      data.notes ?? null,
+    group_id:   data.group_id ?? null,
+  };
+}
 
 export async function GET(req: Request) {
   const uid = await getAuthUserId();
@@ -19,77 +35,58 @@ export async function GET(req: Request) {
   const from   = url.searchParams.get("from");
   const to     = url.searchParams.get("to");
   const symbol = url.searchParams.get("symbol");
-  const tag    = url.searchParams.get("tag");
   const limit  = Math.min(Number(url.searchParams.get("limit") || "500"), 2000);
 
-  let q = supabaseServer()
-    .from("manual_trades")
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
-    .eq("user_id", uid)
-    .order("opened_at", { ascending: false })
+  let q: FirebaseFirestore.Query = adminDb()
+    .collection("users").doc(uid).collection("manual_trades")
+    .orderBy("opened_at", "desc")
     .limit(limit);
 
-  if (from)   q = q.gte("opened_at", from + "T00:00:00.000Z");
-  if (to)     q = q.lte("opened_at", to   + "T23:59:59.999Z");
-  if (symbol) q = q.ilike("symbol", `%${symbol}%`);
-  if (tag)    q = q.contains("tags", [tag]);
+  if (from) q = q.where("opened_at", ">=", new Date(from + "T00:00:00.000Z"));
+  if (to)   q = q.where("opened_at", "<=", new Date(to   + "T23:59:59.999Z"));
 
-  const { data: rows, error } = await q;
-  if (error) return bad(error.message, 500);
+  const snap = await q.get();
+  let trades = snap.docs.map(docToTrade);
 
-  return NextResponse.json({ ok: true, trades: rows || [], from: from || null });
+  // symbol 필터 (Firestore는 ILIKE 없으므로 메모리 필터)
+  if (symbol) trades = trades.filter(t => t.symbol?.toLowerCase().includes(symbol.toLowerCase()));
+
+  return NextResponse.json({ ok: true, trades, from: from || null });
 }
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
-  const body      = await req.json().catch(() => ({}));
-  const symbol    = String(body.symbol  || "").trim().toUpperCase();
-  const side      = String(body.side    || "").trim().toLowerCase();
-  const opened_at = body.opened_at;
+  const body   = await req.json().catch(() => ({}));
+  const symbol = String(body.symbol || "").trim().toUpperCase();
+  const side   = String(body.side   || "").trim().toLowerCase();
+  if (!symbol)                               return bad("symbol 필요");
+  if (side !== "long" && side !== "short")   return bad("side는 long/short");
+  if (!body.opened_at)                       return bad("opened_at 필요");
 
-  if (!symbol)   return bad("symbol 필요");
-  if (side !== "long" && side !== "short") return bad("side는 long/short");
-  if (!opened_at) return bad("opened_at 필요");
-
+  const ref = adminDb().collection("users").doc(uid).collection("manual_trades").doc();
   const payload = {
-    user_id:   uid,
-    symbol,
-    side,
-    opened_at,
-    closed_at: body.closed_at ?? null,
-    pnl:       body.pnl != null ? Number(body.pnl) : null,
-    tags:      Array.isArray(body.tags)
-                 ? [...body.tags.map(String), "manual"]
-                 : ["manual"],
-    notes:     body.notes ?? null,
+    symbol, side,
+    opened_at:  new Date(body.opened_at),
+    closed_at:  body.closed_at ? new Date(body.closed_at) : null,
+    pnl:        body.pnl != null ? Number(body.pnl) : null,
+    tags:       Array.isArray(body.tags) ? [...body.tags.map(String), "manual"] : ["manual"],
+    notes:      body.notes ?? null,
+    group_id:   body.group_id ?? null,
+    created_at: FieldValue.serverTimestamp(),
   };
-
-  const { data: row, error } = await supabaseServer()
-    .from("manual_trades")
-    .insert(payload)
-    .select("id, symbol, side, opened_at, closed_at, pnl, tags, notes, group_id")
-    .single();
-
-  if (error) return bad(error.message, 500);
-  return NextResponse.json({ ok: true, trade: row });
+  await ref.set(payload);
+  return NextResponse.json({ ok: true, trade: { id: ref.id, ...payload,
+    opened_at: new Date(body.opened_at).toISOString(), closed_at: body.closed_at ? new Date(body.closed_at).toISOString() : null } });
 }
 
 export async function DELETE(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
-
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return bad("id 필요");
-
-  const { error } = await supabaseServer()
-    .from("manual_trades")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", uid);
-
-  if (error) return bad(error.message, 500);
+  await adminDb().collection("users").doc(uid).collection("manual_trades").doc(id).delete();
   return NextResponse.json({ ok: true });
 }
 
@@ -99,25 +96,19 @@ export async function PATCH(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const { ids, group_id, notes, tags } = body;
-
   if (!Array.isArray(ids) || ids.length === 0) return bad("ids 필요");
 
-  const sb = supabaseServer();
-
-  // 업데이트할 필드 동적 구성
   const update: Record<string, any> = {};
   if ("group_id" in body) update.group_id = group_id ?? null;
   if ("notes"    in body) update.notes    = notes ?? null;
   if ("tags"     in body && Array.isArray(tags)) update.tags = tags;
-
   if (Object.keys(update).length === 0) return bad("업데이트할 필드 없음");
 
-  const { error } = await sb
-    .from("manual_trades")
-    .update(update)
-    .in("id", ids)
-    .eq("user_id", uid);
-
-  if (error) return bad(error.message, 500);
+  const db = adminDb();
+  const batch = db.batch();
+  for (const id of ids) {
+    batch.update(db.collection("users").doc(uid).collection("manual_trades").doc(id), update);
+  }
+  await batch.commit();
   return NextResponse.json({ ok: true, updated: ids.length });
 }

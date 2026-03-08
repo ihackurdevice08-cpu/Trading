@@ -12,6 +12,7 @@ const NAV = [
   { href: "/manual-trades", label: "거래기록",  icon: "◉" },
   { href: "/goals",         label: "목표",      icon: "◎" },
   { href: "/risk",          label: "리스크",    icon: "◬" },
+  { href: "/tools",         label: "도구",      icon: "⚡" },
   { href: "/withdrawals",   label: "출금",      icon: "◇" },
   { href: "/settings",      label: "설정",      icon: "◐" },
 ];

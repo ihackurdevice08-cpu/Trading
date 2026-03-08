@@ -1,17 +1,15 @@
-import { supabaseBrowser } from "@/lib/supabase/browser";
+import { firebaseAuth, getFirebaseApp } from "@/lib/firebase/client";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export async function uploadBackground(file: File) {
-  const sb = supabaseBrowser();
+  const user = firebaseAuth().currentUser;
+  if (!user) throw new Error("로그인 필요");
 
-  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
-  const path = `bg/${Date.now()}.${ext}`;
+  const ext  = (file.name.split(".").pop() || "bin").toLowerCase();
+  const path = `${user.uid}/bg.${ext}`;
 
-  const { error } = await sb.storage
-    .from("mancave-media")
-    .upload(path, file, { upsert: true });
-
-  if (error) throw error;
-
-  const { data } = sb.storage.from("mancave-media").getPublicUrl(path);
-  return data.publicUrl;
+  const storage = getStorage(getFirebaseApp());
+  const ref     = storageRef(storage, path);
+  await uploadBytes(ref, file);
+  return await getDownloadURL(ref);
 }

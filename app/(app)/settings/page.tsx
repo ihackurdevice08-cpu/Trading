@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { uploadBackground } from "./uploadBg";
 import { useAppearance } from "../../../components/providers/AppearanceProvider";
-import { supabaseBrowser } from "@/lib/supabase/browser";
+import { firebaseAuth } from "@/lib/firebase/client";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirebaseApp } from "@/lib/firebase/client";
 
 // ─── 공통 스타일 (다른 탭과 동일한 체계) ───────────────────────
 const inp: React.CSSProperties = {
@@ -139,6 +141,12 @@ export default function SettingsPage() {
   const [riskSettings, setRiskSettings] = useState<any>(null);
   const [riskMsg,      setRiskMsg]      = useState("");
 
+  // 노션 연동
+  const [notionToken,  setNotionToken]  = useState("");
+  const [notionDbId,   setNotionDbId]   = useState("");
+  const [notionMsg,    setNotionMsg]    = useState("");
+  const [notionBusy,   setNotionBusy]   = useState(false);
+
   // 외관 저장 메시지
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -147,9 +155,14 @@ export default function SettingsPage() {
     Promise.all([
       fetch("/api/exchange-accounts", { cache: "no-store" }).then(r => r.json()),
       fetch("/api/risk-settings",     { cache: "no-store" }).then(r => r.json()),
-    ]).then(([acc, risk]) => {
-      if (acc.ok)  setAccounts(acc.accounts || []);
-      if (risk.ok) setRiskSettings(risk.settings);
+      fetch("/api/notion-settings",   { cache: "no-store" }).then(r => r.json()),
+    ]).then(([acc, risk, notion]) => {
+      if (acc.ok)    setAccounts(acc.accounts || []);
+      if (risk.ok)   setRiskSettings(risk.settings);
+      if (notion.ok) {
+        setNotionToken(notion.notion?.token       ?? "");
+        setNotionDbId(notion.notion?.database_id  ?? "");
+      }
     }).catch(() => {});
   }, []);
 
@@ -282,6 +295,37 @@ export default function SettingsPage() {
     const next = { ...rw, [tab]: !rw[tab] };
     if (!next.dashboard && !next.trades) return; // 최소 1개 유지
     patchAppearance({ riskWidget: next });
+  }
+
+  // 노션 설정 저장
+  async function saveNotion() {
+    setNotionBusy(true); setNotionMsg("");
+    try {
+      const r = await fetch("/api/notion-settings", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: notionToken.trim(), database_id: notionDbId.trim() }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      setNotionMsg("✅ 저장됨");
+    } catch (e: any) { setNotionMsg("❌ " + (e?.message ?? "저장 실패")); }
+    finally { setNotionBusy(false); }
+  }
+
+  // 노션 연결 테스트
+  async function testNotion() {
+    setNotionBusy(true); setNotionMsg("");
+    try {
+      const r = await fetch(`https://api.notion.com/v1/databases/${notionDbId.trim()}`, {
+        headers: { "Authorization": `Bearer ${notionToken.trim()}`, "Notion-Version": "2022-06-28" },
+      });
+      if (r.ok) { setNotionMsg("✅ 연결 성공"); }
+      else {
+        const j = await r.json();
+        throw new Error(j.message ?? `HTTP ${r.status}`);
+      }
+    } catch (e: any) { setNotionMsg("❌ " + (e?.message ?? "연결 실패")); }
+    finally { setNotionBusy(false); }
   }
 
   // 외관 저장 (수동)
@@ -664,16 +708,17 @@ export default function SettingsPage() {
                       const f = e.target.files?.[0];
                       if (!f) return;
                       try {
-                        const sb = supabaseBrowser();
-                        const { data } = await sb.auth.getSession();
-                        if (!data.session?.user?.id) { alert("로그인 필요"); return; }
+                      const user = firebaseAuth().currentUser;
+                        if (!user) { alert("로그인 필요"); return; }
                         const ext = (f.name.split(".").pop() || "bin").toLowerCase();
-                        const path = `${data.session.user.id}/bg.${ext}`;
-                        const up = await sb.storage.from("mancave-media").upload(path, f, { upsert: true });
-                        if (up.error) { alert(up.error.message); return; }
-                        const pub = sb.storage.from("mancave-media").getPublicUrl(path);
+                        const path = `${user.uid}/bg.${ext}`;
+                        const storage = getStorage(getFirebaseApp());
+                        const fileRef = storageRef(storage, path);
+                        const snap = await uploadBytes(fileRef, f);
+                        if (!snap) { alert("업로드 실패"); return; }
+                        const url = await getDownloadURL(fileRef);
                         patchAppearance({ bg: { ...(appearance.bg || {}),
-                          url: pub.data.publicUrl, type: f.type.startsWith("video/") ? "video" : "image" } } as any);
+                          url, type: f.type.startsWith("video/") ? "video" : "image" } } as any);
                         alert("업로드 완료");
                       } catch (err: any) { alert(err?.message || String(err)); }
                     }}
@@ -700,6 +745,54 @@ export default function SettingsPage() {
               <span style={{ fontSize: 11, opacity: .4, marginLeft: "auto" }}>
                 테마/내비게이션 변경은 즉시 반영됩니다
               </span>
+            </div>
+          </div>
+        </Section>
+
+        {/* ── 노션 연동 ── */}
+        <Section title="노션 저널 연동" icon="📓">
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ fontSize: 12, opacity: .55, lineHeight: 1.6,
+              padding: "10px 12px", borderRadius: 8, background: "rgba(0,0,0,0.03)",
+              border: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
+              <b>설정 방법:</b><br />
+              1. <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer"
+                style={{ color: "var(--accent,#B89A5A)" }}>notion.so/my-integrations</a>에서 Integration 생성<br />
+              2. Integration Token (secret_xxx…) 복사 후 아래 입력<br />
+              3. 저장할 노션 데이터베이스를 Integration에 연결 (DB 우측 상단 … → Connect to)<br />
+              4. 데이터베이스 URL에서 ID 복사 (32자리 hex)<br />
+              5. DB 속성: <b>Name</b>(제목), <b>Date</b>(날짜), <b>PnL</b>(숫자) 추가 권장
+            </div>
+
+            <div style={fieldWrap}>
+              <span style={lbl}>Integration Token</span>
+              <input
+                type="password"
+                value={notionToken}
+                onChange={e => setNotionToken(e.target.value)}
+                placeholder="secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                style={inp}
+              />
+            </div>
+
+            <div style={fieldWrap}>
+              <span style={lbl}>데이터베이스 ID</span>
+              <input
+                value={notionDbId}
+                onChange={e => setNotionDbId(e.target.value)}
+                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                style={inp}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={saveNotion} disabled={notionBusy || !notionToken || !notionDbId} style={btn1}>
+                {notionBusy ? "저장 중…" : "저장"}
+              </button>
+              <button onClick={testNotion} disabled={notionBusy || !notionToken || !notionDbId} style={btn2}>
+                연결 테스트
+              </button>
+              {notionMsg && <span style={{ fontSize: 12, opacity: .7 }}>{notionMsg}</span>}
             </div>
           </div>
         </Section>

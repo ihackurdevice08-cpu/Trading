@@ -1,12 +1,12 @@
 "use client";
 
 import React, {
-  createContext, useContext, useEffect, useMemo,
+  createContext, useContext, useEffect,
   useState, useCallback, useRef,
 } from "react";
-import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { AppearanceSettings } from "@/lib/appearance/types";
 import { applyThemeVars, applyFontScheme } from "@/lib/appearance/themes";
+import { firebaseAuth } from "@/lib/firebase/client";
 
 const DEFAULT_APPEARANCE: AppearanceSettings = {
   themeId:    "linen",
@@ -36,15 +36,11 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const sb = useMemo(() => supabaseBrowser(), []);
-
   const reloadAppearance = useCallback(async () => {
     try {
-      // getSession: 로컬 캐시에서 즉시 읽음 (서버 왕복 없음)
-      const { data } = await sb.auth.getSession();
-      const uid = data?.session?.user?.id || null;
-      setIsAuthed(!!uid);
-      if (!uid) return;
+      const user = firebaseAuth().currentUser;
+      setIsAuthed(!!user);
+      if (!user) return;
 
       const r = await fetch("/api/settings", { cache: "no-store" });
       if (!r.ok) return;
@@ -61,9 +57,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap.bg || {}) },
       });
     } catch { /* 기본값 유지 */ }
-  }, [sb]);
+  }, []);
 
-  // patchAppearance: 즉시 상태 반영 + 800ms debounce로 자동 저장
   const patchAppearance = useCallback((patch: Partial<AppearanceSettings>) => {
     setAppearance(prev => {
       const next: AppearanceSettings = {
@@ -73,7 +68,6 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         bg: patch.bg ? { ...(prev.bg || {}), ...patch.bg } : prev.bg,
       };
 
-      // debounce 자동 저장 (800ms)
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         try {
@@ -91,8 +85,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
   const saveAppearance = useCallback(async () => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
-    const { data } = await sb.auth.getSession();
-    if (!data?.session?.user?.id) throw new Error("unauthorized");
+    if (!firebaseAuth().currentUser) throw new Error("unauthorized");
     const r = await fetch("/api/settings", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -100,12 +93,13 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || "저장 실패");
-  }, [appearance, sb]);
+  }, [appearance]);
 
   useEffect(() => {
     applyThemeVars(appearance.themeId);
     applyFontScheme(appearance.themeId);
   }, [appearance.themeId]);
+
   useEffect(() => { reloadAppearance(); }, [reloadAppearance]);
 
   const value: Ctx = { appearance, patchAppearance, saveAppearance, reloadAppearance, isAuthed };

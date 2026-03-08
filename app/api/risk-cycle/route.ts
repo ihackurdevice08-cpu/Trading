@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAuthUserId } from "@/lib/supabase/serverAuth";
-import { supabaseServer } from "@/lib/supabase/server";
+import { getAuthUserId } from "@/lib/firebase/serverAuth";
+import { adminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,49 +9,37 @@ export const dynamic = "force-dynamic";
 function ok(data: any)  { return NextResponse.json({ ok: true,  ...data }); }
 function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, error: msg }, { status }); }
 
-// 리스크 사이클 리셋: 현재 누적 PnL을 스냅샷으로 저장하고 새 사이클 시작
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
-  const sb = supabaseServer();
+  const db = adminDb();
 
-  // 현재까지 누적 PnL 계산
-  const { data: trades } = await sb
-    .from("manual_trades")
-    .select("pnl")
-    .eq("user_id", uid);
+  const tradesSnap = await db.collection("users").doc(uid).collection("manual_trades").get();
+  const cumPnl = tradesSnap.docs.reduce((s, d) => s + (Number(d.data().pnl) || 0), 0);
 
-  const cumPnl = (trades || []).reduce((s, r) => s + (Number(r.pnl) || 0), 0);
-
-  // 사이클 스냅샷 저장
-  const { data: row, error } = await sb
-    .from("risk_cycles")
-    .insert({
-      user_id:    uid,
-      started_at: new Date().toISOString(),
-      note:       String(body.note || "").trim(),
-      equity_snapshot: Number(body.equity_snapshot) || cumPnl,
-    })
-    .select("*")
-    .single();
-
-  if (error) return bad(error.message, 500);
-  return ok({ cycle: row });
+  const ref = db.collection("users").doc(uid).collection("risk_cycles").doc();
+  const data = {
+    started_at:       new Date(),
+    note:             String(body.note || "").trim(),
+    equity_snapshot:  Number(body.equity_snapshot) || cumPnl,
+    created_at:       FieldValue.serverTimestamp(),
+  };
+  await ref.set(data);
+  return ok({ cycle: { id: ref.id, ...data, started_at: data.started_at.toISOString() } });
 }
 
 export async function GET() {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
 
-  const { data, error } = await supabaseServer()
-    .from("risk_cycles")
-    .select("*")
-    .eq("user_id", uid)
-    .order("started_at", { ascending: false })
-    .limit(20);
+  const snap = await adminDb().collection("users").doc(uid).collection("risk_cycles")
+    .orderBy("started_at", "desc").limit(20).get();
 
-  if (error) return bad(error.message, 500);
-  return ok({ cycles: data || [] });
+  const cycles = snap.docs.map(d => ({
+    id: d.id, ...d.data(),
+    started_at: d.data().started_at?.toDate?.()?.toISOString() ?? null,
+  }));
+  return ok({ cycles });
 }

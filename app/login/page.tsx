@@ -1,19 +1,29 @@
 "use client";
 import { useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/browser";
+import { firebaseAuth } from "@/lib/firebase/client";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 export default function LoginPage() {
-  const sb = supabaseBrowser();
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
   async function signInWithGoogle() {
-    setLoading(true);
-    await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/auth/callback",
-      },
-    });
+    setLoading(true); setErr("");
+    try {
+      const auth = firebaseAuth();
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      // ID 토큰 발급 → 쿠키 저장
+      const idToken = await result.user.getIdToken();
+      await fetch("/auth/session", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      window.location.href = "/dashboard";
+    } catch (e: any) {
+      setErr(e?.message ?? "로그인 실패");
+      setLoading(false);
+    }
   }
 
   return (
@@ -37,6 +47,7 @@ export default function LoginPage() {
           트레이딩을 차분하고 일관되게 관리하는 전용 공간입니다.<br />
           Google 계정으로 접속하면 시작할 수 있습니다.
         </div>
+        {err && <div style={{ fontSize: 12, color: "#c0392b", marginBottom: 12 }}>{err}</div>}
         <button onClick={signInWithGoogle} disabled={loading} style={{
           width: "100%", padding: "13px 16px", borderRadius: 12,
           border: "1px solid var(--line-soft, rgba(0,0,0,.12))",

@@ -10,21 +10,18 @@ function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, 
 export async function GET() {
   const uid = await getAuthUserId();
   if (!uid) return bad("unauthorized", 401);
-
   const snap = await adminDb().collection("users").doc(uid).collection("user_settings").doc("default").get();
-  const appearance = snap.exists ? (snap.data()?.appearance ?? {}) : {};
-  return NextResponse.json({ ok: true, appearance });
+  return NextResponse.json({ ok: true, notion: snap.data()?.notion ?? {} });
 }
 
 export async function POST(req: Request) {
-  try {
-    const uid = await getAuthUserId();
-    if (!uid) return bad("unauthorized", 401);
-    const body = await req.json().catch(() => ({}));
-    const appearance = body?.appearance ?? body ?? {};
-
-    await adminDb().collection("users").doc(uid).collection("user_settings").doc("default")
-      .set({ appearance }, { merge: true });
-    return NextResponse.json({ ok: true });
-  } catch (e: any) { return bad(String(e?.message || e), 500); }
+  const uid = await getAuthUserId();
+  if (!uid) return bad("unauthorized", 401);
+  const { token, database_id } = await req.json().catch(() => ({}));
+  const update: any = {};
+  if (token       !== undefined) update["notion.token"]       = token;
+  if (database_id !== undefined) update["notion.database_id"] = database_id;
+  await adminDb().collection("users").doc(uid).collection("user_settings").doc("default")
+    .set(update, { merge: true });
+  return NextResponse.json({ ok: true });
 }
