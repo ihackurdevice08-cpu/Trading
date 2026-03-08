@@ -16,7 +16,8 @@ const nextConfig = {
 
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/**" },
+      // Firebase Storage
+      { protocol: "https", hostname: "firebasestorage.googleapis.com", pathname: "/**" },
     ],
     formats: ["image/avif", "image/webp"],
   },
@@ -24,13 +25,8 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
 
-  // 빌드 에러 무시
   typescript: { ignoreBuildErrors: true },
   eslint:     { ignoreDuringBuilds: true },
-
-  experimental: {
-    optimizePackageImports: ["@supabase/ssr", "@supabase/supabase-js"],
-  },
 };
 
 module.exports = nextConfig;
