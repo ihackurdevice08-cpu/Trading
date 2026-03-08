@@ -551,67 +551,41 @@ export default function SettingsPage() {
         <Section icon="◐" title="외관 설정">
           <div style={{ display: "grid", gap: 14 }}>
 
-            {/* 테마 카드 선택기 */}
+            {/* 테마 선택 */}
             <div>
               <span style={lbl}>테마</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(136px, 1fr))", gap: 8, marginTop: 6 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
                 {([
-                  { id: "linen",  name: "Linen Suite",   sub: "따뜻한 / 낮",    bg: "#F4F0E6", accent: "#B89A5A", textDark: true,  font: "system" },
-                  { id: "resort", name: "Desert Resort",  sub: "사막 / 황혼",    bg: "#EFE6D6", accent: "#C2A66B", textDark: true,  font: "system" },
-                  { id: "dune",   name: "Dune Beige",     sub: "베이지 / 오후",  bg: "#EDE2CF", accent: "#B58B4D", textDark: true,  font: "system" },
-                  { id: "noir",   name: "Noir Lobby",     sub: "다크 / 심야",    bg: "#0F0F12", accent: "#D6B56E", textDark: false, font: "system" },
-                  { id: "vault",  name: "Gold Vault",     sub: "블랙 골드 / 밤", bg: "#15130E", accent: "#C8A24A", textDark: false, font: "system" },
-                  { id: "lounge", name: "Lounge Noir",    sub: "라운지 / 모노",  bg: "#080808", accent: "#C9B87A", textDark: false, font: "mono"   },
-                ] as { id:string;name:string;sub:string;bg:string;accent:string;textDark:boolean;font:string }[]).map(t => {
-                  const active = appearance.themeId === t.id;
+                  { id: "linen", name: "라이트", bg: "#F4F0E6", accent: "#B89A5A", textDark: true  },
+                  { id: "noir",  name: "다크",   bg: "#0F0F12", accent: "#D6B56E", textDark: false },
+                ] as { id:string; name:string; bg:string; accent:string; textDark:boolean }[]).map(t => {
+                  const active = (appearance.themeId === t.id) ||
+                    (t.id === "linen" && !["noir","vault","lounge"].includes(appearance.themeId ?? ""));
                   const fg = t.textDark ? "rgba(0,0,0,0.85)" : "rgba(226,221,214,0.9)";
-                  const fgDim = t.textDark ? "rgba(0,0,0,0.35)" : "rgba(226,221,214,0.35)";
-                  const monoFont = "'Courier New', Courier, monospace";
-                  const sysFont = "inherit";
                   return (
                     <button key={t.id} onClick={() => patchAppearance({ themeId: t.id as any })}
                       style={{
-                        padding:0, border:"none", background:"none", cursor:"pointer",
-                        outline: active ? `2px solid ${t.accent}` : `1px solid ${t.textDark?"rgba(0,0,0,0.12)":"rgba(255,255,255,0.08)"}`,
+                        flex: 1, padding: 0, border: "none", background: "none", cursor: "pointer",
+                        outline: active ? `2px solid ${t.accent}` : "1px solid rgba(0,0,0,0.1)",
                         outlineOffset: active ? 2 : 0,
-                        borderRadius: 10, overflow:"hidden", transition:"outline .15s",
-                        textAlign:"left",
+                        borderRadius: 10, overflow: "hidden", transition: "outline .15s", textAlign: "left",
                       }}>
-                      {/* 색상 미리보기 */}
-                      <div style={{ background: t.bg, padding:"10px 11px 6px" }}>
-                        <div style={{
-                          background: t.textDark?"rgba(255,255,255,0.65)":"rgba(226,221,214,0.05)",
-                          border: `1px solid ${t.textDark?"rgba(0,0,0,0.08)":"rgba(226,221,214,0.1)"}`,
-                          borderRadius:5, padding:"5px 7px", marginBottom:5,
-                        }}>
-                          <div style={{ fontSize:9, color:fg, opacity:.75, letterSpacing: t.font==="mono"?1.5:0, fontFamily: t.font==="mono"?monoFont:sysFont, lineHeight:1.3 }}>
-                            {t.font==="mono"?"MONITOR":"현황"}
-                          </div>
-                          <div style={{ marginTop:4, display:"flex", gap:3 }}>
-                            <div style={{ height:3.5, borderRadius:2, flex:2, background:t.accent }} />
-                            <div style={{ height:3.5, borderRadius:2, flex:1, background:fg, opacity:.12 }} />
-                            <div style={{ height:3.5, borderRadius:2, flex:1, background:fg, opacity:.12 }} />
-                          </div>
+                      <div style={{ background: t.bg, padding: "12px 14px 10px" }}>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                          <div style={{ height: 4, borderRadius: 2, flex: 2, background: t.accent }} />
+                          <div style={{ height: 4, borderRadius: 2, flex: 1, background: fg, opacity: .15 }} />
                         </div>
-                        <div style={{ height:1, background:`linear-gradient(90deg,transparent,${t.accent},transparent)`, opacity:.6 }} />
+                        <div style={{ fontSize: 10, color: fg, opacity: .6 }}>Man Cave OS</div>
                       </div>
-                      {/* 이름 */}
-                      <div style={{ background:t.bg, padding:"6px 11px 9px", borderTop:`1px solid ${t.accent}18` }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:fg, fontFamily:t.font==="mono"?monoFont:sysFont, letterSpacing:t.font==="mono"?.5:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      <div style={{ background: t.bg, padding: "6px 14px 10px", borderTop: `1px solid ${t.accent}20` }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: fg }}>
                           {active ? "✓ " : ""}{t.name}
                         </div>
-                        <div style={{ fontSize:9.5, color:fgDim, marginTop:1.5, fontFamily:t.font==="mono"?monoFont:sysFont }}>{t.sub}</div>
                       </div>
                     </button>
                   );
                 })}
               </div>
-              {appearance.themeId === "lounge" && (
-                <div style={{ marginTop:8, padding:"8px 12px", borderRadius:8, fontSize:11, lineHeight:1.65,
-                  background:"rgba(201,184,122,0.06)", border:"1px solid rgba(201,184,122,0.18)", color:"var(--text-muted)" }}>
-                  ◈ DM Mono + EB Garamond 폰트 자동 적용 중 — 이모티콘 대신 기하학 글리프, 골드 라인, 극도로 압축된 다크 배경.
-                </div>
-              )}
             </div>
 
             {/* 내비게이션 */}

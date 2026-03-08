@@ -9,7 +9,6 @@ import RiskBanner from "@/components/RiskBanner";
 
 const NAV = [
   { href: "/dashboard",     label: "대시보드",  icon: "◈" },
-  { href: "/journal",       label: "저널",      icon: "✦" },
   { href: "/manual-trades", label: "거래기록",  icon: "◉" },
   { href: "/goals",         label: "목표",      icon: "◎" },
   { href: "/risk",          label: "리스크",    icon: "◬" },
