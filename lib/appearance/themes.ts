@@ -33,6 +33,13 @@ export const FONT_SCHEMES: Record<string, FontScheme> = {
     display: `"EB Garamond", "Playfair Display", Georgia, serif`,
     googleFonts: `https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap`,
   },
+  // Forge: Inter UI + DM Mono 숫자
+  forge: {
+    body: `"Inter", "Apple SD Gothic Neo", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif`,
+    mono: `"DM Mono", "SF Mono", "Fira Code", "Consolas", monospace`,
+    display: `"Inter", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`,
+    googleFonts: `https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap`,
+  },
 };
 
 export const THEMES: Record<string, {
@@ -114,6 +121,28 @@ export const THEMES: Record<string, {
       lineSoft: "rgba(0,0,0,0.10)",
       lineHard: "rgba(0,0,0,0.18)",
       accent: "#B58B4D",
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────
+  // FORGE — 프로 트레이더 전투실
+  // 딥 다크 + 네온 그린 + 엠버 액센트, Inter + DM Mono
+  // ─────────────────────────────────────────────────────────
+  forge: {
+    name: "Forge",
+    label: "딥 다크 / 프로 트레이더",
+    fontScheme: "forge",
+    tokens: {
+      bg: "#0d0f14",
+      panel: "rgba(255,255,255,0.04)",
+      text: "rgba(255,255,255,0.92)",
+      secondary: "rgba(255,255,255,0.65)",
+      muted: "rgba(255,255,255,0.38)",
+      lineSoft: "rgba(255,255,255,0.08)",
+      lineHard: "rgba(255,255,255,0.16)",
+      accent: "#F0B429",
+      green: "#00C076",
+      red: "#FF4D4D",
     },
   },
 

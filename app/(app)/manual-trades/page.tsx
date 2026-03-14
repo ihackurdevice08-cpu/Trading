@@ -538,11 +538,11 @@ export default function TradeRecordsPage() {
 }
 
 const COLS = "1fr 80px 100px 1fr 52px";
-const inp: React.CSSProperties = { padding: "8px 11px", borderRadius: 9, fontSize: 14, border: "1px solid var(--line-soft,rgba(0,0,0,.12))", background: "rgba(0,0,0,0.05)", outline: "none", width: "100%", color: "inherit" };
-const lbl: React.CSSProperties = { fontSize: 11, opacity: .65, fontWeight: 700 };
+const inp: React.CSSProperties = { padding: "8px 11px", borderRadius: 9, fontSize: 14, border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "rgba(255,255,255,0.05)", outline: "none", width: "100%", color: "inherit" };
+const lbl: React.CSSProperties = { fontSize: 10, opacity: .4, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)" };
 const col: React.CSSProperties = { display: "grid", gap: 4 };
-const panel: React.CSSProperties = { padding: "12px 14px", border: "1px solid var(--line-soft,rgba(0,0,0,.1))", borderRadius: 12, marginBottom: 12, background: "var(--panel,rgba(255,255,255,0.72))" };
-const btn1: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid var(--line-hard,rgba(0,0,0,.18))", background: "var(--text-primary,#111)", color: "white", fontWeight: 800, fontSize: 13 };
-const btn2: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent", fontWeight: 700, fontSize: 13 };
-const chip: React.CSSProperties = { padding: "5px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12, border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent" };
-const danger: React.CSSProperties = { padding: "5px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11, border: "1px solid rgba(192,57,43,.25)", background: "rgba(192,57,43,.07)", color: "var(--red, #c0392b)", fontWeight: 700 };
+const panel: React.CSSProperties = { padding: "14px 16px", border: "1px solid var(--line-soft,rgba(255,255,255,.08))", borderRadius: 14, marginBottom: 12, background: "var(--panel,rgba(255,255,255,0.04))", backdropFilter: "blur(8px)" };
+const btn1: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid rgba(240,180,41,0.3)", background: "rgba(240,180,41,0.12)", color: "var(--accent,#F0B429)", fontWeight: 700, fontSize: 13 };
+const btn2: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "transparent", fontWeight: 600, fontSize: 13 };
+const chip: React.CSSProperties = { padding: "5px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12, border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "transparent" };
+const danger: React.CSSProperties = { padding: "5px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11, border: "1px solid rgba(255,77,77,.25)", background: "rgba(255,77,77,.07)", color: "var(--red, #FF4D4D)", fontWeight: 700 };

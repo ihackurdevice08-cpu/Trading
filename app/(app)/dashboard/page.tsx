@@ -14,12 +14,25 @@ const DOW_LABELS = ["월","화","수","목","금","토","일"];
 
 function StatCard({ label, value, sub, color }: { label: string; value: React.ReactNode; sub?: string; color?: string }) {
   return (
-    <div style={{ padding: "12px 14px", borderRadius: 12,
-      border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-      background: "var(--panel,rgba(255,255,255,0.72))" }}>
-      <div style={{ fontSize: 10, opacity: 0.55, fontWeight: 700, marginBottom: 4, letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontWeight: 800, fontSize: 15, color: color || "inherit" }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, opacity: 0.45, marginTop: 3 }}>{sub}</div>}
+    <div style={{
+      padding: "14px 16px", borderRadius: 14,
+      border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
+      background: "var(--panel,rgba(255,255,255,0.04))",
+      backdropFilter: "blur(8px)",
+    }}>
+      <div style={{
+        fontSize: 10, opacity: 0.4, fontWeight: 600,
+        marginBottom: 8, letterSpacing: 0.8,
+        textTransform: "uppercase", fontFamily: "var(--font-mono,monospace)",
+      }}>{label}</div>
+      <div style={{
+        fontWeight: 800, fontSize: 24,
+        color: color || "var(--text-primary,rgba(255,255,255,.92))",
+        fontFamily: "var(--font-mono,monospace)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.5px", lineHeight: 1.1,
+      }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, opacity: 0.38, marginTop: 5, fontFamily: "var(--font-mono,monospace)" }}>{sub}</div>}
     </div>
   );
 }
@@ -90,9 +103,10 @@ function DrawdownChart({ data }: { data: { date: string; dd: number; cumPnl: num
           {/* 채움 영역 */}
           <polygon
             points={`${firstPt} ${pts} ${lastPt}`}
-            fill="rgba(192,57,43,0.12)" />
+            fill="rgba(255,77,77,0.12)" />
           {/* 라인 */}
-          <polyline points={pts} fill="none" stroke="rgba(192,57,43,0.7)" strokeWidth="1.5" />
+          <polyline points={pts} fill="none" stroke="rgba(255,77,77,0.75)" strokeWidth="2"
+            style={{ filter: "drop-shadow(0 0 4px rgba(255,77,77,0.4))" }} />
           {/* x축 레이블 */}
           {ticks.map(i => (
             <text key={i} x={PAD.l + (i/(data.length-1))*innerW} y={H-3}
@@ -128,8 +142,8 @@ function CumPnlChart({ data }: { data: { date: string; cumPnl: number }[] }) {
     .filter((v,i,a) => a.indexOf(v) === i);
 
   const lastVal = vals[vals.length - 1];
-  const lineColor = lastVal >= 0 ? "rgba(11,121,73,0.7)" : "rgba(192,57,43,0.7)";
-  const fillColor = lastVal >= 0 ? "rgba(11,121,73,0.1)" : "rgba(192,57,43,0.1)";
+  const lineColor = lastVal >= 0 ? "rgba(0,192,118,0.85)" : "rgba(255,77,77,0.85)";
+  const fillColor = lastVal >= 0 ? "rgba(0,192,118,0.12)" : "rgba(255,77,77,0.10)";
 
   const firstX = PAD.l, lastX = PAD.l + innerW;
   const firstY = PAD.t + ((maxV - vals[0]) / range) * innerH;
@@ -158,7 +172,8 @@ function CumPnlChart({ data }: { data: { date: string; cumPnl: number }[] }) {
           ))}
           <polygon points={`${firstX},${firstY} ${pts} ${lastX},${lastY} ${lastX},${Math.min(zeroY, PAD.t+innerH)} ${firstX},${Math.min(zeroY, PAD.t+innerH)}`}
             fill={fillColor} />
-          <polyline points={pts} fill="none" stroke={lineColor} strokeWidth="1.5" />
+          <polyline points={pts} fill="none" stroke={lineColor} strokeWidth="2"
+            style={{ filter: `drop-shadow(0 0 4px ${lineColor})` }} />
           {ticks.map(i => (
             <text key={i} x={PAD.l + (i/(data.length-1))*innerW} y={H-3}
               fontSize={8} fill="rgba(0,0,0,0.35)" textAnchor="middle">
@@ -302,8 +317,8 @@ function DDCard({ stats }: { stats: any }) {
   if (maxDD == null || maxDD <= 0) return null;
   const isInDD = currentDD > 0.5;
   return (
-    <div style={{ ...panel, border: isInDD ? "1px solid rgba(192,57,43,0.3)" : "1px solid var(--line-soft,rgba(0,0,0,.1))",
-      background: isInDD ? "rgba(192,57,43,0.04)" : "var(--panel,rgba(255,255,255,0.72))" }}>
+    <div style={{ ...panel, border: isInDD ? "1px solid rgba(255,77,77,0.3)" : "1px solid var(--line-soft,rgba(255,255,255,.08))",
+      background: isInDD ? "rgba(255,77,77,0.06)" : "var(--panel,rgba(255,255,255,0.04))" }}>
       <div style={sectionTitle}>◈ 드로다운 현황</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginTop: 8 }}>
         <div>
@@ -524,10 +539,13 @@ export default function DashboardPage() {
 }
 
 const panel: React.CSSProperties = {
-  padding: "14px 16px", borderRadius: 12, marginBottom: 12,
-  border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-  background: "var(--panel,rgba(255,255,255,0.72))",
+  padding: "16px 18px", borderRadius: 14, marginBottom: 12,
+  border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
+  background: "var(--panel,rgba(255,255,255,0.04))",
+  backdropFilter: "blur(8px)",
 };
 const sectionTitle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 10,
+  fontSize: 10, fontWeight: 700, opacity: 0.4, marginBottom: 12,
+  letterSpacing: 1.2, textTransform: "uppercase",
+  fontFamily: "var(--font-mono,monospace)",
 };

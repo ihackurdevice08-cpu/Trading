@@ -9,7 +9,7 @@ import { applyThemeVars, applyFontScheme } from "@/lib/appearance/themes";
 import { firebaseAuth } from "@/lib/firebase/client";
 
 const DEFAULT_APPEARANCE: AppearanceSettings = {
-  themeId:    "linen",
+  themeId:    "forge",
   navLayout:  "top",
   riskWidget: { dashboard: true, trades: true },
   bg: { enabled: false, type: "none", url: null, fit: "cover", opacity: 0.22, dim: 0.45, blurPx: 10 },
