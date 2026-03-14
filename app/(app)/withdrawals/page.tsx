@@ -16,18 +16,18 @@ const SOURCE_LABELS: Record<string, { label: string; color: string; bg: string }
 
 const iStyle: React.CSSProperties = {
   padding: "9px 11px", borderRadius: 10,
-  border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
-  background: "rgba(0,0,0,.04)", color: "inherit",
+  border: "1px solid var(--line-soft)",
+  background: "rgba(255,255,255,0.06)", color: "inherit",
   outline: "none", width: "100%", fontSize: 14,
 };
 const btn1: React.CSSProperties = {
   padding: "9px 16px", borderRadius: 9, border: "none",
-  background: "var(--text-primary,#111)", color: "white",
+  background: "var(--accent,#F0B429)", color: "#0a0a0a",
   fontWeight: 800, fontSize: 13, cursor: "pointer",
 };
 const btn2: React.CSSProperties = {
   padding: "9px 14px", borderRadius: 9,
-  border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+  border: "1px solid var(--line-soft)",
   background: "transparent", fontWeight: 700, fontSize: 13, cursor: "pointer",
 };
 
@@ -121,8 +121,8 @@ export default function WithdrawalsPage() {
           ["리베이트",        totals.rebate,  "var(--accent,#B89A5A)"],
         ].map(([label, val, color]) => (
           <div key={label as string} style={{ padding: "12px 14px", borderRadius: 12,
-            border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-            background: "var(--panel,white)" }}>
+            border: "1px solid var(--line-soft)",
+            background: "var(--panel)" }}>
             <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>{label}</div>
             <div style={{ fontWeight: 900, fontSize: 16, color: color as string }}>
               {fmt(val || 0)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
@@ -134,7 +134,7 @@ export default function WithdrawalsPage() {
       {/* 입력 폼 */}
       {formOpen && (
         <div style={{ padding: "14px 16px", borderRadius: 12, marginBottom: 16,
-          border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "var(--panel,white)" }}>
+          border: "1px solid var(--line-soft)", background: "var(--panel)" }}>
           <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 12 }}>출금 기록 추가</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
             <div style={{ display: "grid", gap: 4 }}>
@@ -191,8 +191,8 @@ export default function WithdrawalsPage() {
                 const meta = SOURCE_LABELS[w.source] || SOURCE_LABELS.profit;
                 return (
                   <div key={w.id} style={{ padding: "12px 14px", borderRadius: 12,
-                    border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-                    background: "var(--panel,white)",
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--panel)",
                     display: "flex", justifyContent: "space-between",
                     alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

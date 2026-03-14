@@ -53,9 +53,10 @@ export async function GET(req: Request) {
 
   const list = monthSnap.docs.map(d => ({
     opened_at: toDate(d.data().opened_at)?.toISOString() ?? "",
+    closed_at: toDate(d.data().closed_at)?.toISOString() ?? null,
     pnl:       d.data().pnl ?? null,
     symbol:    d.data().symbol ?? "unknown",
-    side:      d.data().side,
+    side:      d.data().side ?? "long",
     tags:      d.data().tags ?? [],
   }));
   const recent = recentSnap.docs.map(d => ({
@@ -103,6 +104,23 @@ export async function GET(req: Request) {
     (d as any).losses = d._losses.length;
   }
 
+  // Long/Short 집계
+  let longCount = 0, shortCount = 0;
+  let maxConsecWin = 0, maxConsecLoss = 0, curWin = 0, curLoss = 0;
+  let totalDurationMs = 0, durationCount = 0;
+  const sortedList = [...list].filter(r => r.pnl != null && r.symbol !== "FUNDING")
+    .sort((a, b) => a.opened_at.localeCompare(b.opened_at));
+  for (const r of sortedList) {
+    if (r.side === "long") longCount++; else shortCount++;
+    const pnl = Number(r.pnl);
+    if (pnl > 0) { curWin++; curLoss = 0; maxConsecWin = Math.max(maxConsecWin, curWin); }
+    else if (pnl < 0) { curLoss++; curWin = 0; maxConsecLoss = Math.max(maxConsecLoss, curLoss); }
+    if (r.closed_at && r.opened_at) {
+      const dur = Date.parse(r.closed_at) - Date.parse(r.opened_at);
+      if (dur > 0 && dur < 86400_000 * 30) { totalDurationMs += dur; durationCount++; }
+    }
+  }
+  const avgDurationMin = durationCount > 0 ? Math.round(totalDurationMs / durationCount / 60000) : null;
   const winRate = realizedCount > 0 ? (win / realizedCount) * 100 : null;
   const topSymbols = Object.entries(symbolMap)
     .sort((a, b) => Math.abs(b[1].pnl) - Math.abs(a[1].pnl))
@@ -194,6 +212,17 @@ export async function GET(req: Request) {
     }
   }
 
+  // 월별 PnL (전체 기간)
+  const monthlyMap: Record<string, number> = {};
+  for (const r of allTrades) {
+    if (!r.pnl) continue;
+    const month = r.opened_at.slice(0, 7);
+    monthlyMap[month] = (monthlyMap[month] || 0) + Number(r.pnl);
+  }
+  const monthlyPnl = Object.entries(monthlyMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, pnl]) => ({ month, pnl: Number(pnl.toFixed(2)) }));
+
   return NextResponse.json({
     ok: true,
     stats: {
@@ -208,7 +237,8 @@ export async function GET(req: Request) {
       retainedProfit:   Number(retainedProfit.toFixed(2)),
       currentDD: Number(currentDD.toFixed(2)), maxDD: Number(maxDD.toFixed(2)),
       recoveryNeeded: Number(recoveryNeeded.toFixed(2)),
+      longCount, shortCount, maxConsecWin, maxConsecLoss, avgDurationMin,
     },
-    recent, topSymbols, dailyPnl, ddSeries, heatmapData,
+    recent, topSymbols, dailyPnl, ddSeries, heatmapData, monthlyPnl,
   });
 }

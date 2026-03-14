@@ -10,7 +10,7 @@ function Bar({ cur, tgt }: { cur: number; tgt: number }) {
   const p    = barPct(cur, tgt);
   const over = cur > tgt && tgt > 0;
   return (
-    <div style={{ height: 6, background: "rgba(0,0,0,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+    <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
       <div style={{ width: `${p}%`, height: "100%", borderRadius: 999,
         background: over ? "var(--green, #0b7949)" : "var(--accent,#B89A5A)",
         transition: "width 0.3s" }} />
@@ -20,8 +20,8 @@ function Bar({ cur, tgt }: { cur: number; tgt: number }) {
 
 const iStyle: React.CSSProperties = {
   padding: "9px 11px", borderRadius: 10,
-  border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
-  background: "rgba(0,0,0,.04)", color: "inherit",
+  border: "1px solid var(--line-soft)",
+  background: "rgba(255,255,255,0.06)", color: "inherit",
   outline: "none", width: "100%", fontSize: 15,
 };
 const btnBase: React.CSSProperties = {
@@ -173,8 +173,8 @@ export default function GoalsPage() {
       )}
 
       {/* 누적 성과 */}
-      <div style={{ border: "1px solid var(--line-soft,rgba(0,0,0,.1))", padding: "12px 14px",
-        borderRadius: 12, marginBottom: 14, background: "var(--panel,white)" }}>
+      <div style={{ border: "1px solid var(--line-soft)", padding: "12px 14px",
+        borderRadius: 12, marginBottom: 14, background: "var(--panel)" }}>
         <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>누적 성과</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
           {[
@@ -191,8 +191,8 @@ export default function GoalsPage() {
       </div>
 
       {/* 새 목표 만들기 */}
-      <div style={{ border: "1px solid var(--line-soft,rgba(0,0,0,.1))", padding: "12px 14px",
-        borderRadius: 12, marginBottom: 16, background: "var(--panel,white)" }}>
+      <div style={{ border: "1px solid var(--line-soft)", padding: "12px 14px",
+        borderRadius: 12, marginBottom: 16, background: "var(--panel)" }}>
         <div style={{ fontWeight: 900, marginBottom: 10, fontSize: 14 }}>새 목표 만들기</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           <input placeholder="목표 제목" value={title}
@@ -213,8 +213,8 @@ export default function GoalsPage() {
           </select>
           <button onClick={create} disabled={busy} style={{
             padding: "9px 14px", borderRadius: 10, border: "none",
-            background: busy ? "rgba(0,0,0,0.3)" : "var(--text-primary,#111)",
-            color: "white", fontWeight: 900, fontSize: 14,
+            background: busy ? "rgba(255,255,255,0.08)" : "var(--accent,#F0B429)",
+            color: "#0a0a0a", fontWeight: 900, fontSize: 14,
             cursor: busy ? "not-allowed" : "pointer" }}>
             {busy ? "처리중…" : "생성"}
           </button>
@@ -240,10 +240,10 @@ export default function GoalsPage() {
 
         return (
           <div key={g.id} style={{
-            border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+            border: "1px solid var(--line-soft)",
             borderLeft: isOver ? "3px solid var(--green, #0b7949)" : undefined,
             padding: "12px 14px", borderRadius: 12, marginBottom: 10,
-            background: "var(--panel,white)" }}>
+            background: "var(--panel)" }}>
 
             {/* 제목 */}
             <div style={{ display: "flex", justifyContent: "space-between",
@@ -254,16 +254,16 @@ export default function GoalsPage() {
                     onChange={e => setEditTitle(p => ({ ...p, [g.id]: e.target.value }))}
                     style={{ ...iStyle, flex: 1, minWidth: 120 }} />
                   <button onClick={() => saveTitle(g)} disabled={busy}
-                    style={{ ...btnBase, border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent" }}>저장</button>
+                    style={{ ...btnBase, border: "1px solid var(--line-soft)", background: "transparent" }}>저장</button>
                   <button onClick={() => setEditingId(null)}
-                    style={{ ...btnBase, border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent", fontWeight: 600 }}>취소</button>
+                    style={{ ...btnBase, border: "1px solid var(--line-soft)", background: "transparent", fontWeight: 600 }}>취소</button>
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 900, fontSize: 14 }}>{g.title || "(untitled)"}</span>
                   <button onClick={() => { setEditingId(g.id); setEditTitle(p => ({ ...p, [g.id]: g.title || "" })); }}
                     style={{ padding: "3px 7px", borderRadius: 6, fontSize: 11, cursor: "pointer",
-                      border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent" }}>수정</button>
+                      border: "1px solid var(--line-soft)", background: "transparent" }}>수정</button>
                 </div>
               )}
               <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
@@ -325,14 +325,14 @@ export default function GoalsPage() {
                     style={{ ...btnBase, border: "1px solid var(--accent,#B89A5A)",
                       background: "rgba(184,154,90,0.1)", cursor: busy ? "not-allowed" : "pointer" }}>저장</button>
                   <button onClick={() => markDone(g)} disabled={busy}
-                    style={{ ...btnBase, border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+                    style={{ ...btnBase, border: "1px solid var(--line-soft)",
                       background: "transparent", fontWeight: 600, cursor: busy ? "not-allowed" : "pointer" }}>완료 처리</button>
                 </>
               )}
               <div style={{ flex: 1 }} />
               <button onClick={() => archiveGoal(g)} disabled={busy}
                 style={{ ...btnBase, padding: "5px 10px", fontSize: 12, fontWeight: 600,
-                  border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent",
+                  border: "1px solid var(--line-soft)", background: "transparent",
                   opacity: 0.7, cursor: busy ? "not-allowed" : "pointer" }}>숨김</button>
               <button onClick={() => hardDelete(g)} disabled={busy}
                 style={{ ...btnBase, padding: "5px 10px", fontSize: 12,
@@ -353,9 +353,9 @@ export default function GoalsPage() {
             const achieved = n(g.current_value) > 0 ? g.current_value : g.target_value;
             const unit = unitLabel(String(g.type));
             return (
-              <div key={g.id} style={{ border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+              <div key={g.id} style={{ border: "1px solid var(--line-soft)",
                 padding: "10px 14px", borderRadius: 12, marginBottom: 8,
-                opacity: 0.75, background: "var(--panel,white)" }}>
+                opacity: 0.75, background: "var(--panel)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between",
                   gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   <span style={{ fontWeight: 800, fontSize: 13 }}>{g.title}</span>
@@ -368,7 +368,7 @@ export default function GoalsPage() {
                 <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                   <button onClick={() => archiveGoal(g)}
                     style={{ ...btnBase, padding: "5px 10px", fontSize: 12, fontWeight: 600,
-                      border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent" }}>숨김</button>
+                      border: "1px solid var(--line-soft)", background: "transparent" }}>숨김</button>
                   <button onClick={() => hardDelete(g)}
                     style={{ ...btnBase, padding: "5px 10px", fontSize: 12,
                       border: "1px solid rgba(188,10,7,.2)", color: "var(--red, #c0392b)",

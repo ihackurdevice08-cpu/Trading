@@ -11,7 +11,7 @@ import { getFirebaseApp } from "@/lib/firebase/client";
 const inp: React.CSSProperties = {
   width: "100%", padding: "9px 11px", borderRadius: 9, fontSize: 14,
   border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
-  background: "rgba(0,0,0,0.05)", outline: "none", color: "inherit",
+  background: "rgba(255,255,255,0.06)", outline: "none", color: "inherit",
 };
 const sel: React.CSSProperties = {
   ...inp as any,
@@ -26,7 +26,7 @@ const fieldWrap: React.CSSProperties = {
 const btn1: React.CSSProperties = {
   padding: "9px 16px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap",
   border: "1px solid var(--line-hard, rgba(0,0,0,.18))",
-  background: "var(--text-primary, #111)", color: "white",
+  background: "var(--accent,#F0B429)", color: "#0a0a0a",
   fontWeight: 800, fontSize: 13,
 };
 const btn2: React.CSSProperties = {
@@ -49,8 +49,8 @@ function Section({ title, icon, children }: {
       <div style={{
         display: "flex", alignItems: "center", gap: 7,
         padding: "11px 14px",
-        borderBottom: "1px solid var(--line-soft, rgba(0,0,0,.08))",
-        background: "rgba(0,0,0,0.025)",
+        borderBottom: "1px solid var(--line-soft)",
+        background: "rgba(255,255,255,0.03)",
       }}>
         <span style={{ fontSize: 12, opacity: .5 }}>{icon}</span>
         <span style={{ fontSize: 13, fontWeight: 800, opacity: .7, letterSpacing: .2 }}>{title}</span>
@@ -71,8 +71,8 @@ function ToggleRow({
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "10px 12px", borderRadius: 9,
-      border: "1px solid var(--line-soft, rgba(0,0,0,.08))",
-      background: "rgba(0,0,0,0.025)", gap: 12,
+      border: "1px solid var(--line-soft)",
+      background: "rgba(255,255,255,0.03)", gap: 12,
     }}>
       <div>
         <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
@@ -85,8 +85,8 @@ function ToggleRow({
           padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 800,
           cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0,
           border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
-          background: on ? "var(--text-primary, #111)" : "rgba(0,0,0,0.04)",
-          color: on ? "white" : "var(--text-secondary, rgba(0,0,0,.55))",
+          background: on ? "var(--accent,#F0B429)" : "rgba(255,255,255,0.06)",
+          color: on ? "#0a0a0a" : "var(--text-secondary)",
           opacity: disabled ? .35 : 1,
           transition: "all 0.15s",
         }}
@@ -112,7 +112,7 @@ function ChipGroup<T extends string>({
         <button key={o.value} onClick={() => onChange(o.value)} style={{
           padding: "7px 14px", borderRadius: 8, fontSize: 12,
           cursor: "pointer", border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
-          background: value === o.value ? "rgba(0,0,0,0.09)" : "transparent",
+          background: value === o.value ? "rgba(240,180,41,0.12)" : "transparent",
           fontWeight: value === o.value ? 800 : 600,
           color: value === o.value && colorFn ? colorFn(o.value) : "inherit",
         }}>
@@ -362,7 +362,7 @@ export default function SettingsPage() {
             {syncMsg && (
               <div style={{
                 padding: "9px 12px", borderRadius: 9, fontSize: 13,
-                background: "rgba(0,0,0,0.04)", border: "1px solid var(--line-soft, rgba(0,0,0,.08))",
+                background: "rgba(255,255,255,0.05)", border: "1px solid var(--line-soft)",
               }}>{syncMsg}</div>
             )}
 
@@ -375,8 +375,8 @@ export default function SettingsPage() {
                     <div key={acc.id} style={{
                       display: "flex", justifyContent: "space-between", alignItems: "center",
                       padding: "10px 12px", borderRadius: 9, gap: 10, flexWrap: "wrap",
-                      border: "1px solid var(--line-soft, rgba(0,0,0,.08))",
-                      background: "rgba(0,0,0,0.025)",
+                      border: "1px solid var(--line-soft)",
+                      background: "rgba(255,255,255,0.03)",
                     }}>
                       <div>
                         <span style={{ fontWeight: 800, fontSize: 13 }}>{acc.alias}</span>
@@ -433,7 +433,7 @@ export default function SettingsPage() {
                   <input type="password" value={passphrase} onChange={e => setPassphrase(e.target.value)} style={inp} />
                 </div>
               </div>
-              <div style={{ fontSize: 11, opacity: .55, marginBottom: 10, padding: "7px 10px", borderRadius: 8, background: "rgba(0,0,0,0.03)", border: "1px solid var(--line-soft, rgba(0,0,0,.07))" }}>
+              <div style={{ fontSize: 11, opacity: .55, marginBottom: 10, padding: "7px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid var(--line-soft)" }}>
                 ⚠ Bitget에서 <b>Read-only</b> 권한으로만 발급하세요. IP 제한을 걸면 더 안전합니다.
               </div>
               <button onClick={() => { const e = document.createEvent("Event"); e.initEvent("submit",true,true); saveBitgetAccount(); }}
@@ -452,7 +452,7 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 12 }}>
               {riskMsg && (
                 <div style={{ fontSize: 12, opacity: .6, padding: "6px 10px", borderRadius: 8,
-                  background: "rgba(0,0,0,0.03)", border: "1px solid var(--line-soft, rgba(0,0,0,.07))" }}>
+                  background: "rgba(255,255,255,0.03)", border: "1px solid var(--line-soft)" }}>
                   {riskMsg}
                 </div>
               )}
@@ -654,7 +654,7 @@ export default function SettingsPage() {
             {/* 배경 상세 설정 - 켜져있을 때만 */}
             {appearance.bg?.enabled && (
               <div style={{ display: "grid", gap: 10, padding: "12px", borderRadius: 9,
-                border: "1px solid var(--line-soft, rgba(0,0,0,.08))", background: "rgba(0,0,0,0.02)" }}>
+                border: "1px solid var(--line-soft)", background: "rgba(255,255,255,0.02)" }}>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
                   <div style={fieldWrap}>
@@ -753,8 +753,8 @@ export default function SettingsPage() {
         <Section title="노션 저널 연동" icon="📓">
           <div style={{ display: "grid", gap: 14 }}>
             <div style={{ fontSize: 12, opacity: .55, lineHeight: 1.6,
-              padding: "10px 12px", borderRadius: 8, background: "rgba(0,0,0,0.03)",
-              border: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
+              padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--line-soft)" }}>
               <b>설정 방법:</b><br />
               1. <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer"
                 style={{ color: "var(--accent,#B89A5A)" }}>notion.so/my-integrations</a>에서 Integration 생성<br />

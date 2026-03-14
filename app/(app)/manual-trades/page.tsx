@@ -287,7 +287,7 @@ export default function TradeRecordsPage() {
     return (
       <div onClick={() => groupMode ? toggleSelect(t.id) : openDetail(t)}
         style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, padding: inGroup ? "9px 14px 9px 20px" : "11px 14px", alignItems: "center",
-          borderTop: idx > 0 ? "1px solid var(--line-soft,rgba(0,0,0,.06))" : "none",
+          borderTop: idx > 0 ? "1px solid var(--line-soft)" : "none",
           cursor: isFunding ? "default" : "pointer",
           background: isSelected ? "rgba(180,150,80,0.08)" : isFunding ? "rgba(0,0,0,0.02)" : "transparent",
           opacity: isFunding ? 0.7 : 1, transition: "background .15s" }} className="tr-row">
@@ -303,7 +303,7 @@ export default function TradeRecordsPage() {
             ) : (
               <span style={{ fontWeight: 800, fontSize: 14 }}>{t.symbol}</span>
             )}
-            {isAuto && !isFunding && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "rgba(255,165,0,0.15)", color: "#b8860b", fontWeight: 700 }}>⚡</span>}
+            {isAuto && !isFunding && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "rgba(240,180,41,0.15)", color: "#F0B429", fontWeight: 700 }}>⚡</span>}
             {hasNotes && !isFunding && <span style={{ fontSize: 10, opacity: 0.4 }}>✎</span>}
           </div>
           <div style={{ fontSize: 11, opacity: .5, marginTop: 1 }}>{t.opened_at?.slice(0,16).replace("T"," ")}</div>
@@ -334,7 +334,7 @@ export default function TradeRecordsPage() {
   function GroupCard({ g }: { g: TradeGroup }) {
     const isExpanded = expandedGroups.has(g.group_id);
     return (
-      <div style={{ border: `2px solid ${g.side === "long" ? "rgba(11,121,73,0.3)" : "rgba(192,57,43,0.3)"}`, borderRadius: 10, overflow: "hidden", marginBottom: 2, background: "var(--panel,rgba(255,255,255,0.72))" }}>
+      <div style={{ border: `2px solid ${g.side === "long" ? "rgba(11,121,73,0.3)" : "rgba(192,57,43,0.3)"}`, borderRadius: 10, overflow: "hidden", marginBottom: 2, background: "var(--panel)" }}>
         <div onClick={() => toggleExpand(g.group_id)} style={{ display: "grid", gridTemplateColumns: COLS, gap: 8, padding: "10px 14px", alignItems: "center", cursor: "pointer", background: g.side === "long" ? "rgba(11,121,73,0.05)" : "rgba(192,57,43,0.05)" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -351,7 +351,7 @@ export default function TradeRecordsPage() {
             <span style={{ fontSize: 13, opacity: .5 }}>{isExpanded ? "▲" : "▼"}</span>
           </div>
         </div>
-        {isExpanded && <div style={{ borderTop: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>{g.trades.map((t, i) => <TradeCard key={t.id} t={t} idx={i} inGroup />)}</div>}
+        {isExpanded && <div style={{ borderTop: "1px solid var(--line-soft)" }}>{g.trades.map((t, i) => <TradeCard key={t.id} t={t} idx={i} inGroup />)}</div>}
       </div>
     );
   }
@@ -363,7 +363,7 @@ export default function TradeRecordsPage() {
       {detailTrade && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 16px" }}
           onClick={() => setDetailTrade(null)}>
-          <div style={{ background: "var(--panel,rgba(255,255,255,0.98))", borderRadius: 16, padding: "20px", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" }}
+          <div style={{ background: "var(--modal-bg,rgba(18,20,27,0.98))", borderRadius: 16, padding: "20px", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
               <div>
@@ -410,7 +410,7 @@ export default function TradeRecordsPage() {
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>거래기록</h1>
           <div style={{ fontSize: 12, opacity: .5, marginTop: 2 }}>청산 포지션만 표시{fetchedFrom ? ` · ${fetchedFrom} 이후` : ""}</div>
         </div>
-        <button onClick={toggleRiskWidget} style={{ padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid var(--line-soft, rgba(0,0,0,.1))", background: rw.trades ? "rgba(0,0,0,0.07)" : "transparent", opacity: rw.trades ? 1 : .5 }}>◬ 리스크</button>
+        <button onClick={toggleRiskWidget} style={{ padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "1px solid var(--line-soft)", background: rw.trades ? "rgba(240,180,41,0.12)" : "transparent", opacity: rw.trades ? 1 : .5 }}>◬ 리스크</button>
       </div>
 
       {rw.trades && <RiskMiniWidget />}
@@ -431,7 +431,7 @@ export default function TradeRecordsPage() {
           </div>
           <button onClick={syncAndLoad} disabled={syncing || loading} style={btn1}>{syncing ? "동기화 중…" : loading ? "로딩…" : "⚡ 동기화 & 조회"}</button>
         </div>
-        {syncLog && <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13, background: "rgba(0,0,0,0.04)", border: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>{syncLog}</div>}
+        {syncLog && <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13, background: "rgba(255,255,255,0.04)", border: "1px solid var(--line-soft)" }}>{syncLog}</div>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>
@@ -442,7 +442,7 @@ export default function TradeRecordsPage() {
           ["승/패",  `${stats.wins}W / ${stats.losses}L`],
           ["손익비", stats.rr  != null ? fmt(stats.rr, 2) : "—"],
         ] as [string, string, number?][]).map(([label, value, colorVal]) => (
-          <div key={label} style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "var(--panel,rgba(255,255,255,0.72))" }}>
+          <div key={label} style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "var(--panel)" }}>
             <div style={{ fontSize: 10, opacity: .55, marginBottom: 3, fontWeight: 700 }}>{label}</div>
             <div style={{ fontWeight: 800, fontSize: 13, color: colorVal !== undefined ? pnlColor(colorVal) : "inherit" }}>{value}</div>
           </div>
@@ -453,17 +453,17 @@ export default function TradeRecordsPage() {
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, opacity: .5 }}>방향</span>
         {(["", "long", "short"] as const).map(v => (
-          <button key={v} onClick={() => setSideFilter(v)} style={{ ...chip, fontWeight: sideFilter===v?900:600, background: sideFilter===v?"rgba(0,0,0,0.10)":"transparent", color: v==="long"&&sideFilter===v?"var(--green)":v==="short"&&sideFilter===v?"var(--red)":"inherit" }}>
+          <button key={v} onClick={() => setSideFilter(v)} style={{ ...chip, fontWeight: sideFilter===v?900:600, background: sideFilter===v?"rgba(240,180,41,0.12)":"transparent", color: v==="long"&&sideFilter===v?"var(--green)":v==="short"&&sideFilter===v?"var(--red)":"inherit" }}>
             {v===""?"전체":v.toUpperCase()}
           </button>
         ))}
         <span style={{ fontSize: 12, opacity: .5, marginLeft: 6 }}>손익</span>
         {([{v:"" as const,l:"전체"},{v:"win" as const,l:"수익"},{v:"lose" as const,l:"손실"}]).map(({v,l}) => (
-          <button key={v} onClick={() => setPnlFilter(v)} style={{ ...chip, fontWeight: pnlFilter===v?900:600, background: pnlFilter===v?"rgba(0,0,0,0.10)":"transparent", color: v==="win"&&pnlFilter===v?"var(--green)":v==="lose"&&pnlFilter===v?"var(--red)":"inherit" }}>{l}</button>
+          <button key={v} onClick={() => setPnlFilter(v)} style={{ ...chip, fontWeight: pnlFilter===v?900:600, background: pnlFilter===v?"rgba(240,180,41,0.12)":"transparent", color: v==="win"&&pnlFilter===v?"var(--green)":v==="lose"&&pnlFilter===v?"var(--red)":"inherit" }}>{l}</button>
         ))}
         <span style={{ fontSize: 12, opacity: .5, marginLeft: 6 }}>소스</span>
         {(["", "bitget", "manual"] as const).map(v => (
-          <button key={v} onClick={() => setSrcFilter(v)} style={{ ...chip, fontWeight: srcFilter===v?900:600, background: srcFilter===v?"rgba(0,0,0,0.10)":"transparent" }}>
+          <button key={v} onClick={() => setSrcFilter(v)} style={{ ...chip, fontWeight: srcFilter===v?900:600, background: srcFilter===v?"rgba(240,180,41,0.12)":"transparent" }}>
             {v===""?"전체":v==="bitget"?"⚡ 자동":"✏️ 수동"}
           </button>
         ))}
@@ -511,7 +511,7 @@ export default function TradeRecordsPage() {
         ) : displayItems.map((item) => {
           if (item.type === "group") return <GroupCard key={item.group.group_id} g={item.group} />;
           return (
-            <div key={item.trade.id} style={{ border: item.trade.symbol === "FUNDING" ? "1px dashed rgba(100,100,200,0.2)" : "1px solid var(--line-soft,rgba(0,0,0,.1))", borderRadius: 10, overflow: "hidden", background: "var(--panel,rgba(255,255,255,0.72))", position: "relative" }}>
+            <div key={item.trade.id} style={{ border: item.trade.symbol === "FUNDING" ? "1px dashed rgba(120,120,255,0.25)" : "1px solid var(--line-soft)", borderRadius: 10, overflow: "hidden", background: "var(--panel)", position: "relative" }}>
               <TradeCard t={item.trade} idx={0} />
             </div>
           );
@@ -519,7 +519,7 @@ export default function TradeRecordsPage() {
       </div>
 
       {filtered.length > 0 && (
-        <div style={{ marginTop: 10, padding: "9px 14px", border: "1px solid var(--line-soft,rgba(0,0,0,.08))", borderRadius: 10, fontSize: 12, opacity: .65, display: "flex", gap: 16, flexWrap: "wrap", background: "var(--panel,rgba(255,255,255,0.72))" }}>
+        <div style={{ marginTop: 10, padding: "9px 14px", border: "1px solid var(--line-soft)", borderRadius: 10, fontSize: 12, opacity: .65, display: "flex", gap: 16, flexWrap: "wrap", background: "var(--panel)" }}>
           <span>{filtered.length}건</span>
           <span>PnL: <b style={{ color: pnlColor(stats.totalPnl) }}>{stats.totalPnl >= 0 ? "+" : ""}{fmt(stats.totalPnl)}</b> USDT</span>
           <span style={{ opacity: .5 }}>거래 클릭 → 메모/평가</span>

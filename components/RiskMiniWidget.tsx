@@ -12,9 +12,9 @@ function fmt(v: any, d = 1) {
 }
 
 const STATE_META = {
-  NORMAL:   { color: "var(--green, #0b7949)", icon: "◈", label: "정상"     },
-  SLOWDOWN: { color: "var(--amber, #d97706)", icon: "◬", label: "주의"     },
-  STOP:     { color: "var(--red,   #c0392b)", icon: "◬", label: "거래 중단" },
+  NORMAL:   { color: "var(--green,#00C076)", icon: "◈", label: "정상"     },
+  SLOWDOWN: { color: "var(--amber,#F0B429)", icon: "◬", label: "주의"     },
+  STOP:     { color: "var(--red,#FF4D4D)", icon: "◬", label: "거래 중단" },
 } as const;
 
 export default function RiskMiniWidget() {
@@ -89,7 +89,7 @@ export default function RiskMiniWidget() {
             드로다운  {fmt(s.ddPct)}%
             <span style={{ opacity: .5 }}> / 한도 {fmt(s.seed > 0 ? (data.settings?.max_dd_usd / s.seed * 100) : 0)}%</span>
           </div>
-          <div style={{ height: 4, borderRadius: 999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+          <div style={{ height: 4, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
             <div style={{
               height: "100%", borderRadius: 999,
               width: `${Math.min(100, s.ddPct ?? 0)}%`,
@@ -104,9 +104,9 @@ export default function RiskMiniWidget() {
 }
 
 const wrap: React.CSSProperties = {
-  border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
+  border: "1px solid var(--line-soft)",
   borderRadius: 12, padding: "12px 14px",
-  background: "var(--panel, rgba(255,255,255,0.72))",
+  background: "var(--panel)",
   marginBottom: 16,
 };
 const head: React.CSSProperties = {
@@ -117,6 +117,6 @@ const headTxt: React.CSSProperties = {
 };
 const metricBox: React.CSSProperties = {
   padding: "8px 10px", borderRadius: 8,
-  border: "1px solid var(--line-soft, rgba(0,0,0,.08))",
-  background: "rgba(0,0,0,0.03)",
+  border: "1px solid var(--line-soft)",
+  background: "rgba(255,255,255,0.04)",
 };

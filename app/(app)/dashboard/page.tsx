@@ -91,7 +91,7 @@ function DrawdownChart({ data }: { data: { date: string; dd: number; cumPnl: num
           {[0.25, 0.5, 0.75, 1].map(r => (
             <line key={r} x1={PAD.l} x2={PAD.l+innerW}
               y1={PAD.t + r*innerH} y2={PAD.t + r*innerH}
-              stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
+              stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
           ))}
           {/* y축 레이블 */}
           {[0, 0.5, 1].map(r => (
@@ -157,12 +157,12 @@ function CumPnlChart({ data }: { data: { date: string; cumPnl: number }[] }) {
           {[0, 0.5, 1].map(r => (
             <line key={r} x1={PAD.l} x2={PAD.l+innerW}
               y1={PAD.t + r*innerH} y2={PAD.t + r*innerH}
-              stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
+              stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
           ))}
           {/* 제로 라인 */}
           {minV < 0 && maxV > 0 && (
             <line x1={PAD.l} x2={PAD.l+innerW} y1={zeroY} y2={zeroY}
-              stroke="rgba(0,0,0,0.2)" strokeWidth="1" strokeDasharray="3,3" />
+              stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="3,3" />
           )}
           {[minV, (minV+maxV)/2, maxV].map((v, i) => (
             <text key={i} x={PAD.l - 3} y={PAD.t + (1 - i * 0.5) * innerH + 3}
@@ -198,7 +198,7 @@ function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: n
   if (activeHours.length === 0) return null;
 
   function cellColor(wr: number | null, total: number) {
-    if (total === 0 || wr === null) return "rgba(0,0,0,0.03)";
+    if (total === 0 || wr === null) return "rgba(255,255,255,0.03)";
     if (wr >= 70) return `rgba(11,121,73,${0.15 + (wr-70)/30 * 0.45})`;
     if (wr >= 50) return `rgba(11,121,73,${0.08 + (wr-50)/20 * 0.07})`;
     if (wr >= 30) return `rgba(192,57,43,${0.08 + (50-wr)/20 * 0.07})`;
@@ -265,6 +265,107 @@ function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: n
   );
 }
 
+
+// ── 트레이딩 KPI 패널 ──────────────────────────────────────
+function TradingKPI({ stats }: { stats: any }) {
+  const { longCount, shortCount, maxConsecWin, maxConsecLoss, avgDurationMin, wins, losses, winRate } = stats;
+  const total = (longCount || 0) + (shortCount || 0);
+  const longPct  = total > 0 ? Math.round(((longCount || 0) / total) * 100) : 0;
+  const shortPct = 100 - longPct;
+
+  function fmtDur(min: number | null) {
+    if (min == null) return "—";
+    if (min < 60) return `${min}분`;
+    if (min < 1440) return `${Math.floor(min/60)}시간 ${min%60}분`;
+    return `${Math.floor(min/1440)}일 ${Math.floor((min%1440)/60)}시간`;
+  }
+
+  const kpis = [
+    { label: "LONG / SHORT 비율", value: total > 0 ? `${longPct}% / ${shortPct}%` : "—",
+      sub: `L ${longCount || 0}건 · S ${shortCount || 0}건` },
+    { label: "최장 연승 / 연패", value: `${maxConsecWin || 0}연승 / ${maxConsecLoss || 0}연패`, sub: "이번 달 기준" },
+    { label: "평균 보유 시간", value: fmtDur(avgDurationMin), sub: "closed_at 기준" },
+  ];
+
+  return (
+    <div style={panel}>
+      <div style={sectionTitle}>◈ 트레이딩 패턴</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{
+            padding: "12px 14px", borderRadius: 10,
+            border: "1px solid var(--line-soft)", background: "rgba(255,255,255,0.03)",
+          }}>
+            <div style={{ fontSize: 10, opacity: 0.4, fontWeight: 600, letterSpacing: 0.8,
+              textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)", marginBottom: 6 }}>
+              {k.label}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 18, fontFamily: "var(--font-mono,monospace)",
+              fontVariantNumeric: "tabular-nums", letterSpacing: "-0.3px" }}>
+              {k.value}
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.35, marginTop: 4, fontFamily: "var(--font-mono,monospace)" }}>
+              {k.sub}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Long/Short 바 */}
+      {total > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ height: 6, borderRadius: 999, overflow: "hidden", display: "flex" }}>
+            <div style={{ width: `${longPct}%`, background: "var(--green,#00C076)", transition: "width 0.4s" }} />
+            <div style={{ width: `${shortPct}%`, background: "var(--red,#FF4D4D)",  transition: "width 0.4s" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.4,
+            marginTop: 4, fontFamily: "var(--font-mono,monospace)" }}>
+            <span>■ LONG {longPct}%</span>
+            <span>SHORT {shortPct}% ■</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 월별 PnL 테이블 ────────────────────────────────────────
+function MonthlyPnlTable({ data }: { data: { month: string; pnl: number }[] }) {
+  if (!data?.length) return null;
+  const maxAbs = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
+  return (
+    <div style={panel}>
+      <div style={sectionTitle}>◈ 월별 PnL</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {[...data].reverse().map(d => {
+          const barW = Math.round((Math.abs(d.pnl) / maxAbs) * 100);
+          const isPos = d.pnl >= 0;
+          return (
+            <div key={d.month} style={{ display: "grid", gridTemplateColumns: "72px 1fr 90px", gap: 10, alignItems: "center" }}>
+              <div style={{ fontSize: 11, opacity: 0.5, fontFamily: "var(--font-mono,monospace)", whiteSpace: "nowrap" as const }}>
+                {d.month}
+              </div>
+              <div style={{ height: 18, borderRadius: 4, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" as const }}>
+                <div style={{
+                  width: `${barW}%`, height: "100%", borderRadius: 4,
+                  background: isPos ? "rgba(0,192,118,0.55)" : "rgba(255,77,77,0.55)",
+                  transition: "width 0.4s",
+                }} />
+              </div>
+              <div style={{
+                fontSize: 12, fontWeight: 800, textAlign: "right" as const,
+                color: isPos ? "var(--green,#00C076)" : "var(--red,#FF4D4D)",
+                fontFamily: "var(--font-mono,monospace)", fontVariantNumeric: "tabular-nums",
+              }}>
+                {isPos ? "+" : ""}{d.pnl.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── 심볼별 분석 ────────────────────────────────────────────
 function SymbolTable({ symbols }: { symbols: any[] }) {
   if (!symbols?.length) return null;
@@ -274,7 +375,7 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
-            <tr style={{ borderBottom: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
+            <tr style={{ borderBottom: "1px solid var(--line-soft)" }}>
               {["심볼","PnL","건수","승/패","승률","평균 익절","평균 손절"].map(h => (
                 <th key={h} style={{ padding: "5px 8px", textAlign: h === "심볼" ? "left" : "right", opacity: .5, fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
               ))}
@@ -282,7 +383,7 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
           </thead>
           <tbody>
             {symbols.map(sym => (
-              <tr key={sym.symbol} style={{ borderBottom: "1px solid var(--line-soft,rgba(0,0,0,.05))" }}>
+              <tr key={sym.symbol} style={{ borderBottom: "1px solid var(--line-soft)" }}>
                 <td style={{ padding: "7px 8px", fontWeight: 800 }}>{sym.symbol}</td>
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 800, color: pnlColor(sym.pnl) }}>
                   {sign(sym.pnl)}{fmt(sym.pnl)}
@@ -292,7 +393,7 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
                 <td style={{ padding: "7px 8px", textAlign: "right" }}>
                   <span style={{
                     fontWeight: 800, padding: "2px 7px", borderRadius: 6, fontSize: 11,
-                    background: sym.winRate >= 60 ? "rgba(11,121,73,0.12)" : sym.winRate < 40 ? "rgba(192,57,43,0.12)" : "rgba(0,0,0,0.06)",
+                    background: sym.winRate >= 60 ? "rgba(11,121,73,0.12)" : sym.winRate < 40 ? "rgba(192,57,43,0.12)" : "rgba(255,255,255,0.08)",
                     color: sym.winRate >= 60 ? "var(--green,#0b7949)" : sym.winRate < 40 ? "var(--red,#c0392b)" : "inherit",
                   }}>{sym.winRate}%</span>
                 </td>
@@ -353,6 +454,7 @@ export default function DashboardPage() {
   const [dailyPnl,     setDailyPnl]     = useState<any[]>([]);
   const [ddSeries,     setDdSeries]     = useState<any[]>([]);
   const [heatmapData,  setHeatmapData]  = useState<any[]>([]);
+  const [monthlyPnl,   setMonthlyPnl]   = useState<any[]>([]);
   const [err,          setErr]          = useState("");
   const [lastUpdated,  setLastUpdated]  = useState<Date | null>(null);
   const [pnlFrom,      setPnlFrom]      = useState<string>(() =>
@@ -374,6 +476,7 @@ export default function DashboardPage() {
         setDailyPnl(a.dailyPnl || []);
         setDdSeries(a.ddSeries || []);
         setHeatmapData(a.heatmapData || []);
+        setMonthlyPnl(a.monthlyPnl || []);
       } else { setErr(a.error || "불러오기 실패"); }
       if (b.ok) setGoals(b.goals || []);
       setLastUpdated(new Date());
@@ -421,7 +524,7 @@ export default function DashboardPage() {
               onChange={e => handlePnlFromChange(e.target.value)}
               style={{ padding: "3px 8px", borderRadius: 7, fontSize: 11,
                 border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
-                background: "rgba(0,0,0,.04)", color: "inherit", outline: "none" }} />
+                background: "rgba(255,255,255,0.06)", color: "inherit", outline: "none" }} />
             {pnlFrom && (
               <button onClick={() => handlePnlFromChange("")}
                 style={{ padding: "3px 7px", borderRadius: 6, fontSize: 11,
@@ -432,7 +535,7 @@ export default function DashboardPage() {
           <button onClick={toggleRiskWidget} style={{
             padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
             cursor: "pointer", border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-            background: rw.dashboard ? "rgba(0,0,0,0.07)" : "transparent",
+            background: rw.dashboard ? "rgba(240,180,41,0.12)" : "transparent",
             opacity: rw.dashboard ? 1 : .5 }}>
             ◬ 리스크
           </button>
@@ -476,6 +579,12 @@ export default function DashboardPage() {
       {/* 히트맵 */}
       <HourlyHeatmap data={heatmapData} />
 
+      {/* 트레이딩 패턴 KPI */}
+      <TradingKPI stats={s} />
+
+      {/* 월별 PnL */}
+      <MonthlyPnlTable data={monthlyPnl} />
+
       {/* 심볼별 분석 */}
       <SymbolTable symbols={topSymbols} />
 
@@ -516,7 +625,7 @@ export default function DashboardPage() {
               return (
                 <div key={g.id} style={{ padding: "11px 14px", borderRadius: 12,
                   border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-                  background: "var(--panel,rgba(255,255,255,0.72))" }}>
+                  background: "var(--panel)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 800, fontSize: 14 }}>{g.title}</span>
                     <span style={{ opacity: .55, fontSize: 12 }}>
@@ -524,7 +633,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   {!isBool && (
-                    <div style={{ height: 5, borderRadius: 999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                    <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                       <div style={{ width: p + "%", height: "100%", background: "var(--accent,#B89A5A)", borderRadius: 999, transition: "width 0.3s" }} />
                     </div>
                   )}

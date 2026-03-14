@@ -69,7 +69,7 @@ function PositionCalculator({ equity }: { equity: number | null }) {
             <input value={riskPct} onChange={e => setRiskPct(e.target.value)} style={{ ...inp, flex: 1 }} />
             <div style={{ display: "flex", gap: 4 }}>
               {["0.5","1","2","3"].map(v => (
-                <button key={v} onClick={() => setRiskPct(v)} style={{ ...chip, background: riskPct === v ? "rgba(0,0,0,0.1)" : "transparent", fontWeight: riskPct === v ? 800 : 600 }}>{v}%</button>
+                <button key={v} onClick={() => setRiskPct(v)} style={{ ...chip, background: riskPct === v ? "rgba(240,180,41,0.15)" : "transparent", fontWeight: riskPct === v ? 800 : 600 }}>{v}%</button>
               ))}
             </div>
           </div>
@@ -81,7 +81,7 @@ function PositionCalculator({ equity }: { equity: number | null }) {
             <input value={slPct} onChange={e => setSlPct(e.target.value)} style={{ ...inp, flex: 1 }} />
             <div style={{ display: "flex", gap: 4 }}>
               {["1","2","3","5"].map(v => (
-                <button key={v} onClick={() => setSlPct(v)} style={{ ...chip, background: slPct === v ? "rgba(0,0,0,0.1)" : "transparent", fontWeight: slPct === v ? 800 : 600 }}>{v}%</button>
+                <button key={v} onClick={() => setSlPct(v)} style={{ ...chip, background: slPct === v ? "rgba(240,180,41,0.15)" : "transparent", fontWeight: slPct === v ? 800 : 600 }}>{v}%</button>
               ))}
             </div>
           </div>
@@ -93,7 +93,7 @@ function PositionCalculator({ equity }: { equity: number | null }) {
             <input value={leverage} onChange={e => setLeverage(e.target.value)} style={{ ...inp, flex: 1 }} />
             <div style={{ display: "flex", gap: 4 }}>
               {["5","10","20","50"].map(v => (
-                <button key={v} onClick={() => setLeverage(v)} style={{ ...chip, background: leverage === v ? "rgba(0,0,0,0.1)" : "transparent", fontWeight: leverage === v ? 800 : 600 }}>×{v}</button>
+                <button key={v} onClick={() => setLeverage(v)} style={{ ...chip, background: leverage === v ? "rgba(240,180,41,0.15)" : "transparent", fontWeight: leverage === v ? 800 : 600 }}>×{v}</button>
               ))}
             </div>
           </div>
@@ -129,7 +129,7 @@ function ResultCard({ label, value, sub, highlight, warn }: { label: string; val
     <div style={{
       padding: "10px 12px", borderRadius: 10,
       border: `1px solid ${warn ? "rgba(192,57,43,0.3)" : highlight ? "rgba(184,154,90,0.35)" : "var(--line-soft,rgba(0,0,0,.1))"}`,
-      background: warn ? "rgba(192,57,43,0.04)" : highlight ? "rgba(184,154,90,0.07)" : "var(--panel,rgba(255,255,255,0.5))",
+      background: warn ? "rgba(255,77,77,0.08)" : highlight ? "rgba(240,180,41,0.08)" : "var(--panel)",
     }}>
       <div style={{ fontSize: 10, opacity: .55, fontWeight: 700, marginBottom: 3 }}>{label}</div>
       <div style={{ fontWeight: 900, fontSize: 14, color: warn ? "var(--red,#c0392b)" : highlight ? "var(--accent,#B89A5A)" : "inherit" }}>{value}</div>
@@ -289,7 +289,7 @@ function DailyReport() {
                 {copied ? "✅ 복사됨" : "📋 마크다운 복사"}
               </button>
               <button onClick={saveToNotion} disabled={notionSaving} style={{ ...btn1,
-                background: notionSaving ? "rgba(0,0,0,0.4)" : "var(--text-primary,#111)" }}>
+                background: notionSaving ? "rgba(255,255,255,0.1)" : "var(--accent,#F0B429)" }}>
                 {notionSaving ? "저장 중…" : "📓 노션에 저장"}
               </button>
             </>
@@ -394,10 +394,10 @@ function DailyReport() {
                 {report.symbols.map((s: any) => (
                   <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 10,
                     padding: "8px 12px", borderRadius: 9,
-                    border: "1px solid var(--line-soft,rgba(0,0,0,.08))",
-                    background: "var(--panel,rgba(255,255,255,0.5))" }}>
+                    border: "1px solid var(--line-soft)",
+                    background: "var(--panel)" }}>
                     <span style={{ fontWeight: 800, minWidth: 80 }}>{s.sym}</span>
-                    <span style={{ flex: 1, height: 5, borderRadius: 999, background: "rgba(0,0,0,0.06)", overflow: "hidden" }}>
+                    <span style={{ flex: 1, height: 5, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                       <span style={{ display: "block", height: "100%", width: `${s.wr}%`, borderRadius: 999,
                         background: s.wr >= 60 ? "var(--green,#0b7949)" : s.wr < 40 ? "var(--red,#c0392b)" : "var(--accent,#B89A5A)" }} />
                     </span>
@@ -420,7 +420,7 @@ function DailyReport() {
                 {Object.entries(report.mistakeCount).map(([tag, cnt]) => (
                   <span key={tag} style={{ padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700,
                     border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-                    background: "rgba(0,0,0,0.04)" }}>
+                    background: "rgba(255,255,255,0.04)" }}>
                     {tag} <span style={{ opacity: .5 }}>×{cnt as number}</span>
                   </span>
                 ))}
@@ -464,7 +464,7 @@ export default function ToolsPage() {
 const panel: React.CSSProperties = {
   padding: "16px 18px", borderRadius: 14, marginBottom: 16,
   border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-  background: "var(--panel,rgba(255,255,255,0.72))",
+  background: "var(--panel)",
 };
 const sectionTitle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 0, opacity: 0.8 };
 const fieldCol: React.CSSProperties = { display: "grid", gap: 5 };
@@ -472,7 +472,7 @@ const lbl: React.CSSProperties = { fontSize: 11, opacity: .6, fontWeight: 700 };
 const inp: React.CSSProperties = {
   padding: "8px 11px", borderRadius: 9, fontSize: 14,
   border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
-  background: "rgba(0,0,0,0.05)", outline: "none", width: "100%", color: "inherit", boxSizing: "border-box" as const,
+  background: "rgba(255,255,255,0.06)", outline: "none", width: "100%", color: "inherit", boxSizing: "border-box" as const,
 };
 const chip: React.CSSProperties = {
   padding: "4px 8px", borderRadius: 7, cursor: "pointer", fontSize: 11,
@@ -481,7 +481,7 @@ const chip: React.CSSProperties = {
 const btn1: React.CSSProperties = {
   padding: "8px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const,
   border: "1px solid var(--line-hard,rgba(0,0,0,.18))",
-  background: "var(--text-primary,#111)", color: "white", fontWeight: 800, fontSize: 13,
+  background: "var(--accent,#F0B429)", color: "#0a0a0a", fontWeight: 800, fontSize: 13,
 };
 const btn2: React.CSSProperties = {
   padding: "8px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const,
@@ -491,6 +491,6 @@ const btn2: React.CSSProperties = {
 const statCard: React.CSSProperties = {
   padding: "10px 12px", borderRadius: 10,
   border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-  background: "var(--panel,rgba(255,255,255,0.72))",
+  background: "var(--panel)",
 };
 const sLbl: React.CSSProperties = { fontSize: 10, opacity: .55, fontWeight: 700, marginBottom: 3 };

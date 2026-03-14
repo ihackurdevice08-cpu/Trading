@@ -11,7 +11,7 @@ const toN = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : n
 const STATE_META: Record<string, { color: string; bg: string; icon: string; label: string }> = {
   NORMAL:   { color: "var(--green, #0b7949)", bg: "rgba(11,121,73,0.06)",  icon: "◈", label: "정상"     },
   SLOWDOWN: { color: "#d97706",               bg: "rgba(217,119,6,0.06)",  icon: "◬", label: "주의"     },
-  STOP:     { color: "#c0392b",               bg: "rgba(192,57,43,0.06)",  icon: "◬", label: "거래 중단" },
+  STOP:     { color: "var(--red,#FF4D4D)",               bg: "rgba(192,57,43,0.06)",  icon: "◬", label: "거래 중단" },
 };
 
 export default function RiskPage() {
@@ -187,8 +187,8 @@ export default function RiskPage() {
         borderRadius: 12, background: "var(--panel, rgba(255,255,255,0.72))", display: "grid", gap: 14 }}>
 
         {/* 현재 자산 기준 안내 */}
-        <div style={{ padding: "10px 12px", borderRadius: 9, background: "rgba(0,0,0,0.03)",
-          border: "1px solid var(--line-soft,rgba(0,0,0,.08))", fontSize: 12, opacity: 0.7 }}>
+        <div style={{ padding: "10px 12px", borderRadius: 9, background: "rgba(255,255,255,0.04)",
+          border: "1px solid var(--line-soft)", fontSize: 12, opacity: 0.7 }}>
           ◈ 한도 계산 기준: <b>현재 자산 {fmt(s.equityNow)} USDT</b>
           <span style={{ opacity: 0.6 }}> (최초 시드 {fmt(s.seed)} + 누적 PnL {s.cumPnl >= 0 ? "+" : ""}{fmt(s.cumPnl)})</span>
         </div>
@@ -267,7 +267,7 @@ export default function RiskPage() {
       </div>
       {/* 새 사이클 시작 */}
       <div style={{ marginTop: 8, paddingTop: 14,
-        borderTop: "1px solid var(--line-soft,rgba(0,0,0,.08))" }}>
+        borderTop: "1px solid var(--line-soft)" }}>
         <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.65, marginBottom: 6 }}>사이클 관리</div>
         <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 10, lineHeight: 1.6 }}>
           누적 PnL 기산일을 직접 설정하거나, 새 사이클 시작 버튼을 눌러 오늘부터 새로 계산합니다.
@@ -282,7 +282,7 @@ export default function RiskPage() {
               onChange={e => handlePnlFromChange(e.target.value)}
               style={{ padding: "8px 10px", borderRadius: 9, fontSize: 13,
                 border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
-                background: "rgba(0,0,0,.03)", color: "inherit", outline: "none" }} />
+                background: "rgba(255,255,255,0.04)", color: "inherit", outline: "none" }} />
           </div>
           <div style={{ fontSize: 11, opacity: 0.5, marginTop: 16 }}>
             {pnlFrom ? `${pnlFrom} 이후 거래만 집계` : "전체 기간 집계 중"}
@@ -347,10 +347,10 @@ const hint: React.CSSProperties        = { fontSize: 11, opacity: 0.4, marginTop
 const iSt: React.CSSProperties = {
   padding: "9px 11px", borderRadius: 9, fontSize: 14,
   border: "1px solid var(--line-soft, rgba(0,0,0,.12))",
-  background: "rgba(0,0,0,0.05)", outline: "none", width: "100%", color: "inherit",
+  background: "rgba(255,255,255,0.06)", outline: "none", width: "100%", color: "inherit",
 };
 const btnSt: React.CSSProperties = {
   padding: "10px 18px", borderRadius: 9, border: "none",
-  background: "var(--text-primary, #111)", color: "white",
+  background: "var(--accent,#F0B429)", color: "#0a0a0a",
   fontWeight: 800, fontSize: 14, cursor: "pointer",
 };
