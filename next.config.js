@@ -16,11 +16,13 @@ const nextConfig = {
 
   images: {
     remotePatterns: [
-      // Firebase Storage
       { protocol: "https", hostname: "firebasestorage.googleapis.com", pathname: "/**" },
     ],
     formats: ["image/avif", "image/webp"],
   },
+
+  // firebase-admin node: 스킴 문제 해결
+  serverExternalPackages: ["firebase-admin", "@google-cloud/firestore"],
 
   compress: true,
   poweredByHeader: false,
