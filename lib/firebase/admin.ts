@@ -1,28 +1,30 @@
 import "server-only";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const admin = require("firebase-admin");
+let _adminApp: any = null;
 
-let initialized = false;
-
-function init() {
-  if (initialized || admin.apps.length > 0) return;
-  admin.initializeApp({
-    credential: admin.credential.cert({
+function getApp() {
+  if (_adminApp) return _adminApp;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { initializeApp, getApps, cert } = require("firebase-admin/app");
+  if (getApps().length > 0) { _adminApp = getApps()[0]; return _adminApp; }
+  _adminApp = initializeApp({
+    credential: cert({
       projectId:   process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey:  (process.env.FIREBASE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
     }),
   });
-  initialized = true;
+  return _adminApp;
 }
 
 export function adminDb() {
-  init();
-  return admin.firestore() as import("firebase-admin").firestore.Firestore;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getFirestore } = require("firebase-admin/firestore");
+  return getFirestore(getApp());
 }
 
 export function adminAuth() {
-  init();
-  return admin.auth() as import("firebase-admin").auth.Auth;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getAuth } = require("firebase-admin/auth");
+  return getAuth(getApp());
 }
