@@ -1,52 +1,41 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { firebaseAuth } from "@/lib/firebase/client";
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  browserLocalPersistence,
+  setPersistence,
+} from "firebase/auth";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [err,     setErr]     = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkRedirect() {
-      try {
-        const auth = firebaseAuth();
-        // 타임아웃: 5초 안에 결과 없으면 포기
-        const result = await Promise.race([
-          getRedirectResult(auth),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
-        if (cancelled || !result) return;
-        setLoading(true);
-        const idToken = await result.user.getIdToken();
-        await fetch("/auth/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ idToken }),
-        });
-        window.location.href = "/dashboard";
-      } catch (e: any) {
-        if (cancelled) return;
-        setErr(e?.message ?? "로그인 실패");
-      }
-    }
-
-    checkRedirect();
-    return () => { cancelled = true; };
-  }, []);
-
   async function signIn() {
     setLoading(true);
     setErr("");
     try {
-      const auth     = firebaseAuth();
+      const auth = firebaseAuth();
+      // 로컬 스토리지에 인증 상태 영구 저장 (브라우저 닫아도 유지)
+      await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      const res = await fetch("/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      if (!res.ok) throw new Error("세션 저장 실패");
+      window.location.href = "/dashboard";
     } catch (e: any) {
-      setErr(e?.message ?? "로그인 실패");
+      if (e?.code === "auth/popup-closed-by-user" || e?.code === "auth/cancelled-popup-request") {
+        setErr("");
+      } else {
+        setErr(e?.message ?? "로그인 실패");
+      }
       setLoading(false);
     }
   }
@@ -56,26 +45,24 @@ export default function LoginPage() {
       minHeight: "100vh",
       display: "grid",
       placeItems: "center",
-      background: "#0d0f14",
-      color: "rgba(255,255,255,0.92)",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+      background: "var(--bg, #0d0f14)",
+      color: "var(--text-primary, rgba(255,255,255,0.92))",
     }}>
       <div style={{
         width: "min(400px, 90vw)",
         padding: "40px 32px",
         borderRadius: 20,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(255,255,255,0.04)",
+        border: "1px solid var(--line-soft, rgba(255,255,255,0.08))",
+        background: "var(--panel, rgba(255,255,255,0.04))",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
       }}>
-
         {/* 브랜드 */}
         <div style={{ marginBottom: 32, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 8, height: 8, borderRadius: "50%",
-            background: "#F0B429",
-            boxShadow: "0 0 12px #F0B429",
+            background: "var(--accent, #F0B429)",
+            boxShadow: "0 0 12px var(--accent, #F0B429)",
             flexShrink: 0,
           }} />
           <div>
@@ -94,7 +81,7 @@ export default function LoginPage() {
 
         {err && (
           <div style={{
-            fontSize: 12, color: "#FF4D4D", marginBottom: 16,
+            fontSize: 12, color: "var(--red, #FF4D4D)", marginBottom: 16,
             padding: "10px 14px", borderRadius: 8,
             background: "rgba(255,77,77,0.08)",
             border: "1px solid rgba(255,77,77,0.2)",
@@ -113,7 +100,7 @@ export default function LoginPage() {
             borderRadius: 12,
             border: "1px solid rgba(240,180,41,0.35)",
             background: loading ? "rgba(255,255,255,0.04)" : "rgba(240,180,41,0.10)",
-            color: loading ? "rgba(255,255,255,0.25)" : "#F0B429",
+            color: loading ? "var(--text-muted, rgba(255,255,255,0.3))" : "var(--accent, #F0B429)",
             fontWeight: 700,
             fontSize: 14,
             cursor: loading ? "not-allowed" : "pointer",
@@ -126,7 +113,7 @@ export default function LoginPage() {
           }}
         >
           {loading ? (
-            <span style={{ opacity: 0.5 }}>연결 중…</span>
+            <span>연결 중…</span>
           ) : (
             <>
               <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>

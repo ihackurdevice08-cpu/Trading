@@ -8,7 +8,7 @@ import { firebaseAuth } from "@/lib/firebase/client";
 import { onAuthStateChanged } from "firebase/auth";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const router  = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -19,12 +19,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         router.replace("/login");
         return;
       }
-      // 토큰 갱신 후 쿠키 업데이트 (1시간마다 자동 갱신)
-      const token = await user.getIdToken();
-      await fetch("/auth/session", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken: token }),
-      });
+      try {
+        // forceRefresh=true: 항상 최신 토큰 발급
+        const token = await user.getIdToken(true);
+        await fetch("/auth/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idToken: token }),
+        });
+      } catch {
+        // 토큰 갱신 실패해도 이미 로그인 상태면 계속 진행
+      }
       setReady(true);
     });
 

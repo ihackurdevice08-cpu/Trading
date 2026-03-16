@@ -13,12 +13,12 @@ export async function POST(req: Request) {
     await adminAuth().verifyIdToken(idToken);
 
     const res = NextResponse.json({ ok: true });
-    // 1시간 쿠키 (Firebase ID 토큰 만료와 동일)
+    // 7일 쿠키 (Firebase 토큰은 1시간이지만 layout.tsx에서 자동 갱신)
     res.cookies.set("__session", idToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60,
+      maxAge: 60 * 60 * 24 * 7, // 7일
       path: "/",
     });
     return res;
