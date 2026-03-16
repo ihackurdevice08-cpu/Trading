@@ -1,30 +1,36 @@
 import "server-only";
 
-let _adminApp: any = null;
-
-function getApp() {
-  if (_adminApp) return _adminApp;
+// webpack이 정적 분석할 수 없도록 동적 문자열로 require
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyRequire(mod: string): any {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { initializeApp, getApps, cert } = require("firebase-admin/app");
-  if (getApps().length > 0) { _adminApp = getApps()[0]; return _adminApp; }
-  _adminApp = initializeApp({
+  return require(/* webpackIgnore: true */ mod);
+}
+
+let _app: any = null;
+
+function getApp(): any {
+  if (_app) return _app;
+  const { initializeApp, getApps, cert } = lazyRequire("firebase-admin/app");
+  if (getApps().length > 0) return (_app = getApps()[0]);
+  _app = initializeApp({
     credential: cert({
       projectId:   process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey:  (process.env.FIREBASE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
     }),
   });
-  return _adminApp;
+  return _app;
 }
 
-export function adminDb() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getFirestore } = require("firebase-admin/firestore");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function adminDb(): any {
+  const { getFirestore } = lazyRequire("firebase-admin/firestore");
   return getFirestore(getApp());
 }
 
-export function adminAuth() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getAuth } = require("firebase-admin/auth");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function adminAuth(): any {
+  const { getAuth } = lazyRequire("firebase-admin/auth");
   return getAuth(getApp());
 }

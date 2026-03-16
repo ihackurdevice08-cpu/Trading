@@ -7,7 +7,8 @@ export async function getAuthUserId(): Promise<string | null> {
     const store = await cookies();
     const token = store.get("__session")?.value;
     if (!token) return null;
-    const decoded = await adminAuth().verifyIdToken(token);
+    const auth    = adminAuth();
+    const decoded = await auth.verifyIdToken(token);
     return decoded.uid;
   } catch {
     return null;
