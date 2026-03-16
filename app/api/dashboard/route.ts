@@ -43,15 +43,27 @@ export async function GET(req: Request) {
   const db      = adminDb();
   const userRef = db.collection("users").doc(uid);
 
-  const [monthSnap, recentSnap, wdSnap, rsSnap, heatmapSnap] = await Promise.all([
-    userRef.collection("manual_trades").where("opened_at", ">=", fromMonth).orderBy("opened_at", "desc").limit(5000).get(),
+  const [allTradesBaseSnap, recentSnap, wdSnap, rsSnap] = await Promise.all([
+    // 전체 데이터 fetch 후 메모리 필터 (composite index 불필요)
+    userRef.collection("manual_trades").orderBy("opened_at", "desc").limit(10000).get(),
     userRef.collection("manual_trades").orderBy("opened_at", "desc").limit(5).get(),
     userRef.collection("withdrawals").get(),
     userRef.collection("risk_settings").doc("default").get(),
-    userRef.collection("manual_trades").where("opened_at", ">=", from90).where("symbol", "!=", "FUNDING").orderBy("symbol").orderBy("opened_at", "asc").get(),
   ]);
 
-  const list = monthSnap.docs.map(d => ({
+  // 메모리에서 필터링
+  const fromMonthMs = fromMonth.getTime();
+  const from90Ms    = from90.getTime();
+  const monthSnap_docs = allTradesBaseSnap.docs.filter(d => {
+    const t = toDate(d.data().opened_at)?.getTime() ?? 0;
+    return t >= fromMonthMs;
+  });
+  const heatmapSnap_docs = allTradesBaseSnap.docs.filter(d => {
+    const t = toDate(d.data().opened_at)?.getTime() ?? 0;
+    return t >= from90Ms && d.data().symbol !== "FUNDING";
+  });
+
+  const list = monthSnap_docs.map(d => ({
     opened_at: toDate(d.data().opened_at)?.toISOString() ?? "",
     closed_at: toDate(d.data().closed_at)?.toISOString() ?? null,
     pnl:       d.data().pnl ?? null,
@@ -66,7 +78,7 @@ export async function GET(req: Request) {
   }));
   const wdList     = wdSnap.docs.map(d => d.data());
   const seed       = Number(rsSnap.exists ? rsSnap.data()?.seed_usd ?? 10000 : 10000);
-  const heatmapRaw = heatmapSnap.docs.map(d => ({
+  const heatmapRaw = heatmapSnap_docs.map(d => ({
     opened_at: toDate(d.data().opened_at)?.toISOString() ?? "",
     pnl: d.data().pnl ?? null,
     symbol: d.data().symbol,
@@ -137,13 +149,17 @@ export async function GET(req: Request) {
       };
     });
 
-  // 누적 PnL (기간 필터)
-  let allTradesQuery: FirebaseFirestore.Query = userRef.collection("manual_trades");
-  if (pnlFrom) allTradesQuery = allTradesQuery.where("opened_at", ">=", new Date(pnlFrom));
-  const allTradesSnap = await allTradesQuery.get();
-  const allTrades = allTradesSnap.docs.map(d => ({
-    pnl: d.data().pnl, opened_at: toDate(d.data().opened_at)?.toISOString() ?? "",
-  }));
+  // 누적 PnL (기간 필터) - allTradesBaseSnap 재사용
+  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
+  const allTrades = allTradesBaseSnap.docs
+    .filter(d => {
+      if (!pnlFrom) return true;
+      const t = toDate(d.data().opened_at)?.getTime() ?? 0;
+      return t >= pnlFromMs;
+    })
+    .map(d => ({
+      pnl: d.data().pnl, opened_at: toDate(d.data().opened_at)?.toISOString() ?? "",
+    }));
   const cumPnl = allTrades.reduce((s, r) => s + (Number(r.pnl) || 0), 0);
 
   // 드로다운 시계열
@@ -172,8 +188,7 @@ export async function GET(req: Request) {
 
   let totalCumPnl = cumPnl;
   if (pnlFrom) {
-    const allTimeSnap = await userRef.collection("manual_trades").get();
-    totalCumPnl = allTimeSnap.docs.reduce((s, d) => s + (Number(d.data().pnl) || 0), 0);
+    totalCumPnl = allTradesBaseSnap.docs.reduce((s, d) => s + (Number(d.data().pnl) || 0), 0);
   }
   const equityNow      = seed + totalCumPnl - totalWithdrawal;
   const effectiveSeed  = seed - seedWithdrawal;

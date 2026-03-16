@@ -120,12 +120,15 @@ export default function TradeRecordsPage() {
 
   async function syncAndLoad() {
     setSyncing(true);
-    const syncFrom = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-    setSyncLog("⏳ Bitget 최근 30일 동기화 중…");
+    // UI에서 지정한 from 날짜 사용 (없으면 전체 기간)
+    const syncFrom = from || null;
+    setSyncLog(syncFrom ? `⏳ Bitget ${syncFrom} 이후 동기화 중…` : "⏳ Bitget 전체 기간 동기화 중…");
     try {
+      const body: any = {};
+      if (syncFrom) body.from = syncFrom;
       const r = await fetch("/api/sync-now", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ from: syncFrom }),
+        body: JSON.stringify(body),
       });
       const j = await r.json();
       if (j.ok) {
@@ -429,7 +432,7 @@ export default function TradeRecordsPage() {
               { label: "3개월",  fn: () => { const d=new Date(); d.setMonth(d.getMonth()-3); const v=d.toISOString().slice(0,10); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); }},
             ].map(({ label, fn }) => <button key={label} onClick={fn} style={chip}>{label}</button>)}
           </div>
-          <button onClick={syncAndLoad} disabled={syncing || loading} style={btn1}>{syncing ? "동기화 중…" : loading ? "로딩…" : "⚡ 동기화 & 조회"}</button>
+          <button onClick={syncAndLoad} disabled={syncing || loading} style={btn1}>{syncing ? "동기화 중…" : loading ? "로딩…" : from ? `⚡ ${from} 이후 동기화` : "⚡ 전체 동기화"}</button>
         </div>
         {syncLog && <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13, background: "rgba(255,255,255,0.04)", border: "1px solid var(--line-soft)" }}>{syncLog}</div>}
       </div>

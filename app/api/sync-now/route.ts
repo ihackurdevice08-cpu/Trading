@@ -204,7 +204,7 @@ export async function POST(req: Request) {
   const targetAccountId = body?.account_id || null;
   const fromDate        = body?.from
     ? String(body.from)
-    : new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    : new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
   const fromMs        = new Date(fromDate + "T00:00:00Z").getTime() - 9 * 3600_000;
   const fromTimestamp = String(fromMs);
 
@@ -243,7 +243,7 @@ export async function POST(req: Request) {
     try {
       let idLessThan = "";
       let pageCount  = 0;
-      const MAX_PAGES = 20;
+      const MAX_PAGES = 200;
       const fillsRef = db.collection("users").doc(uid).collection("fills_raw");
 
       while (pageCount < MAX_PAGES) {
