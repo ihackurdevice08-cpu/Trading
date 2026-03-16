@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,9 +62,9 @@ export async function GET(req: Request) {
       const histRef = userRef.collection("goals_history").doc();
       batch.set(histRef, { goal_id: gid, type: goal.type, title: goal.title,
         target_value: goal.target_value, current_value: monthPnlRounded, unit: goal.unit,
-        created_at: FieldValue.serverTimestamp() });
+        created_at: new Date() });
       batch.update(userRef.collection("goals_v2").doc(gid), {
-        status: "completed", current_value: monthPnlRounded, updated_at: FieldValue.serverTimestamp(),
+        status: "completed", current_value: monthPnlRounded, updated_at: new Date(),
       });
       await batch.commit();
     })).catch(() => {});
@@ -97,8 +96,8 @@ export async function POST(req: Request) {
     unit:          (type === "pnl" || type === "withdrawal") ? "usd" : "count",
     status:        "active",
     meta:          body.meta ?? {},
-    created_at:    FieldValue.serverTimestamp(),
-    updated_at:    FieldValue.serverTimestamp(),
+    created_at:    new Date(),
+    updated_at:    new Date(),
   };
   await ref.set(payload);
   return ok({ goal: { id: ref.id, ...payload } });
@@ -120,7 +119,7 @@ export async function PATCH(req: Request) {
   const goal = snap.data()!;
 
   if (body.title !== undefined && body.current_value === undefined && body.status === undefined) {
-    await goalRef.update({ title: String(body.title).trim(), updated_at: FieldValue.serverTimestamp() });
+    await goalRef.update({ title: String(body.title).trim(), updated_at: new Date() });
     return ok({});
   }
 
@@ -134,7 +133,7 @@ export async function PATCH(req: Request) {
     const histRef = db.collection("users").doc(uid).collection("goals_history").doc();
     await histRef.set({ goal_id: body.id, type: updated.type, title: updated.title,
       target_value: updated.target_value, current_value: updated.current_value, unit: updated.unit,
-      created_at: FieldValue.serverTimestamp() });
+      created_at: new Date() });
     updated.status = "completed";
   }
 
@@ -143,7 +142,7 @@ export async function PATCH(req: Request) {
     period: updated.period, target_value: updated.target_value,
     current_value: updated.current_value, unit: updated.unit,
     status: updated.status, meta: updated.meta ?? {},
-    updated_at: FieldValue.serverTimestamp(),
+    updated_at: new Date(),
   });
   return ok({ completed: shouldComplete });
 }
@@ -169,6 +168,6 @@ export async function DELETE(req: Request) {
   }
 
   await db.collection("users").doc(uid).collection("goals_v2").doc(id)
-    .update({ status: "archived", updated_at: FieldValue.serverTimestamp() });
+    .update({ status: "archived", updated_at: new Date() });
   return ok({});
 }

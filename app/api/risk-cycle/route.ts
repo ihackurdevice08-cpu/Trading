@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
     started_at:       new Date(),
     note:             String(body.note || "").trim(),
     equity_snapshot:  Number(body.equity_snapshot) || cumPnl,
-    created_at:       FieldValue.serverTimestamp(),
+    created_at:       new Date(),
   };
   await ref.set(data);
   return ok({ cycle: { id: ref.id, ...data, started_at: data.started_at.toISOString() } });

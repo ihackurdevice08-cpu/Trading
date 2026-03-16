@@ -120,8 +120,8 @@ export default function TradeRecordsPage() {
 
   async function syncAndLoad() {
     setSyncing(true);
-    const syncFrom = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10);
-    setSyncLog("⏳ Bitget 최근 2일 동기화 중…");
+    const syncFrom = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    setSyncLog("⏳ Bitget 최근 30일 동기화 중…");
     try {
       const r = await fetch("/api/sync-now", {
         method: "POST", headers: { "content-type": "application/json" },
@@ -130,7 +130,7 @@ export default function TradeRecordsPage() {
       const j = await r.json();
       if (j.ok) {
         const newTrades = j.results?.reduce((s: number, r: any) => s + (r.aggregated || 0), 0) ?? 0;
-        setSyncLog(newTrades > 0 ? `✅ ${newTrades}건 동기화 완료` : `✅ 동기화 완료 — 새 거래 없음 (방금 종료했다면 1~2분 후 재시도)`);
+        setSyncLog(newTrades > 0 ? `✅ ${newTrades}건 동기화 완료` : `✅ 동기화 완료 — 새 거래 없음`);
         window.dispatchEvent(new Event("trades-updated"));
       } else { setSyncLog(`❌ ${j.error}`); }
     } catch (e: any) { setSyncLog("❌ " + e?.message); }

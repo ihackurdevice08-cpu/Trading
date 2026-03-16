@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +50,7 @@ export async function POST(req: Request) {
     : new Date();
 
   const ref = adminDb().collection("users").doc(uid).collection("withdrawals").doc();
-  await ref.set({ amount, source, note, withdrawn_at, created_at: FieldValue.serverTimestamp() });
+  await ref.set({ amount, source, note, withdrawn_at, created_at: new Date() });
   return ok({ withdrawal: { id: ref.id, amount, source, note, withdrawn_at: withdrawn_at.toISOString() } });
 }
 

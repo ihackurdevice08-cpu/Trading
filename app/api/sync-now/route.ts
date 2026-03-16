@@ -3,7 +3,6 @@ import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
 import { decryptText } from "@/lib/crypto/dec";
 import { bitgetSign } from "@/lib/bitget/sign";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

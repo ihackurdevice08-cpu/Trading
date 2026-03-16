@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,13 +36,14 @@ export async function GET(req: Request) {
   const symbol = url.searchParams.get("symbol");
   const limit  = Math.min(Number(url.searchParams.get("limit") || "500"), 2000);
 
-  let q: FirebaseFirestore.Query = adminDb()
-    .collection("users").doc(uid).collection("manual_trades")
-    .orderBy("opened_at", "desc")
-    .limit(limit);
+  // Firestore: where는 orderBy 앞에 와야 함
+  const colRef = adminDb()
+    .collection("users").doc(uid).collection("manual_trades");
 
+  let q: FirebaseFirestore.Query = colRef;
   if (from) q = q.where("opened_at", ">=", new Date(from + "T00:00:00.000Z"));
   if (to)   q = q.where("opened_at", "<=", new Date(to   + "T23:59:59.999Z"));
+  q = q.orderBy("opened_at", "desc").limit(limit);
 
   const snap = await q.get();
   let trades = snap.docs.map(docToTrade);
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     tags:       Array.isArray(body.tags) ? [...body.tags.map(String), "manual"] : ["manual"],
     notes:      body.notes ?? null,
     group_id:   body.group_id ?? null,
-    created_at: FieldValue.serverTimestamp(),
+    created_at: new Date(),
   };
   await ref.set(payload);
   return NextResponse.json({ ok: true, trade: { id: ref.id, ...payload,

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/firebase/serverAuth";
 import { adminDb } from "@/lib/firebase/admin";
 import { encryptText } from "@/lib/crypto/enc";
-import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +41,7 @@ export async function POST(req: Request) {
     return bad("서버 설정 오류: ENCRYPTION_SECRET 환경변수가 없습니다.", 500);
 
   const ref = adminDb().collection("users").doc(uid).collection("exchange_accounts").doc();
-  const now = FieldValue.serverTimestamp();
+  const now = new Date();
   await ref.set({
     exchange: String(exchange), alias: String(alias),
     api_key_enc:    encryptText(String(apiKey)),
