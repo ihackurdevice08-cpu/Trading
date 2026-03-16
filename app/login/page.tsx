@@ -1,12 +1,7 @@
 "use client";
 import { useState } from "react";
-import { firebaseAuth } from "@/lib/firebase/client";
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  browserLocalPersistence,
-  setPersistence,
-} from "firebase/auth";
+import { ensurePersistence } from "@/lib/firebase/client";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -16,22 +11,31 @@ export default function LoginPage() {
     setLoading(true);
     setErr("");
     try {
-      const auth = firebaseAuth();
-      // 로컬 스토리지에 인증 상태 영구 저장 (브라우저 닫아도 유지)
-      await setPersistence(auth, browserLocalPersistence);
+      // persistence 보장 후 즉시 팝업 (사용자 클릭 컨텍스트 유지)
+      const auth     = await ensurePersistence();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      const result = await signInWithPopup(auth, provider);
+
+      const result  = await signInWithPopup(auth, provider);
       const idToken = await result.user.getIdToken();
+
       const res = await fetch("/auth/session", {
-        method: "POST",
+        method:  "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body:    JSON.stringify({ idToken }),
       });
-      if (!res.ok) throw new Error("세션 저장 실패");
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || "세션 저장 실패");
+      }
+
       window.location.href = "/dashboard";
     } catch (e: any) {
-      if (e?.code === "auth/popup-closed-by-user" || e?.code === "auth/cancelled-popup-request") {
+      const code = e?.code ?? "";
+      // 팝업 닫기/취소는 에러 표시 안 함
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
         setErr("");
       } else {
         setErr(e?.message ?? "로그인 실패");
@@ -57,6 +61,7 @@ export default function LoginPage() {
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
       }}>
+
         {/* 브랜드 */}
         <div style={{ marginBottom: 32, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
@@ -81,11 +86,15 @@ export default function LoginPage() {
 
         {err && (
           <div style={{
-            fontSize: 12, color: "var(--red, #FF4D4D)", marginBottom: 16,
-            padding: "10px 14px", borderRadius: 8,
+            fontSize: 12,
+            color: "var(--red, #FF4D4D)",
+            marginBottom: 16,
+            padding: "10px 14px",
+            borderRadius: 8,
             background: "rgba(255,77,77,0.08)",
             border: "1px solid rgba(255,77,77,0.2)",
             lineHeight: 1.5,
+            wordBreak: "break-all",
           }}>
             {err}
           </div>
@@ -100,7 +109,7 @@ export default function LoginPage() {
             borderRadius: 12,
             border: "1px solid rgba(240,180,41,0.35)",
             background: loading ? "rgba(255,255,255,0.04)" : "rgba(240,180,41,0.10)",
-            color: loading ? "var(--text-muted, rgba(255,255,255,0.3))" : "var(--accent, #F0B429)",
+            color: loading ? "rgba(255,255,255,0.3)" : "var(--accent, #F0B429)",
             fontWeight: 700,
             fontSize: 14,
             cursor: loading ? "not-allowed" : "pointer",

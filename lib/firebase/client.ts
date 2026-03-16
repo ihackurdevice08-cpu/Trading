@@ -1,5 +1,5 @@
-import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, Auth } from "firebase/auth";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getAuth, browserLocalPersistence, setPersistence, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -10,17 +10,28 @@ const firebaseConfig = {
   appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-let app: FirebaseApp;
-let auth: Auth;
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _persistenceSet = false;
 
 export function getFirebaseApp(): FirebaseApp {
-  if (!app) {
-    app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
-  }
-  return app;
+  if (_app) return _app;
+  _app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
+  return _app;
 }
 
 export function firebaseAuth(): Auth {
-  if (!auth) auth = getAuth(getFirebaseApp());
+  if (_auth) return _auth;
+  _auth = getAuth(getFirebaseApp());
+  return _auth;
+}
+
+// 앱 초기화 직후 한 번만 persistence 설정 (비동기 딜레이 없이)
+export async function ensurePersistence(): Promise<Auth> {
+  const auth = firebaseAuth();
+  if (!_persistenceSet) {
+    await setPersistence(auth, browserLocalPersistence);
+    _persistenceSet = true;
+  }
   return auth;
 }
