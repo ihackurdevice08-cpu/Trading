@@ -50,11 +50,11 @@ function PositionCalculator({ equity }: { equity: number | null }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 16 }}>
         <div style={fieldCol}>
           <label style={lbl}>계좌 자산 (USDT)</label>
-          <div style={{ position: "relative" }}>
+          <div style={{ position: "relative" as const }}>
             <input value={accountSize} onChange={e => setAccountSize(e.target.value)} style={inp} placeholder="자동 로드됨" />
             {equity != null && (
               <button onClick={() => setAccountSize(String(Math.round(equity * 100) / 100))}
-                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                style={{ position: "absolute" as const, right: 6, top: "50%", transform: "translateY(-50%)",
                   fontSize: 10, padding: "2px 6px", borderRadius: 5, cursor: "pointer",
                   border: "1px solid var(--line-soft,rgba(0,0,0,.1))", background: "transparent", opacity: .6 }}>
                 자산 불러오기
@@ -317,7 +317,7 @@ function DailyReport() {
       )}
 
       {!report && !loading && (
-        <div style={{ padding: "24px", textAlign: "center", opacity: .4, fontSize: 13 }}>
+        <div style={{ padding: "24px", textAlign: "center" as const, opacity: .4, fontSize: 13 }}>
           "오늘 리포트 생성" 버튼을 눌러 오늘 거래를 분석합니다
         </div>
       )}
@@ -390,7 +390,7 @@ function DailyReport() {
           {report.symbols.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, opacity: .5, fontWeight: 700, marginBottom: 8 }}>심볼별 성과</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
                 {report.symbols.map((s: any) => (
                   <div key={s.sym} style={{ display: "flex", alignItems: "center", gap: 10,
                     padding: "8px 12px", borderRadius: 9,
@@ -401,8 +401,8 @@ function DailyReport() {
                       <span style={{ display: "block", height: "100%", width: `${s.wr}%`, borderRadius: 999,
                         background: s.wr >= 60 ? "var(--green,#0b7949)" : s.wr < 40 ? "var(--red,#c0392b)" : "var(--accent,#B89A5A)" }} />
                     </span>
-                    <span style={{ fontSize: 11, opacity: .5, minWidth: 40, textAlign: "right" }}>{s.wr}%</span>
-                    <span style={{ fontWeight: 800, fontSize: 13, color: pnlColor(s.pnl), minWidth: 80, textAlign: "right" }}>
+                    <span style={{ fontSize: 11, opacity: .5, minWidth: 40, textAlign: "right" as const }}>{s.wr}%</span>
+                    <span style={{ fontWeight: 800, fontSize: 13, color: pnlColor(s.pnl), minWidth: 80, textAlign: "right" as const }}>
                       {s.pnl >= 0 ? "+" : ""}{fmt(s.pnl)}
                     </span>
                     <span style={{ fontSize: 11, opacity: .4, minWidth: 30 }}>{s.count}건</span>
@@ -429,7 +429,7 @@ function DailyReport() {
           )}
 
           {report.hasPnl.length === 0 && (
-            <div style={{ padding: "20px", textAlign: "center", opacity: .4, fontSize: 13 }}>오늘 청산된 거래 없음</div>
+            <div style={{ padding: "20px", textAlign: "center" as const, opacity: .4, fontSize: 13 }}>오늘 청산된 거래 없음</div>
           )}
         </div>
       )}

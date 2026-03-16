@@ -1,14 +1,4 @@
-export async function ensureUserSettings(sb: any, userId: string) {
-  const { data } = await sb
-    .from("user_settings")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!data) {
-    await sb.from("user_settings").insert({
-      user_id: userId,
-      appearance: {},
-    });
-  }
+// deprecated — Firebase Admin SDK로 이전 완료
+export async function ensureUserSettings(_sb: any, _userId: string) {
+  // no-op
 }

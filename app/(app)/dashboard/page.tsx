@@ -23,7 +23,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: React.Re
       <div style={{
         fontSize: 10, opacity: 0.4, fontWeight: 600,
         marginBottom: 8, letterSpacing: 0.8,
-        textTransform: "uppercase", fontFamily: "var(--font-mono,monospace)",
+        textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)",
       }}>{label}</div>
       <div style={{
         fontWeight: 800, fontSize: 24,
@@ -44,11 +44,11 @@ function DailyBarChart({ data }: { data: { date: string; pnl: number }[] }) {
   return (
     <div style={panel}>
       <div style={sectionTitle}>◈ 이번 달 일별 PnL</div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, overflowX: "auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, overflowX: "auto" as const }}>
         {data.map(d => {
           const h = Math.max(4, Math.abs(d.pnl) / max * 56);
           return (
-            <div key={d.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", minWidth: 20 }}
+            <div key={d.date} style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", flex: "0 0 auto", minWidth: 20 }}
               title={`${d.date}: ${sign(d.pnl)}${fmt(d.pnl)} USDT`}>
               <div style={{ width: 14, height: h, borderRadius: 3,
                 background: d.pnl >= 0 ? "var(--green,#0b7949)" : "var(--red,#c0392b)", opacity: 0.8 }} />
@@ -85,7 +85,7 @@ function DrawdownChart({ data }: { data: { date: string; dd: number; cumPnl: num
   return (
     <div style={panel}>
       <div style={sectionTitle}>◈ 드로다운 추이</div>
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ overflowX: "auto" as const }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 280, height: "auto", display: "block" }}>
           {/* 그리드 라인 */}
           {[0.25, 0.5, 0.75, 1].map(r => (
@@ -152,7 +152,7 @@ function CumPnlChart({ data }: { data: { date: string; cumPnl: number }[] }) {
   return (
     <div style={panel}>
       <div style={sectionTitle}>◈ 누적 PnL 추이</div>
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ overflowX: "auto" as const }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 280, height: "auto", display: "block" }}>
           {[0, 0.5, 1].map(r => (
             <line key={r} x1={PAD.l} x2={PAD.l+innerW}
@@ -218,13 +218,13 @@ function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: n
           </span>
         </div>
       </div>
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ overflowX: "auto" as const }}>
         <table style={{ borderCollapse: "collapse", fontSize: 10, width: "100%", minWidth: Math.max(280, activeHours.length * 34 + 40) }}>
           <thead>
             <tr>
               <th style={{ width: 28, padding: "2px 4px", opacity: .4, fontWeight: 600 }}></th>
               {activeHours.map(h => (
-                <th key={h} style={{ padding: "2px 3px", opacity: .45, fontWeight: 600, textAlign: "center", minWidth: 28 }}>
+                <th key={h} style={{ padding: "2px 3px", opacity: .45, fontWeight: 600, textAlign: "center" as const, minWidth: 28 }}>
                   {h}시
                 </th>
               ))}
@@ -233,14 +233,14 @@ function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: n
           <tbody>
             {DOW_LABELS.map((dow, d) => (
               <tr key={d}>
-                <td style={{ padding: "2px 4px", fontWeight: 700, opacity: .6, whiteSpace: "nowrap" }}>{dow}</td>
+                <td style={{ padding: "2px 4px", fontWeight: 700, opacity: .6, whiteSpace: "nowrap" as const }}>{dow}</td>
                 {activeHours.map(h => {
                   const cell = data.find(x => x.dow === d && x.hour === h);
                   const wr   = cell?.winRate ?? null;
                   const tot  = cell?.total ?? 0;
                   const pnl  = cell?.pnl ?? 0;
                   return (
-                    <td key={h} style={{ padding: "2px 3px", textAlign: "center" }}
+                    <td key={h} style={{ padding: "2px 3px", textAlign: "center" as const }}
                       title={tot > 0 ? `${dow} ${h}시: ${tot}건 | 승률 ${wr ?? "—"}% | PnL ${pnl >= 0 ? "+" : ""}${fmt(pnl)}` : ""}>
                       <div style={{
                         width: 26, height: 22, borderRadius: 4, margin: "0 auto",
@@ -335,7 +335,7 @@ function MonthlyPnlTable({ data }: { data: { month: string; pnl: number }[] }) {
   return (
     <div style={panel}>
       <div style={sectionTitle}>◈ 월별 PnL</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
         {[...data].reverse().map(d => {
           const barW = Math.round((Math.abs(d.pnl) / maxAbs) * 100);
           const isPos = d.pnl >= 0;
@@ -372,12 +372,12 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
   return (
     <div style={panel}>
       <div style={sectionTitle}>◉ 심볼별 분석 (이번 달)</div>
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ overflowX: "auto" as const }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--line-soft)" }}>
               {["심볼","PnL","건수","승/패","승률","평균 익절","평균 손절"].map(h => (
-                <th key={h} style={{ padding: "5px 8px", textAlign: h === "심볼" ? "left" : "right", opacity: .5, fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                <th key={h} style={{ padding: "5px 8px", textAlign: h === "심볼" ? "left" : "right", opacity: .5, fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" as const }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -385,22 +385,22 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
             {symbols.map(sym => (
               <tr key={sym.symbol} style={{ borderBottom: "1px solid var(--line-soft)" }}>
                 <td style={{ padding: "7px 8px", fontWeight: 800 }}>{sym.symbol}</td>
-                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 800, color: pnlColor(sym.pnl) }}>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const, fontWeight: 800, color: pnlColor(sym.pnl) }}>
                   {sign(sym.pnl)}{fmt(sym.pnl)}
                 </td>
-                <td style={{ padding: "7px 8px", textAlign: "right", opacity: .7 }}>{sym.count}</td>
-                <td style={{ padding: "7px 8px", textAlign: "right", opacity: .7 }}>{sym.wins}W/{sym.losses}L</td>
-                <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const, opacity: .7 }}>{sym.count}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const, opacity: .7 }}>{sym.wins}W/{sym.losses}L</td>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const }}>
                   <span style={{
                     fontWeight: 800, padding: "2px 7px", borderRadius: 6, fontSize: 11,
                     background: sym.winRate >= 60 ? "rgba(11,121,73,0.12)" : sym.winRate < 40 ? "rgba(192,57,43,0.12)" : "rgba(255,255,255,0.08)",
                     color: sym.winRate >= 60 ? "var(--green,#0b7949)" : sym.winRate < 40 ? "var(--red,#c0392b)" : "inherit",
                   }}>{sym.winRate}%</span>
                 </td>
-                <td style={{ padding: "7px 8px", textAlign: "right", color: "var(--green,#0b7949)", fontWeight: 700 }}>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const, color: "var(--green,#0b7949)", fontWeight: 700 }}>
                   {sym.avgWin != null ? `+${fmt(sym.avgWin)}` : "—"}
                 </td>
-                <td style={{ padding: "7px 8px", textAlign: "right", color: "var(--red,#c0392b)", fontWeight: 700 }}>
+                <td style={{ padding: "7px 8px", textAlign: "right" as const, color: "var(--red,#c0392b)", fontWeight: 700 }}>
                   {sym.avgLoss != null ? fmt(sym.avgLoss) : "—"}
                 </td>
               </tr>
@@ -519,7 +519,7 @@ export default function DashboardPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {lastUpdated && <span style={{ fontSize: 11, opacity: .4 }}>{lastUpdated.toLocaleTimeString("ko-KR")} 기준</span>}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" }}>누적 기준</span>
+            <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" as const }}>누적 기준</span>
             <input type="date" value={pnlFrom} max={new Date().toISOString().slice(0, 10)}
               onChange={e => handlePnlFromChange(e.target.value)}
               style={{ padding: "3px 8px", borderRadius: 7, fontSize: 11,
@@ -592,7 +592,7 @@ export default function DashboardPage() {
       {recent.length > 0 && (
         <div style={panel}>
           <div style={sectionTitle}>◎ 최근 거래</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
             {recent.map(t => (
               <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <div>
@@ -655,6 +655,6 @@ const panel: React.CSSProperties = {
 };
 const sectionTitle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, opacity: 0.4, marginBottom: 12,
-  letterSpacing: 1.2, textTransform: "uppercase",
+  letterSpacing: 1.2, textTransform: "uppercase" as const,
   fontFamily: "var(--font-mono,monospace)",
 };

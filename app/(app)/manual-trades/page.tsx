@@ -292,7 +292,7 @@ export default function TradeRecordsPage() {
           background: isSelected ? "rgba(180,150,80,0.08)" : isFunding ? "rgba(0,0,0,0.02)" : "transparent",
           opacity: isFunding ? 0.7 : 1, transition: "background .15s" }} className="tr-row">
         {groupMode && (
-          <div style={{ position: "absolute", left: inGroup ? 4 : 2 }}>
+          <div style={{ position: "absolute" as const, left: inGroup ? 4 : 2 }}>
             <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(t.id)} style={{ accentColor: "var(--accent,#B89A5A)", width: 15, height: 15 }} />
           </div>
         )}
@@ -317,7 +317,7 @@ export default function TradeRecordsPage() {
             </span>
           )}
         </div>
-        <div style={{ textAlign: "right", fontWeight: 800, fontSize: 14, color: pnlColor(t.pnl) }}>
+        <div style={{ textAlign: "right" as const, fontWeight: 800, fontSize: 14, color: pnlColor(t.pnl) }}>
           {t.pnl == null ? "—" : `${t.pnl > 0 ? "+" : ""}${fmt(t.pnl)}`}
         </div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -344,7 +344,7 @@ export default function TradeRecordsPage() {
             <div style={{ fontSize: 11, opacity: .5, marginTop: 1 }}>{g.trades[0].opened_at?.slice(0,16).replace("T"," ")} → {g.trades[g.trades.length-1].opened_at?.slice(0,16).replace("T"," ")}</div>
           </div>
           <div><span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: g.side === "long" ? "rgba(11,121,73,0.12)" : "rgba(192,57,43,0.12)", color: g.side === "long" ? "var(--green,#0b7949)" : "var(--red,#c0392b)" }}>{g.side.toUpperCase()}</span></div>
-          <div style={{ textAlign: "right", fontWeight: 900, fontSize: 15, color: pnlColor(g.totalPnl) }}>{g.totalPnl >= 0 ? "+" : ""}{fmt(g.totalPnl)}</div>
+          <div style={{ textAlign: "right" as const, fontWeight: 900, fontSize: 15, color: pnlColor(g.totalPnl) }}>{g.totalPnl >= 0 ? "+" : ""}{fmt(g.totalPnl)}</div>
           <div style={{ fontSize: 11, opacity: .5 }}>합산 PnL</div>
           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
             <button onClick={e => { e.stopPropagation(); ungroupTrades(g.trades.map(t => t.id)); }} style={{ ...chip, fontSize: 10, padding: "3px 8px", opacity: .6 }}>해제</button>
@@ -361,9 +361,9 @@ export default function TradeRecordsPage() {
 
       {/* 상세 패널 */}
       {detailTrade && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 16px" }}
+        <div style={{ position: "fixed" as const, inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 16px" }}
           onClick={() => setDetailTrade(null)}>
-          <div style={{ background: "var(--modal-bg,rgba(18,20,27,0.98))", borderRadius: 16, padding: "20px", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" }}
+          <div style={{ background: "var(--modal-bg,rgba(18,20,27,0.98))", borderRadius: 16, padding: "20px", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" as const }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
               <div>
@@ -373,7 +373,7 @@ export default function TradeRecordsPage() {
                 </div>
                 <div style={{ fontSize: 12, opacity: .5, marginTop: 4 }}>{detailTrade.opened_at?.slice(0,16).replace("T"," ")}</div>
               </div>
-              <div style={{ textAlign: "right" }}>
+              <div style={{ textAlign: "right" as const }}>
                 <div style={{ fontWeight: 900, fontSize: 22, color: pnlColor(detailTrade.pnl) }}>{detailTrade.pnl == null ? "—" : `${detailTrade.pnl > 0 ? "+" : ""}${fmt(detailTrade.pnl)}`}</div>
                 <div style={{ fontSize: 11, opacity: .45 }}>USDT</div>
               </div>
@@ -501,17 +501,17 @@ export default function TradeRecordsPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: 2 }}>
         {loading ? (
-          <div style={{ padding: 24, textAlign: "center", opacity: .5, fontSize: 14 }}>불러오는 중…</div>
+          <div style={{ padding: 24, textAlign: "center" as const, opacity: .5, fontSize: 14 }}>불러오는 중…</div>
         ) : displayItems.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", opacity: .5, fontSize: 14 }}>
+          <div style={{ padding: 24, textAlign: "center" as const, opacity: .5, fontSize: 14 }}>
             {from ? `${from} 이후 청산 기록 없음` : "청산 기록 없음 — Bitget 동기화를 눌러주세요"}
           </div>
         ) : displayItems.map((item) => {
           if (item.type === "group") return <GroupCard key={item.group.group_id} g={item.group} />;
           return (
-            <div key={item.trade.id} style={{ border: item.trade.symbol === "FUNDING" ? "1px dashed rgba(120,120,255,0.25)" : "1px solid var(--line-soft)", borderRadius: 10, overflow: "hidden", background: "var(--panel)", position: "relative" }}>
+            <div key={item.trade.id} style={{ border: item.trade.symbol === "FUNDING" ? "1px dashed rgba(120,120,255,0.25)" : "1px solid var(--line-soft)", borderRadius: 10, overflow: "hidden", background: "var(--panel)", position: "relative" as const }}>
               <TradeCard t={item.trade} idx={0} />
             </div>
           );
@@ -542,7 +542,7 @@ const inp: React.CSSProperties = { padding: "8px 11px", borderRadius: 9, fontSiz
 const lbl: React.CSSProperties = { fontSize: 10, opacity: .4, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)" };
 const col: React.CSSProperties = { display: "grid", gap: 4 };
 const panel: React.CSSProperties = { padding: "14px 16px", border: "1px solid var(--line-soft,rgba(255,255,255,.08))", borderRadius: 14, marginBottom: 12, background: "var(--panel,rgba(255,255,255,0.04))", backdropFilter: "blur(8px)" };
-const btn1: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid rgba(240,180,41,0.3)", background: "rgba(240,180,41,0.12)", color: "var(--accent,#F0B429)", fontWeight: 700, fontSize: 13 };
-const btn2: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "transparent", fontWeight: 600, fontSize: 13 };
+const btn1: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const, border: "1px solid rgba(240,180,41,0.3)", background: "rgba(240,180,41,0.12)", color: "var(--accent,#F0B429)", fontWeight: 700, fontSize: 13 };
+const btn2: React.CSSProperties = { padding: "9px 14px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const, border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "transparent", fontWeight: 600, fontSize: 13 };
 const chip: React.CSSProperties = { padding: "5px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12, border: "1px solid var(--line-soft,rgba(255,255,255,.1))", background: "transparent" };
 const danger: React.CSSProperties = { padding: "5px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11, border: "1px solid rgba(255,77,77,.25)", background: "rgba(255,77,77,.07)", color: "var(--red, #FF4D4D)", fontWeight: 700 };

@@ -275,7 +275,7 @@ export default function RiskPage() {
 
         {/* 기산일 직접 설정 */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 4 }}>
             <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>누적 PnL 기산일</span>
             <input type="date" max={new Date().toISOString().slice(0,10)}
               value={pnlFrom}
@@ -305,7 +305,7 @@ export default function RiskPage() {
           {cycling ? "처리 중…" : "◈ 새 사이클 시작 (오늘부터)"}
         </button>
         {cycles.length > 0 && (
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column" as const, gap: 4 }}>
             {cycles.slice(0, 3).map(c => (
               <div key={c.id} style={{ fontSize: 11, opacity: 0.5 }}>
                 {c.started_at?.slice(0, 10)} — 자산 {fmt(c.equity_snapshot)} USDT 기준

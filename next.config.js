@@ -21,8 +21,15 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
   },
 
-  // firebase-admin node: 스킴 문제 해결
-  serverExternalPackages: ["firebase-admin", "@google-cloud/firestore"],
+  // firebase-admin + google-cloud 패키지를 서버 전용으로 처리 (node: 스킴 에러 방지)
+  serverExternalPackages: [
+    "firebase-admin",
+    "@google-cloud/firestore",
+    "google-gax",
+    "google-auth-library",
+    "gcp-metadata",
+    "google-logging-utils",
+  ],
 
   compress: true,
   poweredByHeader: false,

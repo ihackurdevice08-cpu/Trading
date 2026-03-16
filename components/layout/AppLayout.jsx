@@ -34,9 +34,9 @@ export default function AppLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div style={{ minHeight: "100vh", position: "relative" }}>
+    <div style={{ minHeight: "100vh", position: "relative" as const }}>
       <BackgroundLayer />
-      <div style={{ position: "relative", zIndex: 2, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "relative" as const, zIndex: 2, minHeight: "100vh", display: "flex", flexDirection: "column" as const }}>
 
         {/* ─── 헤더 ─── */}
         <header style={{
@@ -45,7 +45,7 @@ export default function AppLayout({ children }) {
           borderBottom: "1px solid var(--line-soft, rgba(255,255,255,.08))",
           background: "rgba(13,15,20,0.88)",
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-          position: "sticky", top: 0, zIndex: 50, flexShrink: 0,
+          position: "sticky" as const, top: 0, zIndex: 50, flexShrink: 0,
         }}>
 
           {/* 브랜드 */}
@@ -56,7 +56,7 @@ export default function AppLayout({ children }) {
               boxShadow: "0 0 10px var(--accent, #F0B429)",
               flexShrink: 0,
             }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 1.5 }}>
               <div style={{ fontWeight: 800, fontSize: 12.5, letterSpacing: 1.8, lineHeight: 1 }}>
                 MAN CAVE OS
               </div>
@@ -80,7 +80,7 @@ export default function AppLayout({ children }) {
                   border: active ? "1px solid rgba(240,180,41,0.25)" : "1px solid transparent",
                   background: active ? "rgba(240,180,41,0.08)" : "transparent",
                   fontWeight: active ? 700 : 500, fontSize: 12.5, letterSpacing: 0.1,
-                  transition: "all 0.12s", whiteSpace: "nowrap",
+                  transition: "all 0.12s", whiteSpace: "nowrap" as const,
                 }}>
                   <span style={{ opacity: active ? 1 : 0.5, display: "flex", alignItems: "center" }}>{icon}</span>
                   {label}
@@ -97,7 +97,7 @@ export default function AppLayout({ children }) {
             padding: "5px 12px", borderRadius: 7, textDecoration: "none",
             color: "var(--text-secondary, rgba(255,255,255,.45))",
             border: "1px solid var(--line-soft, rgba(255,255,255,.08))",
-            fontWeight: 500, fontSize: 12, whiteSpace: "nowrap", transition: "all 0.12s",
+            fontWeight: 500, fontSize: 12, whiteSpace: "nowrap" as const, transition: "all 0.12s",
           }}>
             {Icons.logout}
             로그아웃
@@ -119,16 +119,16 @@ export default function AppLayout({ children }) {
 
         {/* ─── 모바일 슬라이드 메뉴 ─── */}
         {menuOpen && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+          <div style={{ position: "fixed" as const, inset: 0, zIndex: 100, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
             onClick={() => setMenuOpen(false)}>
             <nav style={{
-              position: "absolute", top: 0, right: 0,
+              position: "absolute" as const, top: 0, right: 0,
               width: "min(280px, 82vw)", height: "100%",
               background: "rgba(15,17,23,0.98)",
               borderLeft: "1px solid var(--line-soft, rgba(255,255,255,.08))",
               boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
-              display: "flex", flexDirection: "column",
-              padding: "20px 14px", gap: 4, overflowY: "auto",
+              display: "flex", flexDirection: "column" as const,
+              padding: "20px 14px", gap: 4, overflowY: "auto" as const,
             }} onClick={e => e.stopPropagation()}>
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -171,7 +171,7 @@ export default function AppLayout({ children }) {
         )}
 
         {/* ─── 메인 ─── */}
-        <main style={{ flex: 1, padding: "20px 20px", paddingBottom: 80, overflowX: "hidden" }}>
+        <main style={{ flex: 1, padding: "20px 20px", paddingBottom: 80, overflowX: "hidden" as const }}>
           <RiskBanner />
           {children}
         </main>

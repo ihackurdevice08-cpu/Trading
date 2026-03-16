@@ -174,7 +174,7 @@ export default function WithdrawalsPage() {
 
       {/* 월별 리스트 */}
       {grouped.length === 0 ? (
-        <div style={{ padding: 32, textAlign: "center", opacity: 0.5, fontSize: 14 }}>
+        <div style={{ padding: 32, textAlign: "center" as const, opacity: 0.5, fontSize: 14 }}>
           출금 기록이 없습니다.
         </div>
       ) : grouped.map(([month, rows]) => {
@@ -186,7 +186,7 @@ export default function WithdrawalsPage() {
               <span style={{ fontSize: 13, fontWeight: 800, opacity: 0.6 }}>{month}</span>
               <span style={{ fontSize: 12, opacity: 0.6 }}>합계 {fmt(monthTotal)} USDT</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
               {rows.map(w => {
                 const meta = SOURCE_LABELS[w.source] || SOURCE_LABELS.profit;
                 return (

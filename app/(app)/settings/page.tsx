@@ -24,13 +24,13 @@ const fieldWrap: React.CSSProperties = {
   display: "grid", gap: 4,
 };
 const btn1: React.CSSProperties = {
-  padding: "9px 16px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap",
+  padding: "9px 16px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const,
   border: "1px solid var(--line-hard, rgba(0,0,0,.18))",
   background: "var(--accent,#F0B429)", color: "#0a0a0a",
   fontWeight: 800, fontSize: 13,
 };
 const btn2: React.CSSProperties = {
-  padding: "9px 16px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap",
+  padding: "9px 16px", borderRadius: 9, cursor: "pointer", whiteSpace: "nowrap" as const,
   border: "1px solid var(--line-soft, rgba(0,0,0,.1))",
   background: "transparent", fontWeight: 700, fontSize: 13,
 };
@@ -612,7 +612,7 @@ export default function SettingsPage() {
                         flex: 1, padding: 0, border: "none", background: "none", cursor: "pointer",
                         outline: active ? `2px solid ${t.accent}` : "1px solid rgba(0,0,0,0.1)",
                         outlineOffset: active ? 2 : 0,
-                        borderRadius: 10, overflow: "hidden", transition: "outline .15s", textAlign: "left",
+                        borderRadius: 10, overflow: "hidden", transition: "outline .15s", textAlign: "left" as const,
                       }}>
                       <div style={{ background: t.bg, padding: "12px 14px 10px" }}>
                         <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
