@@ -9,8 +9,6 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
 ];
 
-const ADMIN_PKG_RE = /^(firebase-admin|@google-cloud|google-gax|google-auth-library|gcp-metadata|google-logging-utils)(\/.*)?$/;
-
 const nextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
@@ -23,23 +21,29 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
   },
 
-  serverExternalPackages: [
-    "firebase-admin",
-    "@google-cloud/firestore",
-    "@google-cloud/storage",
-    "google-gax",
-    "google-auth-library",
-    "gcp-metadata",
-    "google-logging-utils",
-  ],
+  // firebase-admin 서버 전용 처리
+  serverExternalPackages: ["firebase-admin"],
 
   webpack: function(config, options) {
     if (!options.isServer) {
-      var prev = Array.isArray(config.externals) ? config.externals : (config.externals ? [config.externals] : []);
+      var prev = Array.isArray(config.externals)
+        ? config.externals
+        : config.externals ? [config.externals] : [];
+
       config.externals = prev.concat([
         function(ctx, callback) {
-          if (ADMIN_PKG_RE.test(ctx.request)) {
-            return callback(null, "commonjs " + ctx.request);
+          var req = ctx.request || "";
+          if (req === "firebase-admin" || req.startsWith("firebase-admin/")) {
+            return callback(null, "commonjs " + req);
+          }
+          if (
+            req.startsWith("@google-cloud/") ||
+            req.startsWith("google-gax") ||
+            req.startsWith("google-auth-library") ||
+            req.startsWith("gcp-metadata") ||
+            req.startsWith("google-logging-utils")
+          ) {
+            return callback(null, "commonjs " + req);
           }
           return callback();
         }
