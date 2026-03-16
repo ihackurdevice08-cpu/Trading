@@ -7,44 +7,40 @@ export const dynamic = "force-dynamic";
 
 const n = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
-function todayKST_UTC(): Date {
-  const kst = new Date(Date.now() + 9 * 3600_000);
-  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600_000);
+function tsToMs(v: any): number {
+  if (!v) return 0;
+  if (typeof v.toDate === "function") return v.toDate().getTime();
+  if (v instanceof Date) return v.getTime();
+  return new Date(v).getTime();
 }
-function thisHourKST_UTC(): Date {
+function kstToday(): number {
   const kst = new Date(Date.now() + 9 * 3600_000);
-  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), kst.getUTCHours()) - 9 * 3600_000);
+  return Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600_000;
+}
+function kstThisHour(): number {
+  const kst = new Date(Date.now() + 9 * 3600_000);
+  return Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), kst.getUTCHours()) - 9 * 3600_000;
 }
 
 export async function GET(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-  const url     = new URL(req.url);
-  const pnlFrom = url.searchParams.get("from") || null;
+  const url       = new URL(req.url);
+  const pnlFrom   = url.searchParams.get("from") || null;
   const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
-  const db       = adminDb();
-  const userRef  = db.collection("users").doc(uid);
-  const todayUTC = todayKST_UTC();
-  const thisHour = thisHourKST_UTC();
+  const db      = adminDb();
+  const userRef = db.collection("users").doc(uid);
 
-  const [rsSnap, allTradesSnap, wSnap] = await Promise.all([
+  const [rsSnap, allSnap, wSnap] = await Promise.all([
     userRef.collection("risk_settings").doc("default").get(),
-    // 전체 fetch 후 메모리 필터 (composite index 불필요)
     userRef.collection("manual_trades").orderBy("opened_at", "desc").limit(10000).get(),
     userRef.collection("withdrawals").get(),
   ]);
 
-  const todayMs = todayUTC.getTime();
-  const hourMs  = thisHour.getTime();
-
-  // 메모리 필터
-  const allDocs = allTradesSnap.docs;
-  const tsSnap_docs    = allDocs.filter(d => d.data().pnl != null).sort((a,b) => (Number(a.data().pnl)||0) - (Number(b.data().pnl)||0));
-  const todaySnap_docs = allDocs.filter(d => { const t = (d.data().opened_at?.toDate?.() ?? new Date(d.data().opened_at)).getTime(); return t >= todayMs; });
-  const hourSnap_docs  = allDocs.filter(d => { const t = (d.data().opened_at?.toDate?.() ?? new Date(d.data().opened_at)).getTime(); return t >= hourMs; });
-  const recentSnap_docs = allDocs.filter(d => d.data().pnl != null).slice(0, 50);
+  const todayMs = kstToday();
+  const hourMs  = kstThisHour();
 
   const rs = rsSnap.exists ? rsSnap.data() : {};
   const settings = {
@@ -59,18 +55,22 @@ export async function GET(req: Request) {
     dd_floor_usd:           rs?.dd_floor_usd != null ? Number(rs.dd_floor_usd) : null,
   };
 
-  const seed = settings.seed_usd;
+  const seed            = settings.seed_usd;
   const totalWithdrawal = wSnap.docs.reduce((s, d) => s + Number(d.data().amount || 0), 0);
 
-  // 시계열 정렬 (Firestore compound query 한계로 메모리 정렬)
-  const tsSorted = tsSnap_docs
-    .map(d => ({ pnl: n(d.data().pnl), opened_at: d.data().opened_at?.toDate?.() ?? new Date(d.data().opened_at) }))
-    .sort((a, b) => a.opened_at.getTime() - b.opened_at.getTime());
+  // 전체 거래 배열 (이미 desc 정렬)
+  const allDocs = allSnap.docs;
+
+  // 시계열 계산용 (오름차순)
+  const sortedAsc = allDocs
+    .filter(d => d.data().pnl != null)
+    .map(d => ({ pnl: n(d.data().pnl), openMs: tsToMs(d.data().opened_at) }))
+    .reverse();
 
   let cumPnl = 0, peakEquity = seed, maxDdUsd = 0, totalCumPnl = 0;
-  for (const r of tsSorted) {
+  for (const r of sortedAsc) {
     totalCumPnl += r.pnl;
-    if (pnlFromMs && r.opened_at.getTime() < pnlFromMs) continue;
+    if (pnlFromMs && r.openMs < pnlFromMs) continue;
     cumPnl += r.pnl;
     const eq = seed + cumPnl;
     if (eq > peakEquity) peakEquity = eq;
@@ -78,36 +78,41 @@ export async function GET(req: Request) {
     if (dd > maxDdUsd) maxDdUsd = dd;
   }
 
-  const equityNow = seed + totalCumPnl - totalWithdrawal;
-  const pnlPct    = seed > 0 ? (cumPnl / seed) * 100 : 0;
-  const ddPct     = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
+  const equityNow   = seed + totalCumPnl - totalWithdrawal;
+  const pnlPct      = seed > 0 ? (cumPnl / seed) * 100 : 0;
+  const ddPct       = equityNow > 0 ? (maxDdUsd / equityNow) * 100 : 0;
 
-  const todayRows      = todaySnap_docs.map(d => n(d.data().pnl));
-  const todayPnl       = todayRows.reduce((s, p) => s + p, 0);
-  const tradesToday    = todayRows.length;
-  const tradesThisHour = hourSnap.size;
+  const todayDocs      = allDocs.filter(d => tsToMs(d.data().opened_at) >= todayMs);
+  const hourDocs       = allDocs.filter(d => tsToMs(d.data().opened_at) >= hourMs);
+  const todayPnl       = todayDocs.reduce((s, d) => s + n(d.data().pnl), 0);
+  const tradesToday    = todayDocs.length;
+  const tradesThisHour = hourDocs.length;
   const dailyLossUsd   = Math.min(0, todayPnl);
   const dailyLossPct   = equityNow > 0 ? (dailyLossUsd / equityNow) * 100 : 0;
 
-  // 최근 거래 (내림차순 opened_at)
-  const recentRows = recentSnap_docs
-    .map(d => ({ pnl: n(d.data().pnl), opened_at: d.data().opened_at?.toDate?.() ?? new Date(d.data().opened_at) }))
-    .sort((a, b) => b.opened_at.getTime() - a.opened_at.getTime());
+  // 연속 손실 (최근 거래 기준, desc 순 이미 정렬됨)
+  const recentWithPnl = allDocs.filter(d => d.data().pnl != null).slice(0, 50);
   let consecLoss = 0;
-  for (const r of recentRows) {
-    if (r.pnl < 0) consecLoss++;
+  for (const d of recentWithPnl) {
+    if (n(d.data().pnl) < 0) consecLoss++;
     else break;
   }
 
   const reasons: string[] = [];
   if (settings.dd_mode === "floor") {
-    if (settings.dd_floor_usd !== null && equityNow <= settings.dd_floor_usd) reasons.push("잔고 하한선 도달");
+    if (settings.dd_floor_usd !== null && equityNow <= settings.dd_floor_usd)
+      reasons.push("잔고 하한선 도달");
   } else {
-    if (maxDdUsd >= settings.max_dd_usd || ddPct >= settings.max_dd_pct) reasons.push("드로다운");
+    if (maxDdUsd >= settings.max_dd_usd || ddPct >= settings.max_dd_pct)
+      reasons.push("드로다운");
   }
-  if (Math.abs(dailyLossUsd) >= settings.max_daily_loss_usd || Math.abs(dailyLossPct) >= settings.max_daily_loss_pct) reasons.push("일 손실");
-  if (consecLoss >= settings.max_consecutive_losses) reasons.push("연속 손실");
-  if (settings.manual_trading_state === "Stop") reasons.push("수동 중단");
+  if (Math.abs(dailyLossUsd) >= settings.max_daily_loss_usd ||
+      Math.abs(dailyLossPct) >= settings.max_daily_loss_pct)
+    reasons.push("일 손실");
+  if (consecLoss >= settings.max_consecutive_losses)
+    reasons.push("연속 손실");
+  if (settings.manual_trading_state === "Stop")
+    reasons.push("수동 중단");
 
   let state: "NORMAL" | "SLOWDOWN" | "STOP" = "NORMAL";
   if      (settings.manual_trading_state === "Stop")      state = "STOP";
@@ -118,11 +123,14 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true, state, reasons, settings,
     stats: {
-      seed, equityNow, cumPnl, pnlPct,
-      peakEquity, maxDdUsd, ddPct,
-      todayPnl, dailyLossUsd, dailyLossPct,
-      tradesToday, tradesThisHour,
-      consecLoss, maxConsecLoss: consecLoss,
+      seed, equityNow: Number(equityNow.toFixed(2)), cumPnl: Number(cumPnl.toFixed(2)),
+      pnlPct: Number(pnlPct.toFixed(2)), peakEquity: Number(peakEquity.toFixed(2)),
+      maxDdUsd: Number(maxDdUsd.toFixed(2)), ddPct: Number(ddPct.toFixed(2)),
+      todayPnl: Number(todayPnl.toFixed(2)),
+      dailyLossUsd: Number(dailyLossUsd.toFixed(2)),
+      dailyLossPct: Number(dailyLossPct.toFixed(2)),
+      tradesToday, tradesThisHour, consecLoss,
+      maxConsecLoss: consecLoss,
       totalWithdrawal: Number(totalWithdrawal.toFixed(2)),
       ddMode: settings.dd_mode, ddFloorUsd: settings.dd_floor_usd,
     },

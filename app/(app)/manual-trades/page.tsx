@@ -97,7 +97,7 @@ export default function TradeRecordsPage() {
     setLoading(true);
     try {
       const f = overrideFrom ?? from;
-      const p = new URLSearchParams({ limit: "1000" });
+      const p = new URLSearchParams({ limit: "5000" });
       if (f)         p.set("from", f);
       if (to)        p.set("to", to);
       if (symFilter) p.set("symbol", symFilter);

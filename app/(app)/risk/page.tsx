@@ -193,6 +193,15 @@ export default function RiskPage() {
           <span style={{ opacity: 0.6 }}> (최초 시드 {fmt(s.seed)} + 누적 PnL {s.cumPnl >= 0 ? "+" : ""}{fmt(s.cumPnl)})</span>
         </div>
 
+        {/* 최초 시드 */}
+        <div>
+          <Field label="최초 시드 (USDT) — 트레이딩 원금"
+            value={settings.seed_usd ?? ""}
+            onChange={v => setSettings({ ...settings, seed_usd: v })}
+            onBlur={() => save()} />
+          <div style={hint}>입금한 원금 기준. 현재 자산 = 시드 + 누적 PnL - 출금</div>
+        </div>
+
         {/* 최대 낙폭 */}
         <div>
           <div style={groupLabel}>최대 낙폭 방식</div>
