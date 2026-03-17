@@ -85,7 +85,7 @@ export default function WithdrawalsPage() {
   const grouped = useMemo(() => {
     const map: Record<string, any[]> = {};
     for (const w of list) {
-      const key = w.withdrawn_at?.slice(0, 7) || "unknown";
+      const key = (w.withdrawn_at || w.date || "")?.slice(0, 7) || "unknown";
       if (!map[key]) map[key] = [];
       map[key].push(w);
     }

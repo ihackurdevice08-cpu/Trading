@@ -93,9 +93,14 @@ async function aggregateFills(
     const payload = typeof f.payload === "string" ? JSON.parse(f.payload) : (f.payload ?? {});
     const tradeSide = String(f.trade_side || payload?.tradeSide || "").toLowerCase();
     const size = Number(f.size || 0), price = Number(f.price || 0);
-    if (tradeSide === "funding_fee" || tradeSide === "settle") fundingFills.push({...f, payload});
-    else if (tradeSide.includes("close") && size > 0 && price > 0) closeFills.push({...f, payload});
-    else if (tradeSide.includes("open")  && size > 0 && price > 0) feeFills.push({...f, payload});
+    if (tradeSide === "funding_fee" || tradeSide === "settle") {
+      fundingFills.push({...f, payload});
+    } else if ((tradeSide.includes("close") || tradeSide === "sell_single" || tradeSide === "buy_single") && size > 0 && price > 0) {
+      // close_long, close_short, close, sell_single(롱청산), buy_single(숏청산) 모두 포함
+      closeFills.push({...f, payload});
+    } else if (tradeSide.includes("open") && size > 0 && price > 0) {
+      feeFills.push({...f, payload});
+    }
   }
 
   if (!closeFills.length && !fundingFills.length)
