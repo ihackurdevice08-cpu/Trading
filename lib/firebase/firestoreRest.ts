@@ -166,8 +166,8 @@ export async function setDoc(
 
   if (merge) {
     // PATCH with updateMask
-    const fieldPaths = Object.keys(fields).join(",");
-    await req("PATCH", `${BASE_URL}/${path}?updateMask.fieldPaths=${fieldPaths}`, token, { fields });
+    const mask = Object.keys(fields).map(f => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join("&");
+    await req("PATCH", `${BASE_URL}/${path}?${mask}`, token, { fields });
   } else {
     await req("PATCH", `${BASE_URL}/${path}`, token, { fields });
   }
