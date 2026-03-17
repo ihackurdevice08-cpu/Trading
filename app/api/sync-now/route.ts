@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthInfo } from "@/lib/firebase/serverAuth";
-import { queryDocs, listDocs, batchWrite, setDoc } from "@/lib/firebase/firestoreRest";
+import { queryDocs, listDocs, setDoc } from "@/lib/firebase/firestoreRest";
 import { decryptText } from "@/lib/crypto/dec";
 import { bitgetSign } from "@/lib/bitget/sign";
 
@@ -175,10 +175,13 @@ async function aggregateFills(
 
   if (!rows.length) return { count: 0, debug: { reason: "집계 결과 없음" } };
 
-  // batchWrite로 일괄 저장
-  const tradeWrites = rows.map(r => ({ type: "set" as const, path: r.path, data: r.data, merge: false }));
-  for (let i = 0; i < tradeWrites.length; i += 500) {
-    await batchWrite(token, tradeWrites.slice(i, i + 500));
+  // 병렬 setDoc으로 저장 (50건씩 청크)
+  for (let i = 0; i < rows.length; i += 50) {
+    await Promise.all(
+      rows.slice(i, i + 50).map(r =>
+        setDoc(token, r.path, r.data, false)
+      )
+    );
   }
 
   return {
@@ -247,13 +250,14 @@ export async function POST(req: Request) {
         const list: any[] = json?.data?.fillList ?? json?.data?.list ?? [];
         if (!Array.isArray(list) || !list.length) break;
 
-        // batchWrite로 일괄 저장 (timeout 방지)
-        const fillWrites = list.map(it => {
-          const row = fillToRow(it, uid, accId);
-          return { type: "set" as const, path: `users/${uid}/fills_raw/${row.id}`, data: row, merge: false };
-        });
-        for (let i = 0; i < fillWrites.length; i += 500) {
-          await batchWrite(token, fillWrites.slice(i, i + 500));
+        // 병렬 setDoc으로 저장 (50건씩 청크, timeout 방지)
+        const fillRows = list.map(it => fillToRow(it, uid, accId));
+        for (let i = 0; i < fillRows.length; i += 50) {
+          await Promise.all(
+            fillRows.slice(i, i + 50).map(row =>
+              setDoc(token, `users/${uid}/fills_raw/${row.id}`, row, false)
+            )
+          );
         }
         rawInserted += list.length;
 
