@@ -33,8 +33,10 @@ export async function GET(req: Request) {
   const { uid, token } = auth;
 
   const url     = new URL(req.url);
-  const pnlFrom = url.searchParams.get("from") || null;
-  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
+  const pnlFromParam = url.searchParams.get("from") || null;
+  // URL 파라미터 없으면 risk_settings.pnl_from 사용 (아래서 rsDoc fetch 후 재설정)
+  let pnlFrom = pnlFromParam;
+  let pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
   const base = `users/${uid}`;
 
@@ -53,6 +55,11 @@ export async function GET(req: Request) {
   ]);
 
   const seed   = Number(rsDoc?.seed_usd ?? 10000);
+  // URL 파라미터 없으면 risk_settings.pnl_from 적용
+  if (!pnlFromParam && rsDoc?.pnl_from) {
+    pnlFrom = String(rsDoc.pnl_from);
+    pnlFromMs = new Date(pnlFrom).getTime();
+  }
   const wdList = wdDocs;
 
   const todayMs  = kstMs(0);

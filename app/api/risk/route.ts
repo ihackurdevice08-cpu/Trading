@@ -28,8 +28,9 @@ export async function GET(req: Request) {
   const { uid, token } = auth;
 
   const url       = new URL(req.url);
-  const pnlFrom   = url.searchParams.get("from") || null;
-  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
+  const pnlFromParam = url.searchParams.get("from") || null;
+  let pnlFrom   = pnlFromParam;
+  let pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
   const base = `users/${uid}`;
 
@@ -56,6 +57,11 @@ export async function GET(req: Request) {
   };
 
   const seed            = settings.seed_usd;
+  // URL 파라미터 없으면 risk_settings.pnl_from 적용
+  if (!pnlFromParam && rs?.pnl_from) {
+    pnlFrom = String(rs.pnl_from);
+    pnlFromMs = new Date(pnlFrom).getTime();
+  }
   const totalWithdrawal = wdDocs.reduce((s, d) => s + Number(d.amount || 0), 0);
   const todayMs         = kstToday();
   const hourMs          = kstThisHour();
