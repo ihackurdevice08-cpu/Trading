@@ -1,44 +1,33 @@
 import { NextResponse } from "next/server";
-import { getAuthUserId } from "@/lib/firebase/serverAuth";
-import { adminDb } from "@/lib/firebase/admin";
+import { getAuthInfo } from "@/lib/firebase/serverAuth";
+import { queryDocs, addDoc, setDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function ok(data: any)  { return NextResponse.json({ ok: true,  ...data }); }
-function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, error: msg }, { status }); }
-
-export async function POST(req: Request) {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
-
-  const body = await req.json().catch(() => ({}));
-  const db = adminDb();
-
-  const tradesSnap = await db.collection("users").doc(uid).collection("manual_trades").get();
-  const cumPnl = tradesSnap.docs.reduce((s, d) => s + (Number(d.data().pnl) || 0), 0);
-
-  const ref = db.collection("users").doc(uid).collection("risk_cycles").doc();
-  const data = {
-    started_at:       new Date(),
-    note:             String(body.note || "").trim(),
-    equity_snapshot:  Number(body.equity_snapshot) || cumPnl,
-    created_at:       new Date(),
-  };
-  await ref.set(data);
-  return ok({ cycle: { id: ref.id, ...data, started_at: data.started_at.toISOString() } });
-}
+function bad(m: string, s = 400) { return NextResponse.json({ ok: false, error: m }, { status: s }); }
 
 export async function GET() {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
+  const docs = await queryDocs(token, `users/${uid}/risk_cycles`, {
+    orderBy: [{ field: { fieldPath: "started_at" }, direction: "DESCENDING" }],
+    limit: 10,
+  });
+  return NextResponse.json({ ok: true, cycles: docs.map(d => ({ id: d.__id, ...d, __id: undefined })) });
+}
 
-  const snap = await adminDb().collection("users").doc(uid).collection("risk_cycles")
-    .orderBy("started_at", "desc").limit(20).get();
-
-  const cycles = snap.docs.map(d => ({
-    id: d.id, ...d.data(),
-    started_at: d.data().started_at?.toDate?.()?.toISOString() ?? null,
-  }));
-  return ok({ cycles });
+export async function POST(req: Request) {
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
+  const body = await req.json().catch(() => ({}));
+  const id = await addDoc(token, `users/${uid}/risk_cycles`, {
+    started_at: new Date(),
+    note: body.note ?? null,
+  });
+  // risk_settings의 pnl_from도 오늘로 업데이트
+  await setDoc(token, `users/${uid}/risk_settings/default`, { pnl_from: new Date().toISOString().slice(0, 10) }, true);
+  return NextResponse.json({ ok: true, id });
 }

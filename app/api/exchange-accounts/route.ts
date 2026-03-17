@@ -1,64 +1,42 @@
 import { NextResponse } from "next/server";
-import { getAuthUserId } from "@/lib/firebase/serverAuth";
-import { adminDb } from "@/lib/firebase/admin";
-import { encryptText } from "@/lib/crypto/enc";
+import { getAuthInfo } from "@/lib/firebase/serverAuth";
+import { listDocs, setDoc, deleteDoc, addDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function ok(data: any) { return NextResponse.json({ ok: true, ...data }); }
-function bad(msg: string, status = 400) { return NextResponse.json({ ok: false, error: msg }, { status }); }
+function bad(m: string, s = 400) { return NextResponse.json({ ok: false, error: m }, { status: s }); }
 
 export async function GET() {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
-
-  const snap = await adminDb().collection("users").doc(uid).collection("exchange_accounts")
-    .orderBy("created_at", "desc").get();
-
-  const accounts = snap.docs.map(d => ({
-    id: d.id,
-    exchange: d.data().exchange,
-    alias: d.data().alias,
-    created_at: d.data().created_at?.toDate?.()?.toISOString() ?? null,
-    updated_at: d.data().updated_at?.toDate?.()?.toISOString() ?? null,
-  }));
-  return ok({ accounts });
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
+  const docs = await listDocs(token, `users/${uid}/exchange_accounts`);
+  const accounts = docs.map(d => ({ id: d.__id, ...d, __id: undefined }));
+  return NextResponse.json({ ok: true, accounts });
 }
 
 export async function POST(req: Request) {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
 
   const body = await req.json().catch(() => ({}));
-  const { exchange, alias, passphrase, apiKey: _ak, api_key: _ak2, apiSecret: _as, api_secret: _as2 } = body || {};
-  const apiKey    = _ak    || _ak2;
-  const apiSecret = _as    || _as2;
+  if (!body.exchange) return bad("exchange 필요");
 
-  if (!exchange || !alias || !apiKey || !apiSecret || !passphrase)
-    return bad("exchange / alias / apiKey / apiSecret / passphrase 모두 필요합니다.");
-  if (!process.env.ENCRYPTION_SECRET)
-    return bad("서버 설정 오류: ENCRYPTION_SECRET 환경변수가 없습니다.", 500);
-
-  const ref = adminDb().collection("users").doc(uid).collection("exchange_accounts").doc();
-  const now = new Date();
-  await ref.set({
-    exchange: String(exchange), alias: String(alias),
-    api_key_enc:    encryptText(String(apiKey)),
-    api_secret_enc: encryptText(String(apiSecret)),
-    passphrase_enc: encryptText(String(passphrase)),
-    created_at: now, updated_at: now,
+  const id = await addDoc(token, `users/${uid}/exchange_accounts`, {
+    ...body, created_at: new Date(),
   });
-  return ok({ account: { id: ref.id, exchange, alias } });
+  return NextResponse.json({ ok: true, id });
 }
 
 export async function DELETE(req: Request) {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
 
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return bad("id 필요");
-
-  await adminDb().collection("users").doc(uid).collection("exchange_accounts").doc(id).delete();
-  return ok({});
+  await deleteDoc(token, `users/${uid}/exchange_accounts/${id}`);
+  return NextResponse.json({ ok: true });
 }

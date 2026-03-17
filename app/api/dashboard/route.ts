@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthUserId } from "@/lib/firebase/serverAuth";
-import { adminDb } from "@/lib/firebase/admin";
+import { getAuthInfo } from "@/lib/firebase/serverAuth";
+import { queryDocs, listDocs, getDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,15 +9,9 @@ function bad(m: string, s = 400) { return NextResponse.json({ ok: false, error: 
 
 function tsToMs(v: any): number {
   if (!v) return 0;
-  if (typeof v.toDate === "function") return v.toDate().getTime();
   if (v instanceof Date) return v.getTime();
-  const n = Number(v);
-  if (!isNaN(n) && n > 1e10) return n;
-  return new Date(v).getTime();
-}
-function tsToISO(v: any): string {
-  const ms = tsToMs(v);
-  return ms ? new Date(ms).toISOString() : "";
+  if (typeof v === "string") return new Date(v).getTime();
+  return 0;
 }
 function kstMs(offsetDays = 0): number {
   const kst = new Date(Date.now() + 9 * 3600_000);
@@ -34,49 +28,53 @@ function monthStartMs(): number {
 }
 
 export async function GET(req: Request) {
-  const uid = await getAuthUserId();
-  if (!uid) return bad("unauthorized", 401);
+  const auth = await getAuthInfo();
+  if (!auth) return bad("unauthorized", 401);
+  const { uid, token } = auth;
 
   const url     = new URL(req.url);
   const pnlFrom = url.searchParams.get("from") || null;
+  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
 
-  const db      = adminDb();
-  const userRef = db.collection("users").doc(uid);
+  const base = `users/${uid}`;
 
-  const [allSnap, recentSnap, wdSnap, rsSnap] = await Promise.all([
-    userRef.collection("manual_trades").orderBy("opened_at", "desc").limit(10000).get(),
-    userRef.collection("manual_trades").orderBy("opened_at", "desc").limit(5).get(),
-    userRef.collection("withdrawals").get(),
-    userRef.collection("risk_settings").doc("default").get(),
+  // 병렬로 데이터 가져오기
+  const [allTradeDocs, recentDocs, wdDocs, rsDoc] = await Promise.all([
+    queryDocs(token, `${base}/manual_trades`, {
+      orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
+      limit: 10000,
+    }),
+    queryDocs(token, `${base}/manual_trades`, {
+      orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
+      limit: 5,
+    }),
+    listDocs(token, `${base}/withdrawals`),
+    getDoc(token, `${base}/risk_settings/default`),
   ]);
 
-  const seed      = Number(rsSnap.exists ? rsSnap.data()?.seed_usd ?? 10000 : 10000);
-  const wdList    = wdSnap.docs.map(d => d.data());
+  const seed   = Number(rsDoc?.seed_usd ?? 10000);
+  const wdList = wdDocs;
 
   const todayMs  = kstMs(0);
   const weekMs   = weekStartMs();
   const monthMs  = monthStartMs();
   const from90Ms = Date.now() - 90 * 86400_000;
-  const pnlFromMs = pnlFrom ? new Date(pnlFrom).getTime() : 0;
+  const pnlFromMsClamped = pnlFromMs;
 
-  // 전체 거래 배열 (내림차순)
-  const allTrades = allSnap.docs.map(d => {
-    const data = d.data();
-    const openMs = tsToMs(data.opened_at);
-    return {
-      id:        d.id,
-      openMs,
-      closeMs:   tsToMs(data.closed_at),
-      openISO:   tsToISO(data.opened_at),
-      closeISO:  tsToISO(data.closed_at),
-      pnl:       data.pnl != null ? Number(data.pnl) : null,
-      symbol:    String(data.symbol ?? "unknown"),
-      side:      String(data.side   ?? "long"),
-      tags:      data.tags ?? [],
-    };
-  });
+  // 전체 거래 정규화
+  const allTrades = allTradeDocs.map(doc => ({
+    id:       doc.__id,
+    openMs:   tsToMs(doc.opened_at),
+    closeMs:  tsToMs(doc.closed_at),
+    openISO:  doc.opened_at instanceof Date ? doc.opened_at.toISOString() : String(doc.opened_at ?? ""),
+    closeISO: doc.closed_at instanceof Date ? doc.closed_at.toISOString() : String(doc.closed_at ?? ""),
+    pnl:      doc.pnl != null ? Number(doc.pnl) : null,
+    symbol:   String(doc.symbol ?? "unknown"),
+    side:     String(doc.side   ?? "long"),
+    tags:     doc.tags ?? [],
+  }));
 
-  // 오늘/주/월 PnL 집계
+  // 오늘/주/월 PnL + 통계 (오름차순으로 순회)
   let sumToday = 0, sumWeek = 0, sumMonth = 0;
   let win = 0, loss = 0, realizedCount = 0;
   let longCount = 0, shortCount = 0;
@@ -84,11 +82,8 @@ export async function GET(req: Request) {
   let totalDurMs = 0, durCount = 0;
   const symbolMap: Record<string, { pnl: number; _wins: number[]; _losses: number[] }> = {};
 
-  // 오름차순으로 순회 (연속승패 계산을 위해)
-  const asc = [...allTrades].reverse();
-  for (const r of asc) {
-    if (r.symbol === "FUNDING") continue;
-    if (r.pnl === null) continue;
+  for (const r of [...allTrades].reverse()) {
+    if (r.symbol === "FUNDING" || r.pnl === null) continue;
     realizedCount++;
     if (r.openMs >= monthMs) sumMonth += r.pnl;
     if (r.openMs >= weekMs)  sumWeek  += r.pnl;
@@ -105,16 +100,17 @@ export async function GET(req: Request) {
     if (r.pnl > 0) symbolMap[r.symbol]._wins.push(r.pnl);
     else           symbolMap[r.symbol]._losses.push(r.pnl);
   }
-  const winRate       = realizedCount > 0 ? (win / realizedCount) * 100 : null;
+
+  const winRate        = realizedCount > 0 ? (win / realizedCount) * 100 : null;
   const avgDurationMin = durCount > 0 ? Math.round(totalDurMs / durCount / 60000) : null;
 
   const topSymbols = Object.entries(symbolMap)
     .sort((a, b) => Math.abs(b[1].pnl) - Math.abs(a[1].pnl))
     .slice(0, 8)
     .map(([symbol, d]) => {
-      const avgW = d._wins.length   ? d._wins.reduce((s, v) => s + v, 0)   / d._wins.length   : null;
-      const avgL = d._losses.length ? d._losses.reduce((s, v) => s + v, 0) / d._losses.length : null;
       const cnt  = d._wins.length + d._losses.length;
+      const avgW = d._wins.length   ? d._wins.reduce((s,v)=>s+v,0)   / d._wins.length   : null;
+      const avgL = d._losses.length ? d._losses.reduce((s,v)=>s+v,0) / d._losses.length : null;
       return {
         symbol, pnl: Number(d.pnl.toFixed(2)), count: cnt,
         wins: d._wins.length, losses: d._losses.length,
@@ -124,16 +120,16 @@ export async function GET(req: Request) {
       };
     });
 
-  // 누적 PnL (pnlFrom 필터 적용)
-  const filteredTrades = pnlFrom
-    ? allTrades.filter(r => r.openMs >= pnlFromMs)
+  // 누적 PnL (pnlFrom 필터)
+  const filtered = pnlFromMsClamped
+    ? allTrades.filter(r => r.openMs >= pnlFromMsClamped)
     : allTrades;
 
-  const cumPnl     = filteredTrades.reduce((s, r) => s + (r.pnl ?? 0), 0);
+  const cumPnl      = filtered.reduce((s, r) => s + (r.pnl ?? 0), 0);
   const totalCumPnl = allTrades.reduce((s, r) => s + (r.pnl ?? 0), 0);
 
-  // 드로다운 시계열 (오름차순)
-  const forDD = [...filteredTrades].filter(r => r.pnl !== null).reverse();
+  // 드로다운
+  const forDD = [...filtered].filter(r => r.pnl !== null).reverse();
   let runPnl = 0, peakPnl = 0;
   const ddByDay: Record<string, { dd: number; cumPnl: number }> = {};
   for (const r of forDD) {
@@ -143,67 +139,63 @@ export async function GET(req: Request) {
     const day = new Date(r.openMs + 9 * 3600_000).toISOString().slice(0, 10);
     ddByDay[day] = { dd: Number(dd.toFixed(2)), cumPnl: Number(runPnl.toFixed(2)) };
   }
-  const ddSeries = Object.entries(ddByDay)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, v]) => ({ date, ...v }));
-  const currentDD      = ddSeries.length ? ddSeries[ddSeries.length - 1].dd : 0;
-  const maxDD          = ddSeries.length ? Math.max(...ddSeries.map(d => d.dd)) : 0;
-  const recoveryNeeded = currentDD > 0 ? (100 / (100 - currentDD) - 1) * 100 : 0;
+  const ddSeries = Object.entries(ddByDay).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,v])=>({date,...v}));
+  const currentDD      = ddSeries.length ? ddSeries[ddSeries.length-1].dd : 0;
+  const maxDD          = ddSeries.length ? Math.max(...ddSeries.map(d=>d.dd)) : 0;
+  const recoveryNeeded = currentDD > 0 ? (100/(100-currentDD)-1)*100 : 0;
 
   // 출금
-  const totalWithdrawal  = wdList.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const profitWithdrawal = wdList.filter(r => r.source === "profit").reduce((s, r) => s + Number(r.amount || 0), 0);
-  const seedWithdrawal   = wdList.filter(r => r.source === "seed").reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalWithdrawal  = wdList.reduce((s,r)=>s+Number(r.amount||0),0);
+  const profitWithdrawal = wdList.filter(r=>r.source==="profit").reduce((s,r)=>s+Number(r.amount||0),0);
+  const seedWithdrawal   = wdList.filter(r=>r.source==="seed").reduce((s,r)=>s+Number(r.amount||0),0);
   const equityNow        = seed + totalCumPnl - totalWithdrawal;
-  const effectiveSeed    = seed - seedWithdrawal;
-  const retainedProfit   = equityNow - effectiveSeed;
+  const retainedProfit   = equityNow - (seed - seedWithdrawal);
 
-  // 일별 PnL (이번달 + pnlFrom 범위)
+  // 일별 PnL
   const dailyMap: Record<string, number> = {};
-  for (const r of filteredTrades) {
+  for (const r of filtered) {
     if (r.pnl === null || r.symbol === "FUNDING") continue;
     const day = new Date(r.openMs + 9 * 3600_000).toISOString().slice(0, 10);
     dailyMap[day] = (dailyMap[day] || 0) + r.pnl;
   }
-  const dailyPnl = Object.entries(dailyMap)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, pnl]) => ({ date, pnl: Number(pnl.toFixed(2)) }));
+  const dailyPnl = Object.entries(dailyMap).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([date,pnl])=>({date,pnl:Number(pnl.toFixed(2))}));
 
   // 히트맵 (90일)
-  const heatmap: Record<number, Record<number, { wins: number; total: number; pnl: number }>> = {};
-  for (let d = 0; d < 7; d++) { heatmap[d] = {}; for (let h = 0; h < 24; h++) heatmap[d][h] = { wins: 0, total: 0, pnl: 0 }; }
+  const heatmap: Record<string,{wins:number;total:number;pnl:number}> = {};
+  for (let d=0;d<7;d++) for (let h=0;h<24;h++) heatmap[`${d}_${h}`]={wins:0,total:0,pnl:0};
   for (const r of allTrades) {
-    if (r.pnl === null || r.openMs < from90Ms || r.symbol === "FUNDING") continue;
-    const kstDate = new Date(r.openMs + 9 * 3600_000);
-    const dow  = (kstDate.getUTCDay() + 6) % 7;
+    if (r.pnl===null||r.openMs<from90Ms||r.symbol==="FUNDING") continue;
+    const kstDate = new Date(r.openMs + 9*3600_000);
+    const dow  = (kstDate.getUTCDay()+6)%7;
     const hour = kstDate.getUTCHours();
-    heatmap[dow][hour].total += 1;
-    heatmap[dow][hour].pnl   += r.pnl;
-    if (r.pnl > 0) heatmap[dow][hour].wins += 1;
+    const key  = `${dow}_${hour}`;
+    heatmap[key].total++;
+    heatmap[key].pnl += r.pnl;
+    if (r.pnl>0) heatmap[key].wins++;
   }
   const heatmapData = [];
-  for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) {
-    const c = heatmap[d][h];
-    heatmapData.push({ dow: d, hour: h, total: c.total, pnl: Number(c.pnl.toFixed(2)),
-      winRate: c.total >= 2 ? Math.round((c.wins / c.total) * 100) : null });
+  for (let d=0;d<7;d++) for (let h=0;h<24;h++) {
+    const c = heatmap[`${d}_${h}`];
+    heatmapData.push({dow:d,hour:h,total:c.total,pnl:Number(c.pnl.toFixed(2)),
+      winRate:c.total>=2?Math.round((c.wins/c.total)*100):null});
   }
 
   // 월별 PnL
-  const monthlyMap: Record<string, number> = {};
+  const monthlyMap: Record<string,number> = {};
   for (const r of allTrades) {
-    if (!r.pnl) continue;
-    const month = r.openISO.slice(0, 7);
-    if (month) monthlyMap[month] = (monthlyMap[month] || 0) + r.pnl;
+    if (!r.pnl||!r.openISO) continue;
+    const month = r.openISO.slice(0,7);
+    monthlyMap[month] = (monthlyMap[month]||0) + r.pnl;
   }
-  const monthlyPnl = Object.entries(monthlyMap)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, pnl]) => ({ month, pnl: Number(pnl.toFixed(2)) }));
+  const monthlyPnl = Object.entries(monthlyMap).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([month,pnl])=>({month,pnl:Number(pnl.toFixed(2))}));
 
   // 최근 5건
-  const recent = recentSnap.docs.map(d => ({
-    id: d.id, symbol: d.data().symbol, side: d.data().side,
-    opened_at: tsToISO(d.data().opened_at),
-    pnl: d.data().pnl ?? null, tags: d.data().tags ?? [],
+  const recent = recentDocs.map(doc => ({
+    id: doc.__id, symbol: doc.symbol, side: doc.side,
+    opened_at: doc.opened_at instanceof Date ? doc.opened_at.toISOString() : String(doc.opened_at ?? ""),
+    pnl: doc.pnl ?? null, tags: doc.tags ?? [],
   }));
 
   return NextResponse.json({
@@ -212,7 +204,7 @@ export async function GET(req: Request) {
       todayPnL: Number(sumToday.toFixed(2)),
       weekPnL:  Number(sumWeek.toFixed(2)),
       monthPnL: Number(sumMonth.toFixed(2)),
-      totalTrades: allTrades.filter(r => r.symbol !== "FUNDING").length,
+      totalTrades: allTrades.filter(r=>r.symbol!=="FUNDING").length,
       realizedTrades: realizedCount,
       wins: win, losses: loss, winRate,
       cumPnl: Number(cumPnl.toFixed(2)), pnlFrom, seed,

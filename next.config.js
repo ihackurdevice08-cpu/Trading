@@ -21,46 +21,8 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
   },
 
-  // firebase-admin 서버 전용 처리
-  serverExternalPackages: ["firebase-admin"],
-
-  webpack: function(config, options) {
-    if (!options.isServer) {
-      var prev = Array.isArray(config.externals)
-        ? config.externals
-        : config.externals ? [config.externals] : [];
-
-      config.externals = prev.concat([
-        function(ctx, callback) {
-          var req = ctx.request || "";
-          if (req === "firebase-admin" || req.startsWith("firebase-admin/")) {
-            return callback(null, "commonjs " + req);
-          }
-          if (
-            req.startsWith("@google-cloud/") ||
-            req.startsWith("google-gax") ||
-            req.startsWith("google-auth-library") ||
-            req.startsWith("gcp-metadata") ||
-            req.startsWith("google-logging-utils")
-          ) {
-            return callback(null, "commonjs " + req);
-          }
-          return callback();
-        }
-      ]);
-
-      config.resolve.fallback = Object.assign({}, config.resolve.fallback, {
-        "node:process": false, "node:stream": false, "node:crypto": false,
-        "node:path": false, "node:os": false, "node:fs": false,
-        "node:net": false, "node:tls": false, "node:http": false,
-        "node:https": false, "node:zlib": false, "node:buffer": false,
-        "node:util": false, "node:url": false, "node:events": false,
-        "node:assert": false, "node:child_process": false, "node:dns": false,
-        fs: false, net: false, tls: false, dns: false, child_process: false
-      });
-    }
-    return config;
-  },
+  // firebase-admin 제거로 serverExternalPackages 불필요
+  // Firestore REST API 사용으로 Node.js 네이티브 모듈 의존성 없음
 
   compress: true,
   poweredByHeader: false,
