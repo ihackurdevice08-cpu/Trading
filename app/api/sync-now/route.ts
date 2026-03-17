@@ -48,7 +48,7 @@ function fillToRow(it: any, uid: string, accountId: string) {
     fee = Number(it.fee);
   }
   return {
-    id:           `${uid}:${accountId}:${tradeId || orderId || ts}`,
+    id:           `${uid}_${accountId}_${tradeId || orderId || ts}`.replace(/:/g, "_"),
     account_id:   accountId,
     exchange:     "bitget",
     product_type: "usdt-futures",
@@ -131,7 +131,7 @@ async function aggregateFills(
       : parseSide(String(first.trade_side || ""), String(first.side || ""));
     const symbol = String(first.symbol || "").replace(/_UMCBL|_DMCBL|_CMCBL/g, "");
     rows.push({
-      path: `users/${uid}/manual_trades/bitget:${accountId}:${orderId}`,
+      path: `users/${uid}/manual_trades/bitget_${accountId}_${orderId}`.replace(/:/g, "_"),
       data: {
         symbol, side,
         opened_at: new Date(Number(first.ts_ms)),
@@ -156,7 +156,7 @@ async function aggregateFills(
   for (const [day, { pnl, ts }] of Object.entries(fundingByDay)) {
     if (pnl === 0) continue;
     rows.push({
-      path: `users/${uid}/manual_trades/bitget:${accountId}:funding:${day}`,
+      path: `users/${uid}/manual_trades/bitget_${accountId}_funding_${day}`,
       data: {
         symbol: "FUNDING", side: "long",
         opened_at: new Date(ts), closed_at: new Date(ts),
