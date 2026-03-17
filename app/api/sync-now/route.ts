@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthInfo } from "@/lib/firebase/serverAuth";
-import { queryDocs, listDocs, batchWrite } from "@/lib/firebase/firestoreRest";
+import { queryDocs, listDocs, setDoc } from "@/lib/firebase/firestoreRest";
 import { decryptText } from "@/lib/crypto/dec";
 import { bitgetSign } from "@/lib/bitget/sign";
 
@@ -170,7 +170,9 @@ async function aggregateFills(
 
   if (!rows.length) return { count: 0, debug: { reason: "집계 결과 없음" } };
 
-  await batchWrite(token, rows.map(r => ({ type: "set" as const, path: r.path, data: r.data, merge: true })));
+  for (const r of rows) {
+    await setDoc(token, r.path, r.data, true);
+  }
 
   return {
     count: rows.length,
@@ -238,13 +240,9 @@ export async function POST(req: Request) {
         const list: any[] = json?.data?.fillList ?? json?.data?.list ?? [];
         if (!Array.isArray(list) || !list.length) break;
 
-        const writes = list.map(it => {
+        for (const it of list) {
           const row = fillToRow(it, uid, accId);
-          return { type: "set" as const, path: `users/${uid}/fills_raw/${row.id}`, data: row, merge: true };
-        });
-
-        for (let i = 0; i < writes.length; i += 500) {
-          await batchWrite(token, writes.slice(i, i + 500));
+          await setDoc(token, `users/${uid}/fills_raw/${row.id}`, row, true);
         }
         rawInserted += list.length;
 
