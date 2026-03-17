@@ -190,7 +190,9 @@ export async function POST(req: Request) {
   const targetAccountId = body?.account_id || null;
   const fromDate        = body?.from ? String(body.from) : "2018-01-01";
   const fromMs          = new Date(fromDate + "T00:00:00Z").getTime() - 9 * 3600_000;
-  const fromTimestamp   = String(fromMs);
+  // Bitget API는 너무 오래된 startTime을 거부 → 최근 90일로 제한
+  const bitgetFromMs    = Math.max(fromMs, Date.now() - 90 * 86400_000);
+  const fromTimestamp   = String(bitgetFromMs);
 
   const allAccounts = await listDocs(token, `users/${uid}/exchange_accounts`);
   const accounts = allAccounts
