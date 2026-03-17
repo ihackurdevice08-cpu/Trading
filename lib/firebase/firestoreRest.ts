@@ -207,9 +207,10 @@ export async function batchWrite(
 ): Promise<void> {
   const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:batchWrite`;
 
+  const DOC_PREFIX = `projects/${PROJECT_ID}/databases/(default)/documents`;
   const firestoreWrites = writes.map(w => {
     if (w.type === "delete") {
-      return { delete: `${BASE_URL}/${w.path}` };
+      return { delete: `${DOC_PREFIX}/${w.path}` };
     }
     const fields: Record<string, FireValue> = {};
     for (const [k, v] of Object.entries(w.data ?? {})) {
@@ -217,11 +218,11 @@ export async function batchWrite(
     }
     if (w.merge) {
       return {
-        update: { name: `${BASE_URL}/${w.path}`, fields },
+        update: { name: `${DOC_PREFIX}/${w.path}`, fields },
         updateMask: { fieldPaths: Object.keys(fields) },
       };
     }
-    return { update: { name: `${BASE_URL}/${w.path}`, fields } };
+    return { update: { name: `${DOC_PREFIX}/${w.path}`, fields } };
   });
 
   // 500개씩 나눠서 처리
