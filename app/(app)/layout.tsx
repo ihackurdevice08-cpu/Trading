@@ -13,24 +13,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const auth = firebaseAuth();
+    // 마지막 세션 갱신 시각 (55분 이내면 스킵 — Firebase 토큰 유효기간 1시간)
+    const SESSION_TTL = 55 * 60 * 1000;
+    let lastSessionUpdate = Number(sessionStorage.getItem("__session_ts") || 0);
 
-    // onIdTokenChanged: 토큰이 갱신될 때마다 호출됨 (만료 전 자동 갱신 포함)
     const unsub = onIdTokenChanged(auth, async (user) => {
       if (!user) {
         router.replace("/login");
         return;
       }
-      try {
-        // 항상 최신 토큰 가져와서 쿠키 업데이트
-        const token = await user.getIdToken();
-        await fetch("/auth/session", {
-          method:  "POST",
-          headers: { "content-type": "application/json" },
-          body:    JSON.stringify({ idToken: token }),
-        });
-      } catch {
-        // 쿠키 갱신 실패해도 앱 동작 유지
+
+      const now = Date.now();
+      const needsUpdate = now - lastSessionUpdate > SESSION_TTL;
+
+      if (needsUpdate) {
+        try {
+          const token = await user.getIdToken();
+          await fetch("/auth/session", {
+            method:  "POST",
+            headers: { "content-type": "application/json" },
+            body:    JSON.stringify({ idToken: token }),
+          });
+          lastSessionUpdate = now;
+          sessionStorage.setItem("__session_ts", String(now));
+        } catch {
+          // 쿠키 갱신 실패해도 앱 동작 유지
+        }
       }
+
       setReady(true);
     });
 

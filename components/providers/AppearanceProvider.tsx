@@ -36,11 +36,30 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const APPEARANCE_CACHE_KEY = "__appearance_cache";
+  const APPEARANCE_CACHE_TTL  = 5 * 60 * 1000; // 5분
+
   const reloadAppearance = useCallback(async () => {
     try {
       const user = firebaseAuth().currentUser;
       setIsAuthed(!!user);
       if (!user) return;
+
+      // sessionStorage 캐시 확인 (페이지 이동 시 재요청 방지)
+      try {
+        const cached = sessionStorage.getItem(APPEARANCE_CACHE_KEY);
+        if (cached) {
+          const { data: ap, ts } = JSON.parse(cached);
+          if (Date.now() - ts < APPEARANCE_CACHE_TTL && ap) {
+            setAppearance({
+              ...DEFAULT_APPEARANCE, ...ap,
+              riskWidget: { ...DEFAULT_APPEARANCE.riskWidget, ...(ap.riskWidget || {}) },
+              bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap.bg || {}) },
+            });
+            return;
+          }
+        }
+      } catch {}
 
       const r = await fetch("/api/settings", { cache: "no-store" });
       if (!r.ok) return;
@@ -50,9 +69,13 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       const ap = j?.appearance || j?.data?.appearance || null;
       if (!ap) return;
 
+      // 캐시 저장
+      try {
+        sessionStorage.setItem(APPEARANCE_CACHE_KEY, JSON.stringify({ data: ap, ts: Date.now() }));
+      } catch {}
+
       setAppearance({
-        ...DEFAULT_APPEARANCE,
-        ...ap,
+        ...DEFAULT_APPEARANCE, ...ap,
         riskWidget: { ...DEFAULT_APPEARANCE.riskWidget, ...(ap.riskWidget || {}) },
         bg: { ...(DEFAULT_APPEARANCE.bg || {}), ...(ap.bg || {}) },
       });
@@ -93,6 +116,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || "저장 실패");
+    // 저장 후 캐시 무효화 (다음 로드 시 최신 데이터 조회)
+    try { sessionStorage.removeItem("__appearance_cache"); } catch {}
   }, [appearance]);
 
   useEffect(() => {

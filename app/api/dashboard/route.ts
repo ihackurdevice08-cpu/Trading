@@ -40,15 +40,11 @@ export async function GET(req: Request) {
 
   const base = `users/${uid}`;
 
-  // 병렬로 데이터 가져오기
-  const [allTradeDocs, recentDocs, wdDocs, rsDoc] = await Promise.all([
+  // 병렬로 데이터 가져오기 (recentDocs는 allTradeDocs.slice로 대체)
+  const [allTradeDocs, wdDocs, rsDoc] = await Promise.all([
     queryDocs(token, `${base}/manual_trades`, {
       orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
       limit: 10000,
-    }),
-    queryDocs(token, `${base}/manual_trades`, {
-      orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
-      limit: 5,
     }),
     listDocs(token, `${base}/withdrawals`),
     getDoc(token, `${base}/risk_settings/default`),
@@ -198,8 +194,8 @@ export async function GET(req: Request) {
   const monthlyPnl = Object.entries(monthlyMap).sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([month,pnl])=>({month,pnl:Number(pnl.toFixed(2))}));
 
-  // 최근 5건
-  const recent = recentDocs.map(doc => ({
+  // 최근 5건 (allTradeDocs에서 slice — 별도 쿼리 불필요)
+  const recent = allTradeDocs.slice(0, 5).map(doc => ({
     id: doc.__id, symbol: doc.symbol, side: doc.side,
     opened_at: doc.opened_at instanceof Date ? doc.opened_at.toISOString() : String(doc.opened_at ?? ""),
     pnl: doc.pnl ?? null, tags: doc.tags ?? [],
@@ -228,3 +224,5 @@ export async function GET(req: Request) {
     recent, topSymbols, dailyPnl, ddSeries, heatmapData, monthlyPnl,
   });
 }
+
+// optimized: 20260318013014

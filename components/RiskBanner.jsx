@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 let _cache = null;
 let _cacheAt = 0;
-const CACHE_MS = 30_000;
+const CACHE_MS = 60_000; // 60초 캐시 (30초 → 60초)
 
 const STATE_META = {
   STOP:     { icon: "◬", color: "#c0392b", bg: "rgba(192,57,43,0.07)", border: "rgba(192,57,43,0.2)",  label: "거래 중단", msg: "리스크 한도에 도달했습니다. 잠시 멈추고 기록을 남긴 뒤 다음 기회를 노리세요." },
@@ -15,19 +15,38 @@ export default function RiskBanner() {
 
   useEffect(() => {
     let alive = true;
+
     async function load() {
-      if (_cache && Date.now() - _cacheAt < CACHE_MS) { if (alive) setData(_cache); return; }
+      // 탭이 백그라운드면 스킵
+      if (document.hidden) return;
+      // 캐시 유효하면 즉시 반환
+      if (_cache && Date.now() - _cacheAt < CACHE_MS) {
+        if (alive) setData(_cache);
+        return;
+      }
       try {
         const r = await fetch("/api/risk", { cache: "no-store" });
         if (!r.ok) return;
         const j = await r.json();
         if (!j?.ok) return;
-        _cache = j; _cacheAt = Date.now();
+        _cache = j;
+        _cacheAt = Date.now();
         if (alive) setData(j);
       } catch {}
     }
+
     load();
-    return () => { alive = false; };
+
+    // 탭이 포커스될 때 캐시 만료 시 재조회
+    function onVisible() {
+      if (!document.hidden) load();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   if (!data?.ok || data.state === "NORMAL" || !STATE_META[data.state]) return null;

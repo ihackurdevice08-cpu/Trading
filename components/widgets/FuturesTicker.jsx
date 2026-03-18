@@ -51,8 +51,21 @@ export default function FuturesTicker() {
 
   useEffect(() => {
     tick();
-    timer.current = setInterval(tick, 5000);
-    return () => clearInterval(timer.current);
+    timer.current = setInterval(() => {
+      // 탭이 백그라운드일 때 polling 중단 (불필요한 API 호출 방지)
+      if (!document.hidden) tick();
+    }, 5000);
+
+    // 탭 복귀 시 즉시 1회 fetch
+    function onVisible() {
+      if (!document.hidden) tick();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(timer.current);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const rows = useMemo(() =>
