@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthInfo } from "@/lib/firebase/serverAuth";
-import { listDocs, queryDocs, addDoc, deleteDoc, batchWrite, toFireValue } from "@/lib/firebase/firestoreRest";
+import { listDocs, queryDocs, addDoc, deleteDoc, setDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,13 +143,9 @@ export async function PATCH(req: Request) {
   if ("tags"     in body && Array.isArray(tags)) update.tags = tags;
   if (!Object.keys(update).length) return bad("업데이트할 필드 없음");
 
-  const writes = ids.map(id => ({
-    type: "set" as const,
-    path: `users/${uid}/manual_trades/${id}`,
-    data: update,
-    merge: true,
-  }));
-
-  await batchWrite(token, writes);
+  // batchWrite는 idToken으로 403 → 병렬 setDoc(merge)으로 교체
+  await Promise.all(
+    ids.map(id => setDoc(token, `users/${uid}/manual_trades/${id}`, update, true))
+  );
   return NextResponse.json({ ok: true, updated: ids.length });
 }

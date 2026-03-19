@@ -1,17 +1,14 @@
 "use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 const toN = (v: any) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
-const fmt = (v: any, d = 2) => {
-  const n = toN(v);
-  return n.toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
-};
+const fmt = (v: any, d = 2) => toN(v).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
 function today() { return new Date().toISOString().slice(0, 10); }
 
 const SOURCE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  profit:  { label: "수익 출금",   color: "var(--green, #0b7949)",  bg: "rgba(11,121,73,0.1)"  },
-  seed:    { label: "원금 회수",   color: "#d97706",                 bg: "rgba(217,119,6,0.1)"  },
-  rebate:  { label: "리베이트",    color: "var(--accent, #B89A5A)", bg: "rgba(184,154,90,0.1)" },
+  profit:  { label: "수익 출금",  color: "var(--green, #0b7949)",  bg: "rgba(11,121,73,0.1)"  },
+  seed:    { label: "원금 회수",  color: "#d97706",                 bg: "rgba(217,119,6,0.1)"  },
+  rebate:  { label: "리베이트",   color: "var(--accent, #B89A5A)", bg: "rgba(184,154,90,0.1)" },
 };
 
 const iStyle: React.CSSProperties = {
@@ -32,16 +29,27 @@ const btn2: React.CSSProperties = {
 };
 
 export default function WithdrawalsPage() {
-  const [list,    setList]    = useState<any[]>([]);
-  const [totals,  setTotals]  = useState<any>({});
-  const [busy,    setBusy]    = useState(false);
-  const [err,     setErr]     = useState("");
+  const [list,     setList]     = useState<any[]>([]);
+  const [totals,   setTotals]   = useState<any>({});
+  const [busy,     setBusy]     = useState(false);
+  const [err,      setErr]      = useState("");
   const [formOpen, setFormOpen] = useState(false);
 
+  // 입력 폼
   const [fAmount, setFAmount] = useState("");
   const [fSource, setFSource] = useState<"profit"|"seed"|"rebate">("profit");
   const [fNote,   setFNote]   = useState("");
   const [fDate,   setFDate]   = useState(today);
+
+  // 인라인 편집
+  const [editId,     setEditId]     = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editNote,   setEditNote]   = useState("");
+
+  // 드래그앤드롭
+  const dragIdx   = useRef<number | null>(null);
+  const dragOver  = useRef<number | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/withdrawals", { cache: "no-store" });
@@ -58,10 +66,7 @@ export default function WithdrawalsPage() {
     try {
       const r = await fetch("/api/withdrawals", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          amount: toN(fAmount), source: fSource,
-          note: fNote, withdrawn_at: fDate,
-        }),
+        body: JSON.stringify({ amount: toN(fAmount), source: fSource, note: fNote, withdrawn_at: fDate }),
       });
       const j = await r.json().catch(() => null);
       if (!j?.ok) { setErr(j?.error || "저장 실패"); return; }
@@ -81,16 +86,60 @@ export default function WithdrawalsPage() {
     } finally { setBusy(false); }
   }
 
-  // 월별 그룹
-  const grouped = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    for (const w of list) {
-      const key = (w.withdrawn_at || w.date || "")?.slice(0, 7) || "unknown";
-      if (!map[key]) map[key] = [];
-      map[key].push(w);
-    }
-    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [list]);
+  function startEdit(w: any) {
+    setEditId(w.id);
+    setEditAmount(String(w.amount));
+    setEditNote(w.note ?? "");
+  }
+
+  async function saveEdit(id: string) {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/withdrawals", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, amount: toN(editAmount), note: editNote }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) { setErr(j?.error || "수정 실패"); return; }
+      setEditId(null);
+      await load();
+    } finally { setBusy(false); }
+  }
+
+  // 드래그앤드롭 핸들러
+  function onDragStart(idx: number) {
+    dragIdx.current = idx;
+    setDragging(idx);
+  }
+  function onDragEnter(idx: number) { dragOver.current = idx; }
+  function onDragEnd() {
+    setDragging(null);
+    if (dragIdx.current === null || dragOver.current === null) return;
+    if (dragIdx.current === dragOver.current) { dragIdx.current = dragOver.current = null; return; }
+
+    const newList = [...list];
+    const [moved] = newList.splice(dragIdx.current, 1);
+    newList.splice(dragOver.current, 0, moved);
+    dragIdx.current = dragOver.current = null;
+
+    // 새 순서 낙관적 업데이트 후 서버 저장
+    setList(newList);
+    const sort_orders: Record<string, number> = {};
+    newList.forEach((w, i) => { sort_orders[w.id] = i; });
+    fetch("/api/withdrawals", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sort_orders }),
+    });
+  }
+
+  // 월별 그룹 (정렬 유지)
+  const grouped: [string, any[]][] = [];
+  const monthMap: Record<string, any[]> = {};
+  for (const w of list) {
+    const key = (w.withdrawn_at || "")?.slice(0, 7) || "unknown";
+    if (!monthMap[key]) { monthMap[key] = []; grouped.push([key, monthMap[key]]); }
+    monthMap[key].push(w);
+  }
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto" }}>
@@ -106,23 +155,20 @@ export default function WithdrawalsPage() {
           border: "1px solid rgba(192,57,43,.2)", color: "var(--red,#c0392b)",
           background: "rgba(192,57,43,.06)", fontSize: 13, display: "flex", justifyContent: "space-between" }}>
           <span>{err}</span>
-          <button onClick={() => setErr("")} style={{ background: "none", border: "none",
-            cursor: "pointer", opacity: 0.5 }}>✕</button>
+          <button onClick={() => setErr("")} style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.5 }}>✕</button>
         </div>
       )}
 
       {/* 누적 요약 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))",
-        gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 8, marginBottom: 16 }}>
         {[
-          ["누적 출금 합계",  totals.total,   "inherit"],
-          ["수익 출금",       totals.profit,  "var(--green,#0b7949)"],
-          ["원금 회수",       totals.seed,    "#d97706"],
-          ["리베이트",        totals.rebate,  "var(--accent,#B89A5A)"],
+          ["누적 출금 합계", totals.total,  "inherit"],
+          ["수익 출금",      totals.profit, "var(--green,#0b7949)"],
+          ["원금 회수",      totals.seed,   "#d97706"],
+          ["리베이트",       totals.rebate, "var(--accent,#B89A5A)"],
         ].map(([label, val, color]) => (
           <div key={label as string} style={{ padding: "12px 14px", borderRadius: 12,
-            border: "1px solid var(--line-soft)",
-            background: "var(--panel)" }}>
+            border: "1px solid var(--line-soft)", background: "var(--panel)" }}>
             <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>{label}</div>
             <div style={{ fontWeight: 900, fontSize: 16, color: color as string }}>
               {fmt(val || 0)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
@@ -141,15 +187,14 @@ export default function WithdrawalsPage() {
               <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>금액 (USDT)</span>
               <input type="number" min="0" placeholder="예: 500" value={fAmount}
                 onChange={e => setFAmount(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && submit()}
-                style={iStyle} />
+                onKeyDown={e => e.key === "Enter" && submit()} style={iStyle} />
             </div>
             <div style={{ display: "grid", gap: 4 }}>
               <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>출금 종류</span>
               <select value={fSource} onChange={e => setFSource(e.target.value as any)} style={iStyle}>
-                <option value="profit">수익 출금 — 거래 수익에서</option>
-                <option value="seed">원금 회수 — 초기 시드에서</option>
-                <option value="rebate">리베이트 — 거래소 리베이트</option>
+                <option value="profit">수익 출금</option>
+                <option value="seed">원금 회수</option>
+                <option value="rebate">리베이트</option>
               </select>
             </div>
             <div style={{ display: "grid", gap: 4 }}>
@@ -161,8 +206,7 @@ export default function WithdrawalsPage() {
               <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>메모 (선택)</span>
               <input placeholder="예: 월세, 생활비..." value={fNote}
                 onChange={e => setFNote(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && submit()}
-                style={iStyle} />
+                onKeyDown={e => e.key === "Enter" && submit()} style={iStyle} />
             </div>
           </div>
           <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
@@ -172,49 +216,100 @@ export default function WithdrawalsPage() {
         </div>
       )}
 
+      <div style={{ fontSize: 11, opacity: 0.4, marginBottom: 10 }}>
+        ↕ 드래그로 순서 변경 · 금액/메모 클릭으로 수정
+      </div>
+
       {/* 월별 리스트 */}
       {grouped.length === 0 ? (
         <div style={{ padding: 32, textAlign: "center" as const, opacity: 0.5, fontSize: 14 }}>
           출금 기록이 없습니다.
         </div>
-      ) : grouped.map(([month, rows]) => {
+      ) : grouped.map(([month, rows], _gi) => {
         const monthTotal = rows.reduce((s, r) => s + toN(r.amount), 0);
         return (
           <div key={month} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-              marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 800, opacity: 0.6 }}>{month}</span>
               <span style={{ fontSize: 12, opacity: 0.6 }}>합계 {fmt(monthTotal)} USDT</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-              {rows.map(w => {
+              {rows.map((w, idx) => {
+                const globalIdx = list.indexOf(w);
                 const meta = SOURCE_LABELS[w.source] || SOURCE_LABELS.profit;
+                const isEditing = editId === w.id;
                 return (
-                  <div key={w.id} style={{ padding: "12px 14px", borderRadius: 12,
-                    border: "1px solid var(--line-soft)",
-                    background: "var(--panel)",
-                    display: "flex", justifyContent: "space-between",
-                    alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6,
-                        fontWeight: 800, color: meta.color, background: meta.bg }}>
-                        {meta.label}
-                      </span>
-                      <span style={{ fontWeight: 900, fontSize: 16 }}>
-                        {fmt(w.amount)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
-                      </span>
-                      {w.note && <span style={{ fontSize: 12, opacity: 0.6 }}>{w.note}</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, opacity: 0.5 }}>
-                        {w.withdrawn_at?.slice(0, 10)}
-                      </span>
-                      <button onClick={() => del(w.id)} disabled={busy}
-                        style={{ padding: "4px 9px", borderRadius: 7, fontSize: 11,
-                          border: "1px solid rgba(192,57,43,.25)",
-                          background: "rgba(192,57,43,.07)", color: "var(--red,#c0392b)",
-                          cursor: "pointer", fontWeight: 700 }}>삭제</button>
-                    </div>
+                  <div
+                    key={w.id}
+                    draggable
+                    onDragStart={() => onDragStart(globalIdx)}
+                    onDragEnter={() => onDragEnter(globalIdx)}
+                    onDragEnd={onDragEnd}
+                    onDragOver={e => e.preventDefault()}
+                    style={{
+                      padding: "12px 14px", borderRadius: 12,
+                      border: dragging === globalIdx
+                        ? "1px dashed var(--accent,#F0B429)"
+                        : "1px solid var(--line-soft)",
+                      background: dragging === globalIdx ? "rgba(240,180,41,0.05)" : "var(--panel)",
+                      display: "flex", justifyContent: "space-between",
+                      alignItems: "center", gap: 12, flexWrap: "wrap" as const,
+                      cursor: "grab", opacity: dragging === globalIdx ? 0.5 : 1,
+                      transition: "all 0.1s",
+                    }}>
+
+                    {/* 드래그 핸들 */}
+                    <span style={{ fontSize: 14, opacity: 0.3, cursor: "grab", flexShrink: 0 }}>⠿</span>
+
+                    {isEditing ? (
+                      /* 인라인 편집 모드 */
+                      <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap" as const }}>
+                        <input
+                          type="number" value={editAmount} min="0"
+                          onChange={e => setEditAmount(e.target.value)}
+                          style={{ ...iStyle, width: 100, fontSize: 13 }}
+                          autoFocus
+                        />
+                        <input
+                          type="text" value={editNote} placeholder="메모"
+                          onChange={e => setEditNote(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && saveEdit(w.id)}
+                          style={{ ...iStyle, flex: 1, minWidth: 80, fontSize: 13 }}
+                        />
+                        <button onClick={() => saveEdit(w.id)} disabled={busy}
+                          style={{ ...btn1, padding: "7px 12px", fontSize: 12 }}>저장</button>
+                        <button onClick={() => setEditId(null)}
+                          style={{ ...btn2, padding: "7px 10px", fontSize: 12 }}>취소</button>
+                      </div>
+                    ) : (
+                      /* 일반 보기 모드 */
+                      <>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" as const, flex: 1 }}
+                          onDoubleClick={() => startEdit(w)}
+                          title="더블클릭으로 수정">
+                          <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6,
+                            fontWeight: 800, color: meta.color, background: meta.bg }}>
+                            {meta.label}
+                          </span>
+                          <span style={{ fontWeight: 900, fontSize: 16 }}>
+                            {fmt(w.amount)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
+                          </span>
+                          {w.note && <span style={{ fontSize: 12, opacity: 0.6 }}>{w.note}</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <span style={{ fontSize: 11, opacity: 0.5 }}>{w.withdrawn_at?.slice(0, 10)}</span>
+                          <button onClick={() => startEdit(w)}
+                            style={{ padding: "4px 9px", borderRadius: 7, fontSize: 11,
+                              border: "1px solid var(--line-soft)", background: "transparent",
+                              cursor: "pointer", fontWeight: 700, opacity: 0.6 }}>수정</button>
+                          <button onClick={() => del(w.id)} disabled={busy}
+                            style={{ padding: "4px 9px", borderRadius: 7, fontSize: 11,
+                              border: "1px solid rgba(192,57,43,.25)",
+                              background: "rgba(192,57,43,.07)", color: "var(--red,#c0392b)",
+                              cursor: "pointer", fontWeight: 700 }}>삭제</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}

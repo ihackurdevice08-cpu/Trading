@@ -189,7 +189,9 @@ export default function SettingsPage() {
   async function manualSync(accountId?: string) {
     setSyncBusy(true); setSyncMsg("동기화 중…");
     try {
-      const body: any = { from: new Date(Date.now() - 30 * 86400_000).toISOString().slice(0,10) };
+      // pnl_from 기준으로 sync (없으면 90일)
+      const pnlFrom = riskSettings?.pnl_from || new Date(Date.now() - 89 * 86400_000).toISOString().slice(0, 10);
+      const body: any = { from: pnlFrom };
       if (accountId) body.account_id = accountId;
       const r = await fetch("/api/sync-now", {
         method: "POST", headers: { "content-type": "application/json" },
