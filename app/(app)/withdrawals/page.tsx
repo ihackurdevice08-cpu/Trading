@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 
 const toN = (v: any) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const fmt = (v: any, d = 2) => toN(v).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -28,12 +28,18 @@ const btn2: React.CSSProperties = {
   background: "transparent", fontWeight: 700, fontSize: 13, cursor: "pointer",
 };
 
+type SortKey = "date_asc" | "date_desc" | "amount_asc" | "amount_desc";
+
 export default function WithdrawalsPage() {
   const [list,     setList]     = useState<any[]>([]);
   const [totals,   setTotals]   = useState<any>({});
   const [busy,     setBusy]     = useState(false);
   const [err,      setErr]      = useState("");
   const [formOpen, setFormOpen] = useState(false);
+
+  // 정렬 / 필터
+  const [sortKey,   setSortKey]   = useState<SortKey>("date_asc");
+  const [filterFrom, setFilterFrom] = useState("");
 
   // 입력 폼
   const [fAmount, setFAmount] = useState("");
@@ -59,6 +65,51 @@ export default function WithdrawalsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 정렬 + 날짜 필터 적용
+  const displayed = useMemo(() => {
+    let items = [...list];
+
+    // 날짜 필터
+    if (filterFrom) {
+      items = items.filter(w => (w.withdrawn_at || "") >= filterFrom);
+    }
+
+    // 정렬
+    switch (sortKey) {
+      case "date_asc":
+        items.sort((a, b) => {
+          const diff = (a.withdrawn_at||"").localeCompare(b.withdrawn_at||"");
+          return diff !== 0 ? diff : (a.created_at||"").localeCompare(b.created_at||"");
+        });
+        break;
+      case "date_desc":
+        items.sort((a, b) => {
+          const diff = (b.withdrawn_at||"").localeCompare(a.withdrawn_at||"");
+          return diff !== 0 ? diff : (b.created_at||"").localeCompare(a.created_at||"");
+        });
+        break;
+      case "amount_asc":
+        items.sort((a, b) => toN(a.amount) - toN(b.amount));
+        break;
+      case "amount_desc":
+        items.sort((a, b) => toN(b.amount) - toN(a.amount));
+        break;
+    }
+    return items;
+  }, [list, sortKey, filterFrom]);
+
+  // 월별 그룹 (displayed 기준)
+  const grouped = useMemo(() => {
+    const monthMap: Record<string, any[]> = {};
+    const order: string[] = [];
+    for (const w of displayed) {
+      const key = (w.withdrawn_at || "")?.slice(0, 7) || "unknown";
+      if (!monthMap[key]) { monthMap[key] = []; order.push(key); }
+      monthMap[key].push(w);
+    }
+    return order.map(k => [k, monthMap[k]] as [string, any[]]);
+  }, [displayed]);
 
   async function submit() {
     if (!fAmount || toN(fAmount) <= 0) { setErr("금액을 입력해줘"); return; }
@@ -106,23 +157,20 @@ export default function WithdrawalsPage() {
     } finally { setBusy(false); }
   }
 
-  // 드래그앤드롭 핸들러
-  function onDragStart(idx: number) {
-    dragIdx.current = idx;
-    setDragging(idx);
-  }
+  function onDragStart(idx: number) { dragIdx.current = idx; setDragging(idx); }
   function onDragEnter(idx: number) { dragOver.current = idx; }
   function onDragEnd() {
     setDragging(null);
-    if (dragIdx.current === null || dragOver.current === null) return;
-    if (dragIdx.current === dragOver.current) { dragIdx.current = dragOver.current = null; return; }
-
+    if (dragIdx.current === null || dragOver.current === null || dragIdx.current === dragOver.current) {
+      dragIdx.current = dragOver.current = null; return;
+    }
     const newList = [...list];
-    const [moved] = newList.splice(dragIdx.current, 1);
-    newList.splice(dragOver.current, 0, moved);
+    const fromI = list.indexOf(displayed[dragIdx.current]);
+    const toI   = list.indexOf(displayed[dragOver.current]);
     dragIdx.current = dragOver.current = null;
-
-    // 새 순서 낙관적 업데이트 후 서버 저장
+    if (fromI < 0 || toI < 0) return;
+    const [moved] = newList.splice(fromI, 1);
+    newList.splice(toI, 0, moved);
     setList(newList);
     const sort_orders: Record<string, number> = {};
     newList.forEach((w, i) => { sort_orders[w.id] = i; });
@@ -132,14 +180,12 @@ export default function WithdrawalsPage() {
     });
   }
 
-  // 월별 그룹 (정렬 유지)
-  const grouped: [string, any[]][] = [];
-  const monthMap: Record<string, any[]> = {};
-  for (const w of list) {
-    const key = (w.withdrawn_at || "")?.slice(0, 7) || "unknown";
-    if (!monthMap[key]) { monthMap[key] = []; grouped.push([key, monthMap[key]]); }
-    monthMap[key].push(w);
-  }
+  const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+    { key: "date_asc",    label: "날짜 오름차순" },
+    { key: "date_desc",   label: "날짜 내림차순" },
+    { key: "amount_asc",  label: "금액 오름차순" },
+    { key: "amount_desc", label: "금액 내림차순" },
+  ];
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto" }}>
@@ -161,16 +207,16 @@ export default function WithdrawalsPage() {
 
       {/* 누적 요약 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 8, marginBottom: 16 }}>
-        {[
+        {([
           ["누적 출금 합계", totals.total,  "inherit"],
           ["수익 출금",      totals.profit, "var(--green,#0b7949)"],
           ["원금 회수",      totals.seed,   "#d97706"],
           ["리베이트",       totals.rebate, "var(--accent,#B89A5A)"],
-        ].map(([label, val, color]) => (
-          <div key={label as string} style={{ padding: "12px 14px", borderRadius: 12,
+        ] as [string, any, string][]).map(([label, val, color]) => (
+          <div key={label} style={{ padding: "12px 14px", borderRadius: 12,
             border: "1px solid var(--line-soft)", background: "var(--panel)" }}>
             <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontWeight: 900, fontSize: 16, color: color as string }}>
+            <div style={{ fontWeight: 900, fontSize: 16, color }}>
               {fmt(val || 0)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
             </div>
           </div>
@@ -216,16 +262,33 @@ export default function WithdrawalsPage() {
         </div>
       )}
 
-      <div style={{ fontSize: 11, opacity: 0.4, marginBottom: 10 }}>
-        ↕ 드래그로 순서 변경 · 금액/메모 클릭으로 수정
+      {/* 정렬 + 날짜 필터 바 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" as const, alignItems: "center" }}>
+        <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}
+          style={{ ...iStyle, width: "auto", fontSize: 12, padding: "6px 10px" }}>
+          {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, opacity: 0.5, whiteSpace: "nowrap" as const }}>날짜 시작</span>
+          <input type="date" value={filterFrom} max={today()}
+            onChange={e => setFilterFrom(e.target.value)}
+            style={{ ...iStyle, width: "auto", fontSize: 12, padding: "6px 10px" }} />
+          {filterFrom && (
+            <button onClick={() => setFilterFrom("")}
+              style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.5, fontSize: 13 }}>✕</button>
+          )}
+        </div>
+        <span style={{ fontSize: 11, opacity: 0.4, marginLeft: "auto" }}>
+          {displayed.length}건 · ↕ 드래그 순서 변경
+        </span>
       </div>
 
       {/* 월별 리스트 */}
       {grouped.length === 0 ? (
         <div style={{ padding: 32, textAlign: "center" as const, opacity: 0.5, fontSize: 14 }}>
-          출금 기록이 없습니다.
+          {filterFrom ? "해당 기간 출금 기록이 없습니다." : "출금 기록이 없습니다."}
         </div>
-      ) : grouped.map(([month, rows], _gi) => {
+      ) : grouped.map(([month, rows]) => {
         const monthTotal = rows.reduce((s, r) => s + toN(r.amount), 0);
         return (
           <div key={month} style={{ marginBottom: 20 }}>
@@ -234,59 +297,46 @@ export default function WithdrawalsPage() {
               <span style={{ fontSize: 12, opacity: 0.6 }}>합계 {fmt(monthTotal)} USDT</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-              {rows.map((w, idx) => {
-                const globalIdx = list.indexOf(w);
+              {rows.map((w) => {
+                const dispIdx = displayed.indexOf(w);
                 const meta = SOURCE_LABELS[w.source] || SOURCE_LABELS.profit;
                 const isEditing = editId === w.id;
                 return (
-                  <div
-                    key={w.id}
+                  <div key={w.id}
                     draggable
-                    onDragStart={() => onDragStart(globalIdx)}
-                    onDragEnter={() => onDragEnter(globalIdx)}
+                    onDragStart={() => onDragStart(dispIdx)}
+                    onDragEnter={() => onDragEnter(dispIdx)}
                     onDragEnd={onDragEnd}
                     onDragOver={e => e.preventDefault()}
                     style={{
                       padding: "12px 14px", borderRadius: 12,
-                      border: dragging === globalIdx
-                        ? "1px dashed var(--accent,#F0B429)"
-                        : "1px solid var(--line-soft)",
-                      background: dragging === globalIdx ? "rgba(240,180,41,0.05)" : "var(--panel)",
+                      border: dragging === dispIdx ? "1px dashed var(--accent,#F0B429)" : "1px solid var(--line-soft)",
+                      background: dragging === dispIdx ? "rgba(240,180,41,0.05)" : "var(--panel)",
                       display: "flex", justifyContent: "space-between",
                       alignItems: "center", gap: 12, flexWrap: "wrap" as const,
-                      cursor: "grab", opacity: dragging === globalIdx ? 0.5 : 1,
+                      cursor: "grab", opacity: dragging === dispIdx ? 0.5 : 1,
                       transition: "all 0.1s",
                     }}>
-
-                    {/* 드래그 핸들 */}
                     <span style={{ fontSize: 14, opacity: 0.3, cursor: "grab", flexShrink: 0 }}>⠿</span>
 
                     {isEditing ? (
-                      /* 인라인 편집 모드 */
                       <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap" as const }}>
-                        <input
-                          type="number" value={editAmount} min="0"
+                        <input type="number" value={editAmount} min="0"
                           onChange={e => setEditAmount(e.target.value)}
-                          style={{ ...iStyle, width: 100, fontSize: 13 }}
-                          autoFocus
-                        />
-                        <input
-                          type="text" value={editNote} placeholder="메모"
+                          style={{ ...iStyle, width: 100, fontSize: 13 }} autoFocus />
+                        <input type="text" value={editNote} placeholder="메모"
                           onChange={e => setEditNote(e.target.value)}
                           onKeyDown={e => e.key === "Enter" && saveEdit(w.id)}
-                          style={{ ...iStyle, flex: 1, minWidth: 80, fontSize: 13 }}
-                        />
+                          style={{ ...iStyle, flex: 1, minWidth: 80, fontSize: 13 }} />
                         <button onClick={() => saveEdit(w.id)} disabled={busy}
                           style={{ ...btn1, padding: "7px 12px", fontSize: 12 }}>저장</button>
                         <button onClick={() => setEditId(null)}
                           style={{ ...btn2, padding: "7px 10px", fontSize: 12 }}>취소</button>
                       </div>
                     ) : (
-                      /* 일반 보기 모드 */
                       <>
                         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" as const, flex: 1 }}
-                          onDoubleClick={() => startEdit(w)}
-                          title="더블클릭으로 수정">
+                          onDoubleClick={() => startEdit(w)} title="더블클릭으로 수정">
                           <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6,
                             fontWeight: 800, color: meta.color, background: meta.bg }}>
                             {meta.label}
@@ -320,3 +370,4 @@ export default function WithdrawalsPage() {
     </div>
   );
 }
+// built: 20260320060859

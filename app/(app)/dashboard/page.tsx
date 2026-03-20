@@ -485,7 +485,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 30_000);
+    const id = setInterval(load, 300_000); // 5분마다 자동 새로고침
     window.addEventListener("trades-updated", load);
     return () => { clearInterval(id); window.removeEventListener("trades-updated", load); };
   }, [load]);

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 let _cache: any = null;
 let _cacheAt = 0;
-const CACHE_MS = 30_000;
+const CACHE_MS = 60_000; // 60초 (RiskBanner와 통일)
 
 function fmt(v: any, d = 1) {
   const n = Number(v);

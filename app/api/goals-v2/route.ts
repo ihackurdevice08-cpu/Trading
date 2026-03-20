@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthInfo } from "@/lib/firebase/serverAuth";
-import { queryDocs, addDoc, setDoc, deleteDoc, batchWrite } from "@/lib/firebase/firestoreRest";
+import { queryDocs, addDoc, setDoc, deleteDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
