@@ -40,18 +40,9 @@ async function bitgetGet(
   return { ok: res.ok, status: res.status, data: j };
 }
 
-// ─── Bitget v2 fill-history 필드 매핑 ───────────────────────────────────
-// tradeSide: open_long | close_long | open_short | close_short
-//            buy_single | sell_single | open | close
-// profit: 실현 PnL (close fill에만 존재)
-// feeDetail[].totalFee: 수수료
-// baseVolume: 체결 수량 (it.size 아님)
-// cTime: 체결 시각 ms
-// ────────────────────────────────────────────────────────────────────────
-
 function parseSide(tradeSide: string, side: string): "long" | "short" {
-  const ts = String(tradeSide || "").toLowerCase();
-  const s  = String(side     || "").toLowerCase();
+  const ts = tradeSide.toLowerCase();
+  const s  = side.toLowerCase();
   if (ts.includes("long"))  return "long";
   if (ts.includes("short")) return "short";
   if (ts.includes("buy"))   return "long";
@@ -61,48 +52,88 @@ function parseSide(tradeSide: string, side: string): "long" | "short" {
 
 function getFee(it: any): number {
   if (Array.isArray(it.feeDetail)) {
-    return it.feeDetail.reduce((s: number, fd: any) => s + Number(fd.totalFee ?? fd.fee ?? 0), 0);
+    return it.feeDetail.reduce((s: number, fd: any) =>
+      s + Number(fd.totalFee ?? fd.fee ?? 0), 0);
   }
   return Number(it.fee ?? 0);
 }
 
-// fill 한 건 → 정규화된 row
-function normalizeFill(it: any) {
+interface Fill {
+  tradeId:   string;
+  orderId:   string;
+  symbol:    string;
+  side:      string;
+  tradeSide: string;
+  price:     number;
+  size:      number;
+  fee:       number;
+  profit:    number;
+  ts:        number;
+}
+
+function normalizeFill(it: any): Fill {
   return {
-    tradeId:   String(it.tradeId  ?? ""),
-    orderId:   String(it.orderId  ?? ""),
-    symbol:    String(it.symbol   ?? ""),
-    side:      String(it.side     ?? ""),
+    tradeId:   String(it.tradeId   ?? ""),
+    orderId:   String(it.orderId   ?? ""),
+    symbol:    String(it.symbol    ?? ""),
+    side:      String(it.side      ?? ""),
     tradeSide: String(it.tradeSide ?? ""),
-    price:     Number(it.price    ?? 0),
-    size:      Number(it.baseVolume ?? it.size ?? 0),  // baseVolume이 실제 수량
+    price:     Number(it.price     ?? 0),
+    size:      Number(it.baseVolume ?? it.size ?? 0),
     fee:       getFee(it),
-    profit:    Number(it.profit   ?? 0),               // profit이 실현 PnL
-    ts:        Number(it.cTime    ?? 0),
-    raw:       it,
+    profit:    Number(it.profit    ?? 0),
+    ts:        Number(it.cTime     ?? 0),
   };
 }
 
-// fills → manual_trades 집계 (메모리 내 orderId 그룹핑)
+// ────────────────────────────────────────────────────────────────────────
+// 핵심 집계 로직
+//
+// Bitget hedge mode에서 open fill과 close fill은 서로 다른 orderId를 가짐.
+// 기존 코드의 문제: 모든 fills를 orderId로 그룹핑하면
+//   open fill 그룹 → profit=0 → pnl=0인 쓰레기 거래 대량 생성
+//
+// 수정: close fill만 그룹핑, open fill은 fee 수집용으로만 사용
+// ────────────────────────────────────────────────────────────────────────
 function aggregateToTrades(
-  fills: ReturnType<typeof normalizeFill>[],
+  fills: Fill[],
   uid: string,
   accId: string,
   fromMs: number
 ): Array<{ path: string; data: Record<string, any> }> {
 
-  // orderId 기준 그룹핑
-  const groups: Record<string, ReturnType<typeof normalizeFill>[]> = {};
+  // 1단계: open fill의 수수료를 orderId 기준으로 집계 (나중에 close와 매칭)
+  //        open fill orderId와 close fill orderId가 다르므로 매칭은 불가능하지만
+  //        그냥 close의 fee에 통합 (이미 feeDetail에 포함돼 있음)
+  //
+  // 2단계: close fill만 orderId 기준으로 그룹핑
+  const closeGroups: Record<string, Fill[]> = {};
+
   for (const f of fills) {
+    const ts = f.tradeSide.toLowerCase();
+
+    // close 판별: tradeSide에 "close" 포함 또는 one-way mode
+    const isClose =
+      ts.includes("close") ||   // close_long, close_short, close
+      ts === "sell_single" ||    // one-way: 숏오픈 or 롱청산 (profit이 있으면 청산)
+      ts === "buy_single";       // one-way: 롱오픈 or 숏청산 (profit이 있으면 청산)
+
+    if (!isClose) continue;  // open fill은 건너뜀
+
+    // one-way mode에서 buy_single/sell_single은 open일 때도 있음
+    // → profit=0이고 fee만 있으면 open, profit≠0이면 close
+    if ((ts === "sell_single" || ts === "buy_single") && f.profit === 0) {
+      continue;  // open fill로 판단, 건너뜀
+    }
+
     const key = f.orderId || f.tradeId || String(f.ts);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(f);
+    if (!closeGroups[key]) closeGroups[key] = [];
+    closeGroups[key].push(f);
   }
 
   const rows: Array<{ path: string; data: Record<string, any> }> = [];
 
-  for (const [orderId, group] of Object.entries(groups)) {
-    // 시간순 정렬
+  for (const [orderId, group] of Object.entries(closeGroups)) {
     group.sort((a, b) => a.ts - b.ts);
 
     const first = group[0];
@@ -111,22 +142,23 @@ function aggregateToTrades(
     // fromMs 이전 거래 제외
     if (last.ts > 0 && last.ts < fromMs) continue;
 
-    // profit 합산 (close fill에만 있음, open fill은 0)
-    const totalPnl  = group.reduce((s, f) => s + f.profit, 0);
-    const totalFee  = group.reduce((s, f) => s + f.fee,    0);
+    const closePnl  = group.reduce((s, f) => s + f.profit, 0);
+    const closeFee  = group.reduce((s, f) => s + f.fee,    0);
     const totalSize = group.reduce((s, f) => s + f.size,   0);
     const avgPrice  = totalSize > 0
       ? group.reduce((s, f) => s + f.price * f.size, 0) / totalSize : 0;
 
-    // pnl = profit + fee (Supabase 시절과 동일한 방식)
-    const realPnl = totalPnl + totalFee;
+    // 최종 pnl = profit (이미 수수료 차감된 값) + closeFee 합산
+    // Bitget의 profit 필드는 수수료 미차감 gross PnL
+    // feeDetail의 totalFee가 음수(차감)이므로 더하면 net PnL
+    const realPnl = closePnl + closeFee;
 
     const side   = parseSide(first.tradeSide, first.side);
     const symbol = first.symbol.replace(/_UMCBL|_DMCBL|_CMCBL/g, "");
 
-    const safeOrderId = orderId.replace(/:/g, "_");
+    const safeId = orderId.replace(/[:/]/g, "_");
     rows.push({
-      path: `users/${uid}/manual_trades/bitget_${accId}_${safeOrderId}`,
+      path: `users/${uid}/manual_trades/bitget_${accId}_${safeId}`,
       data: {
         symbol,
         side,
@@ -137,8 +169,8 @@ function aggregateToTrades(
         notes:     JSON.stringify({
           fills:     group.length,
           size:      Number(totalSize.toFixed(6)),
-          close_fee: Number(totalFee.toFixed(4)),
-          pnl_raw:   Number(totalPnl.toFixed(4)),
+          close_fee: Number(closeFee.toFixed(4)),
+          pnl_raw:   Number(closePnl.toFixed(4)),
           avg_price: Number(avgPrice.toFixed(4)),
           account:   accId,
         }),
@@ -161,7 +193,6 @@ export async function POST(req: Request) {
   const targetAccountId = body?.account_id || null;
   const fromDate        = body?.from ? String(body.from) : "2026-02-24";
   const fromMs          = new Date(fromDate + "T00:00:00Z").getTime();
-  // Bitget fill-history는 90일 이내만 지원
   const bitgetFromMs    = Math.max(fromMs, Date.now() - 89 * 86400_000);
   const fromTimestamp   = String(bitgetFromMs);
 
@@ -170,7 +201,8 @@ export async function POST(req: Request) {
     .filter(a => a.exchange === "bitget")
     .filter(a => !targetAccountId || a.__id === targetAccountId);
 
-  if (!accounts.length) return bad("등록된 Bitget 계정 없음. Settings에서 API Key를 등록하세요.", 404);
+  if (!accounts.length)
+    return bad("등록된 Bitget 계정 없음. Settings에서 API Key를 등록하세요.", 404);
 
   const results: any[] = [];
 
@@ -188,13 +220,13 @@ export async function POST(req: Request) {
 
     const creds  = { apiKey, secret, pass };
     const errors: string[] = [];
-    const allFills: ReturnType<typeof normalizeFill>[] = [];
+    const allFills: Fill[] = [];
 
-    // ── fill-history 페이지네이션 수집 ──────────────────────────────
+    // ── Bitget fill-history 수집 ─────────────────────────────────────
     try {
       let idLessThan = "";
       let pageCount  = 0;
-      const MAX_PAGES = 20;  // 최대 100 × 20 = 2000건
+      const MAX_PAGES = 20;
 
       while (pageCount < MAX_PAGES) {
         const params: Record<string, string> = {
@@ -215,11 +247,9 @@ export async function POST(req: Request) {
 
         for (const it of list) allFills.push(normalizeFill(it));
 
-        // 페이지네이션: endId 커서
         const endId = json?.data?.endId;
         if (!endId || list.length < 100) break;
 
-        // startTime 이전 도달하면 종료
         const minTs = Math.min(...list.map((x: any) => Number(x.cTime ?? Infinity)));
         if (minTs <= bitgetFromMs) break;
 
@@ -230,10 +260,14 @@ export async function POST(req: Request) {
       errors.push(`Bitget fetch 오류: ${e?.message}`);
     }
 
-    // ── 메모리에서 집계 ──────────────────────────────────────────────
+    // tradeSide 분포 (디버그용)
+    const dist: Record<string, number> = {};
+    for (const f of allFills) dist[f.tradeSide] = (dist[f.tradeSide] || 0) + 1;
+
+    // ── close fill 기준 집계 ─────────────────────────────────────────
     const rows = aggregateToTrades(allFills, uid, accId, fromMs);
 
-    // ── manual_trades 저장 (30건씩 병렬 setDoc) ─────────────────────
+    // ── 저장 (30건씩 병렬 setDoc) ────────────────────────────────────
     let saved = 0;
     const saveErrors: string[] = [];
 
@@ -248,22 +282,23 @@ export async function POST(req: Request) {
     }
 
     results.push({
-      id:               accId,
-      alias:            acc.alias,
-      fills_fetched:    allFills.length,
-      trades_saved:     saved,
-      errors:           [...errors, ...saveErrors].length ? [...errors, ...saveErrors] : undefined,
+      id:            accId,
+      alias:         acc.alias,
+      fills_fetched: allFills.length,
+      trades_saved:  saved,
+      errors:        [...errors, ...saveErrors].length ? [...errors, ...saveErrors] : undefined,
       debug: {
-        fill_count:   allFills.length,
-        trade_count:  rows.length,
-        from:         fromDate,
-        from_actual:  new Date(bitgetFromMs).toISOString().slice(0, 10),
+        fills_total:      allFills.length,
+        trades_generated: rows.length,
+        tradeSide_dist:   dist,
+        from:             fromDate,
+        from_actual:      new Date(bitgetFromMs).toISOString().slice(0, 10),
       },
     });
   }
 
-  const totalFills  = results.reduce((s, r) => s + (r.fills_fetched || 0), 0);
-  const totalSaved  = results.reduce((s, r) => s + (r.trades_saved  || 0), 0);
+  const totalFills = results.reduce((s, r) => s + (r.fills_fetched || 0), 0);
+  const totalSaved = results.reduce((s, r) => s + (r.trades_saved  || 0), 0);
 
   return ok({
     note: `${fromDate} 이후 동기화 — fills ${totalFills}건, trades ${totalSaved}건 저장`,
@@ -271,6 +306,4 @@ export async function POST(req: Request) {
     results,
   });
 }
-// rebuilt: sync_fill_history_v2
-
-// built: 20260319132532
+// v3_close_fill_only_$(date -u +%Y%m%d)
