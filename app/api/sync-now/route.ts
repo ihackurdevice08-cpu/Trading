@@ -285,7 +285,9 @@ export async function POST(req: Request) {
       id:            accId,
       alias:         acc.alias,
       fills_fetched: allFills.length,
+      rawInserted:   allFills.length,  // 프론트 호환
       trades_saved:  saved,
+      aggregated:    saved,            // 프론트 호환 (r.aggregated 읽음)
       errors:        [...errors, ...saveErrors].length ? [...errors, ...saveErrors] : undefined,
       debug: {
         fills_total:      allFills.length,

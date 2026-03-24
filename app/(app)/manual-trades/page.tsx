@@ -132,7 +132,7 @@ export default function TradeRecordsPage() {
       });
       const j = await r.json();
       if (j.ok) {
-        const newTrades = j.results?.reduce((s: number, r: any) => s + (r.aggregated || 0), 0) ?? 0;
+        const newTrades = j.results?.reduce((s: number, r: any) => s + (r.trades_saved || r.aggregated || 0), 0) ?? 0;
         setSyncLog(newTrades > 0 ? `✅ ${newTrades}건 동기화 완료` : `✅ 동기화 완료 — 새 거래 없음`);
         window.dispatchEvent(new Event("trades-updated"));
       } else { setSyncLog(`❌ ${j.error}`); }
