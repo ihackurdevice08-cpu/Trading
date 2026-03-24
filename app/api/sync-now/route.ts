@@ -226,9 +226,10 @@ export async function POST(req: Request) {
     try {
       let idLessThan = "";
       let pageCount  = 0;
-      const MAX_PAGES = 20;
+      const MAX_PAGES = 50;           // 2월24일~현재 약 45페이지 필요
+      const DEADLINE  = Date.now() + 50_000; // 50초 안전장치 (Vercel 60초 제한)
 
-      while (pageCount < MAX_PAGES) {
+      while (pageCount < MAX_PAGES && Date.now() < DEADLINE) {
         const params: Record<string, string> = {
           productType: "USDT-FUTURES",
           pageSize:    "100",
@@ -267,18 +268,16 @@ export async function POST(req: Request) {
     // ── close fill 기준 집계 ─────────────────────────────────────────
     const rows = aggregateToTrades(allFills, uid, accId, fromMs);
 
-    // ── 저장 (30건씩 병렬 setDoc) ────────────────────────────────────
+    // ── 저장 (전체 병렬 setDoc — 타임아웃 절약) ────────────────────────
     let saved = 0;
     const saveErrors: string[] = [];
 
-    for (let i = 0; i < rows.length; i += 30) {
-      const settles = await Promise.allSettled(
-        rows.slice(i, i + 30).map(r => setDoc(token, r.path, r.data, false))
-      );
-      for (const res of settles) {
-        if (res.status === "fulfilled") saved++;
-        else saveErrors.push(String((res as any).reason?.message ?? "unknown"));
-      }
+    const settles = await Promise.allSettled(
+      rows.map(r => setDoc(token, r.path, r.data, false))
+    );
+    for (const res of settles) {
+      if (res.status === "fulfilled") saved++;
+      else saveErrors.push(String((res as any).reason?.message ?? "unknown"));
     }
 
     results.push({
