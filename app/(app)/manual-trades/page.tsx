@@ -111,7 +111,12 @@ export default function TradeRecordsPage() {
     } finally { setLoading(false); }
   }, [from, to, symFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // 1분마다 자동 새로고침 (cron sync 반영)
+    const id = setInterval(() => load(), 60_000);
+    return () => clearInterval(id);
+  }, [load]);
   useEffect(() => {
     const h = () => load();
     window.addEventListener("trades-updated", h);
