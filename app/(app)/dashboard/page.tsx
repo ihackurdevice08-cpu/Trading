@@ -1,499 +1,76 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import useSWR from "swr";
+import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/components/providers/AppearanceProvider";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+
+// 분리된 컴포넌트
+import { StatCard }         from "@/components/dashboard/StatCard";
+import { DDCard }           from "@/components/dashboard/DDCard";
+import { TradingKPI }       from "@/components/dashboard/TradingKPI";
+import { HourlyHeatmap }    from "@/components/dashboard/HourlyHeatmap";
+import { SymbolTable }      from "@/components/dashboard/SymbolTable";
+import { MonthlyPnlTable }  from "@/components/dashboard/MonthlyPnlTable";
+import { DailyBarChart, DrawdownChart, CumPnlChart } from "@/components/dashboard/Charts";
+
+// 타입
+import type { DashboardResponse, Goal } from "@/types/dashboard";
 
 const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ssr: false });
 
-const toN  = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const fmt  = (v: any, d = 2) => toN(v).toLocaleString("ko-KR", { maximumFractionDigits: d });
-const sign = (v: number) => v > 0 ? "+" : "";
+const toN      = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const fmt      = (v: unknown, d = 2) => toN(v).toLocaleString("ko-KR", { maximumFractionDigits: d });
+const sign     = (v: number) => v > 0 ? "+" : "";
 const pnlColor = (v: number) => v > 0 ? "var(--green,#0b7949)" : v < 0 ? "var(--red,#c0392b)" : "inherit";
 
-const DOW_LABELS = ["월","화","수","목","금","토","일"];
+// SWR fetcher
+const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then(r => r.json());
 
-function StatCard({ label, value, sub, color }: { label: string; value: React.ReactNode; sub?: string; color?: string }) {
-  return (
-    <div style={{
-      padding: "14px 16px", borderRadius: 14,
-      border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
-      background: "var(--panel,rgba(255,255,255,0.04))",
-      backdropFilter: "blur(8px)",
-    }}>
-      <div style={{
-        fontSize: 10, opacity: 0.4, fontWeight: 600,
-        marginBottom: 8, letterSpacing: 0.8,
-        textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)",
-      }}>{label}</div>
-      <div style={{
-        fontWeight: 800, fontSize: 24,
-        color: color || "var(--text-primary,rgba(255,255,255,.92))",
-        fontFamily: "var(--font-mono,monospace)",
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-0.5px", lineHeight: 1.1,
-      }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, opacity: 0.38, marginTop: 5, fontFamily: "var(--font-mono,monospace)" }}>{sub}</div>}
-    </div>
-  );
-}
-
-// ── 일별 PnL 바 차트 ──────────────────────────────────────
-function DailyBarChart({ data, pnlFrom }: { data: { date: string; pnl: number }[]; pnlFrom?: string }) {
-  if (!data?.length) return null;
-  const max = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>{`◈ 일별 PnL${pnlFrom ? " (사이클 기간)" : ""}`}</div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, overflowX: "auto" as const }}>
-        {data.map(d => {
-          const h = Math.max(4, Math.abs(d.pnl) / max * 56);
-          return (
-            <div key={d.date} style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", flex: "0 0 auto", minWidth: 20 }}
-              title={`${d.date}: ${sign(d.pnl)}${fmt(d.pnl)} USDT`}>
-              <div style={{ width: 14, height: h, borderRadius: 3,
-                background: d.pnl >= 0 ? "var(--green,#0b7949)" : "var(--red,#c0392b)", opacity: 0.8 }} />
-              <div style={{ fontSize: 9, opacity: 0.4, marginTop: 2 }}>{d.date.slice(8)}</div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── 드로다운 차트 ──────────────────────────────────────────
-function DrawdownChart({ data }: { data: { date: string; dd: number; cumPnl: number }[] }) {
-  if (!data?.length || data.length < 2) return null;
-  const W = 560, H = 80, PAD = { t: 6, b: 18, l: 32, r: 8 };
-  const innerW = W - PAD.l - PAD.r;
-  const innerH = H - PAD.t - PAD.b;
-  const maxDD  = Math.max(...data.map(d => d.dd), 0.1);
-
-  const pts = data.map((d, i) => {
-    const x = PAD.l + (i / (data.length - 1)) * innerW;
-    const y = PAD.t + (d.dd / maxDD) * innerH;
-    return `${x},${y}`;
-  }).join(" ");
-
-  const firstPt = `${PAD.l},${PAD.t + innerH}`;
-  const lastPt  = `${PAD.l + innerW},${PAD.t + innerH}`;
-
-  // x축 날짜 레이블 (4개)
-  const ticks = [0, Math.floor(data.length/3), Math.floor(data.length*2/3), data.length-1]
-    .filter((v,i,a) => a.indexOf(v) === i);
-
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>◈ 드로다운 추이</div>
-      <div style={{ overflowX: "auto" as const }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 280, height: "auto", display: "block" }}>
-          {/* 그리드 라인 */}
-          {[0.25, 0.5, 0.75, 1].map(r => (
-            <line key={r} x1={PAD.l} x2={PAD.l+innerW}
-              y1={PAD.t + r*innerH} y2={PAD.t + r*innerH}
-              stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-          ))}
-          {/* y축 레이블 */}
-          {[0, 0.5, 1].map(r => (
-            <text key={r} x={PAD.l - 3} y={PAD.t + r*innerH + 3}
-              fontSize={8} fill="rgba(0,0,0,0.35)" textAnchor="end">
-              {(r * maxDD).toFixed(1)}%
-            </text>
-          ))}
-          {/* 채움 영역 */}
-          <polygon
-            points={`${firstPt} ${pts} ${lastPt}`}
-            fill="rgba(255,77,77,0.12)" />
-          {/* 라인 */}
-          <polyline points={pts} fill="none" stroke="rgba(255,77,77,0.75)" strokeWidth="2"
-            style={{ filter: "drop-shadow(0 0 4px rgba(255,77,77,0.4))" }} />
-          {/* x축 레이블 */}
-          {ticks.map(i => (
-            <text key={i} x={PAD.l + (i/(data.length-1))*innerW} y={H-3}
-              fontSize={8} fill="rgba(0,0,0,0.35)" textAnchor="middle">
-              {data[i].date.slice(5)}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-// ── 누적 PnL 차트 ─────────────────────────────────────────
-function CumPnlChart({ data }: { data: { date: string; cumPnl: number }[] }) {
-  if (!data?.length || data.length < 2) return null;
-  const W = 560, H = 80, PAD = { t: 6, b: 18, l: 40, r: 8 };
-  const innerW = W - PAD.l - PAD.r;
-  const innerH = H - PAD.t - PAD.b;
-  const vals   = data.map(d => d.cumPnl);
-  const minV   = Math.min(...vals);
-  const maxV   = Math.max(...vals);
-  const range  = Math.max(maxV - minV, 1);
-  const zeroY  = PAD.t + ((maxV) / range) * innerH;
-
-  const pts = data.map((d, i) => {
-    const x = PAD.l + (i / (data.length - 1)) * innerW;
-    const y = PAD.t + ((maxV - d.cumPnl) / range) * innerH;
-    return `${x},${y}`;
-  }).join(" ");
-
-  const ticks = [0, Math.floor(data.length/3), Math.floor(data.length*2/3), data.length-1]
-    .filter((v,i,a) => a.indexOf(v) === i);
-
-  const lastVal = vals[vals.length - 1];
-  const lineColor = lastVal >= 0 ? "rgba(0,192,118,0.85)" : "rgba(255,77,77,0.85)";
-  const fillColor = lastVal >= 0 ? "rgba(0,192,118,0.12)" : "rgba(255,77,77,0.10)";
-
-  const firstX = PAD.l, lastX = PAD.l + innerW;
-  const firstY = PAD.t + ((maxV - vals[0]) / range) * innerH;
-  const lastY  = PAD.t + ((maxV - vals[vals.length-1]) / range) * innerH;
-
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>◈ 누적 PnL 추이</div>
-      <div style={{ overflowX: "auto" as const }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 280, height: "auto", display: "block" }}>
-          {[0, 0.5, 1].map(r => (
-            <line key={r} x1={PAD.l} x2={PAD.l+innerW}
-              y1={PAD.t + r*innerH} y2={PAD.t + r*innerH}
-              stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-          ))}
-          {/* 제로 라인 */}
-          {minV < 0 && maxV > 0 && (
-            <line x1={PAD.l} x2={PAD.l+innerW} y1={zeroY} y2={zeroY}
-              stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="3,3" />
-          )}
-          {[minV, (minV+maxV)/2, maxV].map((v, i) => (
-            <text key={i} x={PAD.l - 3} y={PAD.t + (1 - i * 0.5) * innerH + 3}
-              fontSize={8} fill="rgba(0,0,0,0.35)" textAnchor="end">
-              {v >= 0 ? "+" : ""}{v.toFixed(0)}
-            </text>
-          ))}
-          <polygon points={`${firstX},${firstY} ${pts} ${lastX},${lastY} ${lastX},${Math.min(zeroY, PAD.t+innerH)} ${firstX},${Math.min(zeroY, PAD.t+innerH)}`}
-            fill={fillColor} />
-          <polyline points={pts} fill="none" stroke={lineColor} strokeWidth="2"
-            style={{ filter: `drop-shadow(0 0 4px ${lineColor})` }} />
-          {ticks.map(i => (
-            <text key={i} x={PAD.l + (i/(data.length-1))*innerW} y={H-3}
-              fontSize={8} fill="rgba(0,0,0,0.35)" textAnchor="middle">
-              {data[i].date.slice(5)}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-// ── 요일×시간대 히트맵 ────────────────────────────────────
-function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: number | null; total: number; pnl: number }[] }) {
-  if (!data?.length) return null;
-
-  // 거래가 있는 시간대만 표시
-  const activeHours = Array.from(new Set(
-    data.filter(d => d.total > 0).map(d => d.hour)
-  )).sort((a,b) => a - b);
-
-  if (activeHours.length === 0) return null;
-
-  function cellColor(wr: number | null, total: number) {
-    if (total === 0 || wr === null) return "rgba(255,255,255,0.03)";
-    if (wr >= 70) return `rgba(11,121,73,${0.15 + (wr-70)/30 * 0.45})`;
-    if (wr >= 50) return `rgba(11,121,73,${0.08 + (wr-50)/20 * 0.07})`;
-    if (wr >= 30) return `rgba(192,57,43,${0.08 + (50-wr)/20 * 0.07})`;
-    return `rgba(192,57,43,${0.15 + (30-wr)/30 * 0.35})`;
-  }
-
-  return (
-    <div style={panel}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={sectionTitle}>◈ 요일×시간대 승률 (최근 90일)</div>
-        <div style={{ display: "flex", gap: 8, fontSize: 10, opacity: .5 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: "rgba(11,121,73,0.5)", display: "inline-block" }} />승률 高
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: "rgba(192,57,43,0.5)", display: "inline-block" }} />승률 低
-          </span>
-        </div>
-      </div>
-      <div style={{ overflowX: "auto" as const }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 10, width: "100%", minWidth: Math.max(280, activeHours.length * 34 + 40) }}>
-          <thead>
-            <tr>
-              <th style={{ width: 28, padding: "2px 4px", opacity: .4, fontWeight: 600 }}></th>
-              {activeHours.map(h => (
-                <th key={h} style={{ padding: "2px 3px", opacity: .45, fontWeight: 600, textAlign: "center" as const, minWidth: 28 }}>
-                  {h}시
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DOW_LABELS.map((dow, d) => (
-              <tr key={d}>
-                <td style={{ padding: "2px 4px", fontWeight: 700, opacity: .6, whiteSpace: "nowrap" as const }}>{dow}</td>
-                {activeHours.map(h => {
-                  const cell = data.find(x => x.dow === d && x.hour === h);
-                  const wr   = cell?.winRate ?? null;
-                  const tot  = cell?.total ?? 0;
-                  const pnl  = cell?.pnl ?? 0;
-                  return (
-                    <td key={h} style={{ padding: "2px 3px", textAlign: "center" as const }}
-                      title={tot > 0 ? `${dow} ${h}시: ${tot}건 | 승률 ${wr ?? "—"}% | PnL ${pnl >= 0 ? "+" : ""}${fmt(pnl)}` : ""}>
-                      <div style={{
-                        width: 26, height: 22, borderRadius: 4, margin: "0 auto",
-                        background: cellColor(wr, tot),
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 9, fontWeight: 700,
-                        color: tot === 0 ? "transparent" : wr !== null && (wr >= 60 || wr <= 40) ? "white" : "inherit",
-                        opacity: tot === 0 ? 0.3 : 1,
-                      }}>
-                        {wr !== null ? `${wr}` : tot > 0 ? tot : ""}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ marginTop: 6, fontSize: 10, opacity: .4 }}>셀 숫자 = 승률(%), 거래 2건 미만은 공백 (마우스 오버로 상세)</div>
-    </div>
-  );
-}
-
-
-// ── 트레이딩 KPI 패널 ──────────────────────────────────────
-function TradingKPI({ stats, pnlFrom }: { stats: any; pnlFrom?: string }) {
-  const { longCount, shortCount, maxConsecWin, maxConsecLoss, avgDurationMin, wins, losses, winRate } = stats;
-  const total = (longCount || 0) + (shortCount || 0);
-  const longPct  = total > 0 ? Math.round(((longCount || 0) / total) * 100) : 0;
-  const shortPct = 100 - longPct;
-
-  function fmtDur(min: number | null) {
-    if (min == null) return "—";
-    if (min < 60) return `${min}분`;
-    if (min < 1440) return `${Math.floor(min/60)}시간 ${min%60}분`;
-    return `${Math.floor(min/1440)}일 ${Math.floor((min%1440)/60)}시간`;
-  }
-
-  const kpis = [
-    { label: "LONG / SHORT 비율", value: total > 0 ? `${longPct}% / ${shortPct}%` : "—",
-      sub: `L ${longCount || 0}건 · S ${shortCount || 0}건` },
-    { label: "최장 연승 / 연패", value: `${maxConsecWin || 0}연승 / ${maxConsecLoss || 0}연패`, sub: pnlFrom ? "사이클 기준" : "전체 기준" },
-    { label: "평균 보유 시간", value: fmtDur(avgDurationMin), sub: "closed_at 기준" },
-  ];
-
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>◈ 트레이딩 패턴</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
-        {kpis.map(k => (
-          <div key={k.label} style={{
-            padding: "12px 14px", borderRadius: 10,
-            border: "1px solid var(--line-soft)", background: "rgba(255,255,255,0.03)",
-          }}>
-            <div style={{ fontSize: 10, opacity: 0.4, fontWeight: 600, letterSpacing: 0.8,
-              textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)", marginBottom: 6 }}>
-              {k.label}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 18, fontFamily: "var(--font-mono,monospace)",
-              fontVariantNumeric: "tabular-nums", letterSpacing: "-0.3px" }}>
-              {k.value}
-            </div>
-            <div style={{ fontSize: 10, opacity: 0.35, marginTop: 4, fontFamily: "var(--font-mono,monospace)" }}>
-              {k.sub}
-            </div>
-          </div>
-        ))}
-      </div>
-      {/* Long/Short 바 */}
-      {total > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ height: 6, borderRadius: 999, overflow: "hidden", display: "flex" }}>
-            <div style={{ width: `${longPct}%`, background: "var(--green,#00C076)", transition: "width 0.4s" }} />
-            <div style={{ width: `${shortPct}%`, background: "var(--red,#FF4D4D)",  transition: "width 0.4s" }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.4,
-            marginTop: 4, fontFamily: "var(--font-mono,monospace)" }}>
-            <span>■ LONG {longPct}%</span>
-            <span>SHORT {shortPct}% ■</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── 월별 PnL 테이블 ────────────────────────────────────────
-function MonthlyPnlTable({ data }: { data: { month: string; pnl: number }[] }) {
-  if (!data?.length) return null;
-  const maxAbs = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>◈ 월별 PnL</div>
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-        {[...data].reverse().map(d => {
-          const barW = Math.round((Math.abs(d.pnl) / maxAbs) * 100);
-          const isPos = d.pnl >= 0;
-          return (
-            <div key={d.month} style={{ display: "grid", gridTemplateColumns: "72px 1fr 90px", gap: 10, alignItems: "center" }}>
-              <div style={{ fontSize: 11, opacity: 0.5, fontFamily: "var(--font-mono,monospace)", whiteSpace: "nowrap" as const }}>
-                {d.month}
-              </div>
-              <div style={{ height: 18, borderRadius: 4, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" as const }}>
-                <div style={{
-                  width: `${barW}%`, height: "100%", borderRadius: 4,
-                  background: isPos ? "rgba(0,192,118,0.55)" : "rgba(255,77,77,0.55)",
-                  transition: "width 0.4s",
-                }} />
-              </div>
-              <div style={{
-                fontSize: 12, fontWeight: 800, textAlign: "right" as const,
-                color: isPos ? "var(--green,#00C076)" : "var(--red,#FF4D4D)",
-                fontFamily: "var(--font-mono,monospace)", fontVariantNumeric: "tabular-nums",
-              }}>
-                {isPos ? "+" : ""}{d.pnl.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── 심볼별 분석 ────────────────────────────────────────────
-function SymbolTable({ symbols, pnlFrom }: { symbols: any[]; pnlFrom?: string }) {
-  if (!symbols?.length) return null;
-  return (
-    <div style={panel}>
-      <div style={sectionTitle}>{`◉ 심볼별 분석 (${pnlFrom ? "사이클 기간" : "전체 기간"})`}</div>
-      <div style={{ overflowX: "auto" as const }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--line-soft)" }}>
-              {["심볼","PnL","건수","승/패","승률","평균 익절","평균 손절"].map(h => (
-                <th key={h} style={{ padding: "5px 8px", textAlign: h === "심볼" ? "left" : "right", opacity: .5, fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" as const }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {symbols.map(sym => (
-              <tr key={sym.symbol} style={{ borderBottom: "1px solid var(--line-soft)" }}>
-                <td style={{ padding: "7px 8px", fontWeight: 800 }}>{sym.symbol}</td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const, fontWeight: 800, color: pnlColor(sym.pnl) }}>
-                  {sign(sym.pnl)}{fmt(sym.pnl)}
-                </td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const, opacity: .7 }}>{sym.count}</td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const, opacity: .7 }}>{sym.wins}W/{sym.losses}L</td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const }}>
-                  <span style={{
-                    fontWeight: 800, padding: "2px 7px", borderRadius: 6, fontSize: 11,
-                    background: sym.winRate >= 60 ? "rgba(11,121,73,0.12)" : sym.winRate < 40 ? "rgba(192,57,43,0.12)" : "rgba(255,255,255,0.08)",
-                    color: sym.winRate >= 60 ? "var(--green,#0b7949)" : sym.winRate < 40 ? "var(--red,#c0392b)" : "inherit",
-                  }}>{sym.winRate}%</span>
-                </td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const, color: "var(--green,#0b7949)", fontWeight: 700 }}>
-                  {sym.avgWin != null ? `+${fmt(sym.avgWin)}` : "—"}
-                </td>
-                <td style={{ padding: "7px 8px", textAlign: "right" as const, color: "var(--red,#c0392b)", fontWeight: 700 }}>
-                  {sym.avgLoss != null ? fmt(sym.avgLoss) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ── 드로다운 리커버리 카드 ────────────────────────────────
-function DDCard({ stats }: { stats: any }) {
-  const { currentDD, maxDD, recoveryNeeded } = stats;
-  if (maxDD == null || maxDD <= 0) return null;
-  const isInDD = currentDD > 0.5;
-  return (
-    <div style={{ ...panel, border: isInDD ? "1px solid rgba(255,77,77,0.3)" : "1px solid var(--line-soft,rgba(255,255,255,.08))",
-      background: isInDD ? "rgba(255,77,77,0.06)" : "var(--panel,rgba(255,255,255,0.04))" }}>
-      <div style={sectionTitle}>◈ 드로다운 현황</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginTop: 8 }}>
-        <div>
-          <div style={{ fontSize: 10, opacity: .5, fontWeight: 700 }}>현재 DD</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: isInDD ? "var(--red,#c0392b)" : "inherit" }}>
-            {currentDD.toFixed(2)}%
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, opacity: .5, fontWeight: 700 }}>최대 DD (기간 내)</div>
-          <div style={{ fontWeight: 800, fontSize: 16, color: "var(--red,#c0392b)" }}>{maxDD.toFixed(2)}%</div>
-        </div>
-        {isInDD && (
-          <div>
-            <div style={{ fontSize: 10, opacity: .5, fontWeight: 700 }}>원금 회복 필요 수익률</div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--red,#c0392b)" }}>+{recoveryNeeded.toFixed(2)}%</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+const panel: React.CSSProperties = {
+  padding: "16px 18px", borderRadius: 14, marginBottom: 12,
+  border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
+  background: "var(--panel,rgba(255,255,255,0.04))",
+  backdropFilter: "blur(8px)",
+};
+const sectionTitle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, opacity: 0.45, marginBottom: 12,
+  letterSpacing: 1.2, textTransform: "uppercase" as const,
+  fontFamily: "var(--font-mono,monospace)",
+};
 
 export default function DashboardPage() {
   const { appearance, patchAppearance } = useAppearance();
   const rw = appearance.riskWidget ?? { dashboard: true, trades: true };
 
-  const [stats,        setStats]        = useState<any>(null);
-  const [goals,        setGoals]        = useState<any[]>([]);
-  const [recent,       setRecent]       = useState<any[]>([]);
-  const [topSymbols,   setTopSymbols]   = useState<any[]>([]);
-  const [dailyPnl,     setDailyPnl]     = useState<any[]>([]);
-  const [ddSeries,     setDdSeries]     = useState<any[]>([]);
-  const [heatmapData,  setHeatmapData]  = useState<any[]>([]);
-  const [monthlyPnl,   setMonthlyPnl]   = useState<any[]>([]);
-  const [err,          setErr]          = useState("");
-  const [lastUpdated,  setLastUpdated]  = useState<Date | null>(null);
-  const [pnlFrom,      setPnlFrom]      = useState<string>(() =>
-    typeof window !== "undefined" ? (localStorage.getItem("pnl_from") ?? "") : ""
-  );
+  // Phase 1: localStorage Hydration Mismatch 방지 — useLocalStorage 커스텀 훅
+  const [pnlFrom, setPnlFrom] = useLocalStorage<string>("pnl_from", "");
 
-  const load = useCallback(async (from?: string) => {
-    const f = from !== undefined ? from : (typeof window !== "undefined" ? localStorage.getItem("pnl_from") ?? "" : "");
-    try {
-      const qs = f ? `?from=${encodeURIComponent(f)}` : "";
-      const [a, b] = await Promise.all([
-        fetch(`/api/dashboard${qs}`, { cache: "no-store" }).then(r => r.json()),
-        fetch("/api/goals-v2",       { cache: "no-store" }).then(r => r.json()),
-      ]);
-      if (a.ok) {
-        setStats(a.stats);
-        setRecent(a.recent || []);
-        setTopSymbols(a.topSymbols || []);
-        setDailyPnl(a.dailyPnl || []);
-        setDdSeries(a.ddSeries || []);
-        setHeatmapData(a.heatmapData || []);
-        setMonthlyPnl(a.monthlyPnl || []);
-      } else { setErr(a.error || "불러오기 실패"); }
-      if (b.ok) setGoals(b.goals || []);
-      setLastUpdated(new Date());
-    } catch (e: any) { setErr(e?.message || "네트워크 오류"); }
-  }, []);
+  const dashQs = pnlFrom ? `?from=${encodeURIComponent(pnlFrom)}` : "";
 
+  // Phase 1: SWR — refetchOnWindowFocus + 활성 탭일 때만 60초 폴링
+  const { data: dashData, error: dashErr, mutate: mutateDash } =
+    useSWR<DashboardResponse>(`/api/dashboard${dashQs}`, fetcher, {
+      refreshInterval:      60_000,   // 활성 탭일 때만 1분 폴링
+      revalidateOnFocus:    true,     // 탭 복귀 시 즉시 갱신
+      revalidateOnReconnect:true,     // 네트워크 복구 시 갱신
+    });
+
+  const { data: goalsData } = useSWR("/api/goals-v2", fetcher, {
+    refreshInterval:   300_000,  // 목표는 5분마다 (잘 안 바뀜)
+    revalidateOnFocus: true,
+  });
+
+  // 거래 업데이트 이벤트 수신 → SWR 즉시 재검증
   useEffect(() => {
-    load();
-    const id = setInterval(load, 60_000);  // 1분마다 자동 새로고침
-    window.addEventListener("trades-updated", load);
-    return () => { clearInterval(id); window.removeEventListener("trades-updated", load); };
-  }, [load]);
+    const handler = () => mutateDash();
+    window.addEventListener("trades-updated", handler);
+    return () => window.removeEventListener("trades-updated", handler);
+  }, [mutateDash]);
 
   function handlePnlFromChange(val: string) {
     setPnlFrom(val);
-    localStorage.setItem("pnl_from", val);
-    load(val);
+    // SWR 캐시 키가 바뀌므로 자동으로 재요청됨
   }
 
   function toggleRiskWidget() {
@@ -502,22 +79,33 @@ export default function DashboardPage() {
     patchAppearance({ riskWidget: { ...rw, dashboard: next } });
   }
 
-  if (err)    return <div style={{ padding: "12px 16px", borderRadius: 12, fontSize: 14,
-    background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,.2)",
-    color: "var(--red,#c0392b)" }}>◬ {err}</div>;
-  if (!stats) return <div style={{ padding: 20, opacity: .5, fontSize: 14 }}>불러오는 중…</div>;
+  if (dashErr) return (
+    <div style={{ padding: "12px 16px", borderRadius: 12, fontSize: 14,
+      background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,.2)",
+      color: "var(--red,#c0392b)" }}>◬ 데이터 로드 실패</div>
+  );
+  if (!dashData?.ok) return (
+    <div style={{ padding: 20, opacity: .5, fontSize: 14 }}>불러오는 중…</div>
+  );
 
-  const s = stats;
-  const activeGoals = goals.filter(g => g.status === "active");
+  const s          = dashData.stats;
+  const recent     = dashData.recent ?? [];
+  const topSymbols = dashData.topSymbols ?? [];
+  const dailyPnl   = dashData.dailyPnl ?? [];
+  const ddSeries   = dashData.ddSeries ?? [];
+  const heatmap    = dashData.heatmapData ?? [];
+  const monthlyPnl = dashData.monthlyPnl ?? [];
+  const goals      = (goalsData?.goals ?? []) as Goal[];
+  const activeGoals = goals.filter(g => !g.completed);
 
   return (
     <div style={{ maxWidth: 1100 }}>
 
       {/* 헤더 */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>대시보드</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {lastUpdated && <span style={{ fontSize: 11, opacity: .4 }}>{lastUpdated.toLocaleTimeString("ko-KR")} 기준</span>}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" as const }}>누적 기준</span>
             <input type="date" value={pnlFrom} max={new Date().toISOString().slice(0, 10)}
@@ -555,31 +143,34 @@ export default function DashboardPage() {
 
       {/* 계좌 현황 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>
-        <StatCard label="최초 시드"    value={`${fmt(s.seed)} USDT`} />
-        <StatCard label="현재 자산"    value={`${fmt(s.equityNow)} USDT`}
+        <StatCard label="최초 시드"  value={`${fmt(s.seed)} USDT`} />
+        <StatCard label="현재 자산"  value={`${fmt(s.equityNow)} USDT`}
           sub={`시드 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
           color={pnlColor(s.equityNow - s.seed)} />
-        <StatCard label="총 출금"      value={`${fmt(s.totalWithdrawal)} USDT`} />
-        <StatCard label={pnlFrom ? `사이클 승률` : "전체 승률"} value={`${s.cycleWinRate != null ? s.cycleWinRate.toFixed(1) : s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
-          sub={`${s.wins}승 ${s.losses}패 / ${s.realizedTrades}건`} />
+        <StatCard label="총 출금"    value={`${fmt(s.totalWithdrawal)} USDT`} />
+        <StatCard
+          label={pnlFrom ? "사이클 승률" : "전체 승률"}
+          value={`${s.cycleWinRate != null ? s.cycleWinRate.toFixed(1) : s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
+          sub={`${s.wins}승 ${s.losses}패 / ${s.realizedTrades}건`}
+        />
       </div>
 
-      {/* 드로다운 카드 */}
+      {/* 드로다운 현황 */}
       <DDCard stats={s} />
 
       {/* 차트 2개 나란히 */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <DailyBarChart data={dailyPnl} pnlFrom={pnlFrom} />
-        <CumPnlChart data={ddSeries} />
+        <CumPnlChart   data={ddSeries} />
       </div>
 
-      {/* 드로다운 차트 */}
+      {/* 드로다운 추이 */}
       <DrawdownChart data={ddSeries} />
 
       {/* 히트맵 */}
-      <HourlyHeatmap data={heatmapData} />
+      <HourlyHeatmap data={heatmap} />
 
-      {/* 트레이딩 패턴 KPI */}
+      {/* 트레이딩 KPI */}
       <TradingKPI stats={s} pnlFrom={pnlFrom} />
 
       {/* 월별 PnL */}
@@ -619,7 +210,7 @@ export default function DashboardPage() {
           <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.55, marginBottom: 8, letterSpacing: 0.3 }}>◎ 진행중 목표</div>
           <div style={{ display: "grid", gap: 8 }}>
             {activeGoals.map(g => {
-              const cur = toN(g.current_value), tgt = toN(g.target_value || 1);
+              const cur = toN(g.current), tgt = toN(g.target || 1);
               const p   = Math.min(100, tgt > 0 ? (cur / tgt) * 100 : 0);
               const isBool = g.type === "boolean";
               return (
@@ -634,7 +225,8 @@ export default function DashboardPage() {
                   </div>
                   {!isBool && (
                     <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                      <div style={{ width: p + "%", height: "100%", background: "var(--accent,#B89A5A)", borderRadius: 999, transition: "width 0.3s" }} />
+                      <div style={{ width: p + "%", height: "100%", background: "var(--accent,#B89A5A)",
+                        borderRadius: 999, transition: "width 0.3s" }} />
                     </div>
                   )}
                 </div>
@@ -646,15 +238,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-const panel: React.CSSProperties = {
-  padding: "16px 18px", borderRadius: 14, marginBottom: 12,
-  border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
-  background: "var(--panel,rgba(255,255,255,0.04))",
-  backdropFilter: "blur(8px)",
-};
-const sectionTitle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, opacity: 0.4, marginBottom: 12,
-  letterSpacing: 1.2, textTransform: "uppercase" as const,
-  fontFamily: "var(--font-mono,monospace)",
-};
