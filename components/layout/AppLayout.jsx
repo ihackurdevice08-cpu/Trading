@@ -43,7 +43,7 @@ export default function AppLayout({ children }) {
           display: "flex", alignItems: "center", gap: 10,
           padding: "0 20px", height: 56,
           borderBottom: "1px solid var(--line-soft, rgba(255,255,255,.08))",
-          background: "rgba(13,15,20,0.88)",
+          background: "color-mix(in srgb, var(--bg, #0d0f14) 88%, transparent)",
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
           position: "sticky", top: 0, zIndex: 50, flexShrink: 0,
         }}>
@@ -77,8 +77,8 @@ export default function AppLayout({ children }) {
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "5px 11px", borderRadius: 7, textDecoration: "none",
                   color: active ? "var(--accent, #F0B429)" : "var(--text-secondary, rgba(255,255,255,0.5))",
-                  border: active ? "1px solid rgba(240,180,41,0.25)" : "1px solid transparent",
-                  background: active ? "rgba(240,180,41,0.08)" : "transparent",
+                  border: active ? "1px solid color-mix(in srgb, var(--accent, #F0B429) 30%, transparent)" : "1px solid transparent",
+                  background: active ? "color-mix(in srgb, var(--accent, #F0B429) 12%, transparent)" : "transparent",
                   fontWeight: active ? 700 : 500, fontSize: 12.5, letterSpacing: 0.1,
                   transition: "all 0.12s", whiteSpace: "nowrap",
                 }}>
@@ -124,7 +124,7 @@ export default function AppLayout({ children }) {
             <nav style={{
               position: "absolute", top: 0, right: 0,
               width: "min(280px, 82vw)", height: "100%",
-              background: "rgba(15,17,23,0.98)",
+              background: "var(--bg, #0d0f14)",
               borderLeft: "1px solid var(--line-soft, rgba(255,255,255,.08))",
               boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
               display: "flex", flexDirection: "column",
@@ -145,8 +145,8 @@ export default function AppLayout({ children }) {
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "11px 14px", borderRadius: 10, textDecoration: "none",
                     color: active ? "var(--accent, #F0B429)" : "var(--text-primary, rgba(255,255,255,.85))",
-                    background: active ? "rgba(240,180,41,0.08)" : "transparent",
-                    border: active ? "1px solid rgba(240,180,41,0.2)" : "1px solid transparent",
+                    background: active ? "color-mix(in srgb, var(--accent, #F0B429) 12%, transparent)" : "transparent",
+                    border: active ? "1px solid color-mix(in srgb, var(--accent, #F0B429) 25%, transparent)" : "1px solid transparent",
                     fontWeight: active ? 700 : 500, fontSize: 14, transition: "all 0.12s",
                   }}>
                     <span style={{ opacity: active ? 1 : 0.45, display: "flex", alignItems: "center" }}>{icon}</span>
