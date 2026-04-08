@@ -38,7 +38,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: React.Re
 }
 
 // ── 일별 PnL 바 차트 ──────────────────────────────────────
-function DailyBarChart({ data }: { data: { date: string; pnl: number }[] }) {
+function DailyBarChart({ data, pnlFrom }: { data: { date: string; pnl: number }[]; pnlFrom?: string }) {
   if (!data?.length) return null;
   const max = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
   return (
@@ -267,7 +267,7 @@ function HourlyHeatmap({ data }: { data: { dow: number; hour: number; winRate: n
 
 
 // ── 트레이딩 KPI 패널 ──────────────────────────────────────
-function TradingKPI({ stats }: { stats: any }) {
+function TradingKPI({ stats, pnlFrom }: { stats: any; pnlFrom?: string }) {
   const { longCount, shortCount, maxConsecWin, maxConsecLoss, avgDurationMin, wins, losses, winRate } = stats;
   const total = (longCount || 0) + (shortCount || 0);
   const longPct  = total > 0 ? Math.round(((longCount || 0) / total) * 100) : 0;
@@ -367,7 +367,7 @@ function MonthlyPnlTable({ data }: { data: { month: string; pnl: number }[] }) {
 }
 
 // ── 심볼별 분석 ────────────────────────────────────────────
-function SymbolTable({ symbols }: { symbols: any[] }) {
+function SymbolTable({ symbols, pnlFrom }: { symbols: any[]; pnlFrom?: string }) {
   if (!symbols?.length) return null;
   return (
     <div style={panel}>
@@ -569,7 +569,7 @@ export default function DashboardPage() {
 
       {/* 차트 2개 나란히 */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 0 }}>
-        <DailyBarChart data={dailyPnl} />
+        <DailyBarChart data={dailyPnl} pnlFrom={pnlFrom} />
         <CumPnlChart data={ddSeries} />
       </div>
 
@@ -580,13 +580,13 @@ export default function DashboardPage() {
       <HourlyHeatmap data={heatmapData} />
 
       {/* 트레이딩 패턴 KPI */}
-      <TradingKPI stats={s} />
+      <TradingKPI stats={s} pnlFrom={pnlFrom} />
 
       {/* 월별 PnL */}
       <MonthlyPnlTable data={monthlyPnl} />
 
       {/* 심볼별 분석 */}
-      <SymbolTable symbols={topSymbols} />
+      <SymbolTable symbols={topSymbols} pnlFrom={pnlFrom} />
 
       {/* 최근 거래 */}
       {recent.length > 0 && (
