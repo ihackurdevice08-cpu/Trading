@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/components/providers/AppearanceProvider";
+import { toast } from "sonner";
+import { TradeRowSkeleton } from "@/components/ui/Skeleton";
 
 const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ssr: false });
 
@@ -129,6 +131,35 @@ export default function TradeRecordsPage() {
     return () => window.removeEventListener("trades-updated", h);
   }, [load]);
 
+  // CSV 내보내기
+  function exportCSV() {
+    if (!filtered.length) { toast.error("내보낼 거래가 없습니다"); return; }
+    const BOM = "﻿"; // Excel UTF-8 인식용 BOM
+    const headers = ["ID", "심볼", "방향", "진입일시", "청산일시", "손익(USDT)", "태그", "메모"];
+    const rows = filtered.map(t => [
+      t.id,
+      t.symbol,
+      t.side,
+      t.opened_at?.slice(0, 16).replace("T", " ") ?? "",
+      t.closed_at?.slice(0, 16).replace("T", " ") ?? "",
+      t.pnl != null ? t.pnl.toFixed(4) : "",
+      (t.tags ?? []).join("|"),
+      (t.notes ?? "").replace(/"/g, "'"),
+    ]);
+    const csv = BOM + [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    const dateStr = from ? `${from}_` : "";
+    a.href     = url;
+    a.download = `trades_${dateStr}${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length}건 CSV 내보내기 완료`);
+  }
+
   async function syncAndLoad() {
     setSyncing(true);
     // sync는 항상 2026-02-24 이후 전체 기간 (UI 날짜 필터와 무관)
@@ -180,7 +211,7 @@ export default function TradeRecordsPage() {
   }
 
   async function groupSelected() {
-    if (selected.size < 2) { alert("2개 이상 선택하세요"); return; }
+    if (selected.size < 2) { toast.error("2개 이상 선택하세요"); return; }
     const gid = genGroupId();
     const r = await fetch("/api/manual-trades", {
       method: "PATCH", headers: { "content-type": "application/json" },
@@ -191,7 +222,7 @@ export default function TradeRecordsPage() {
       setSelected(new Set()); setGroupMode(false);
       setExpandedGroups(prev => new Set([...prev, gid]));
       await load();
-    } else { alert("묶기 실패: " + j.error); }
+    } else { toast.error("묶기 실패: " + j.error); }
   }
 
   async function ungroupTrades(ids: string[]) {
@@ -202,7 +233,7 @@ export default function TradeRecordsPage() {
     });
     const j = await r.json();
     if (j.ok) await load();
-    else alert("해제 실패: " + j.error);
+    else toast.error("해제 실패: " + j.error);
   }
 
   function openDetail(t: Trade) {
@@ -443,6 +474,10 @@ export default function TradeRecordsPage() {
             ].map(({ label, fn }) => <button key={label} onClick={fn} style={chip}>{label}</button>)}
           </div>
           <button onClick={syncAndLoad} disabled={syncing || loading} style={btn1}>{syncing ? "동기화 중…" : loading ? "로딩…" : from ? `⚡ ${from} 이후 동기화` : "⚡ 전체 동기화"}</button>
+          <button onClick={exportCSV} disabled={loading || filtered.length === 0}
+            style={{ ...btn1, background: "rgba(0,192,118,0.08)", borderColor: "rgba(0,192,118,0.3)", color: "var(--green,#0b7949)" }}>
+            ↓ CSV
+          </button>
         </div>
         {syncLog && <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13, background: "rgba(255,255,255,0.04)", border: "1px solid var(--line-soft)" }}>{syncLog}</div>}
       </div>
@@ -516,10 +551,30 @@ export default function TradeRecordsPage() {
 
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 2 }}>
         {loading ? (
-          <div style={{ padding: 24, textAlign: "center" as const, opacity: .5, fontSize: 14 }}>불러오는 중…</div>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+            {[...Array(5)].map((_, i) => <TradeRowSkeleton key={i} />)}
+          </div>
         ) : displayItems.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center" as const, opacity: .5, fontSize: 14 }}>
-            {from ? `${from} 이후 청산 기록 없음` : "청산 기록 없음 — Bitget 동기화를 눌러주세요"}
+          <div style={{
+            padding: "40px 20px", textAlign: "center" as const,
+            border: "1px dashed var(--line-soft)", borderRadius: 14,
+            background: "var(--panel,rgba(255,255,255,0.02))",
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
+              {from ? `${from} 이후 거래 기록이 없습니다` : "아직 거래 기록이 없습니다"}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.45, marginBottom: 16 }}>
+              {from ? "새로운 사이클의 첫 거래를 기록해보세요!" : "Bitget 동기화를 눌러 거래를 불러오세요"}
+            </div>
+            <button onClick={syncAndLoad} disabled={syncing} style={{
+              padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+              border: "1px solid var(--accent,#F0B429)",
+              background: "color-mix(in srgb, var(--accent,#F0B429) 12%, transparent)",
+              color: "var(--accent,#F0B429)", cursor: "pointer",
+            }}>
+              {syncing ? "동기화 중…" : "⚡ 동기화"}
+            </button>
           </div>
         ) : displayItems.map((item) => {
           if (item.type === "group") return <GroupCard key={item.group.group_id} g={item.group} />;

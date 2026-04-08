@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "../../components/layout/AppLayout";
 import { AppearanceProvider } from "@/components/providers/AppearanceProvider";
+import { Toaster } from "sonner";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { onAuthStateChanged, onIdTokenChanged } from "firebase/auth";
 
@@ -53,6 +54,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <AppearanceProvider>
       <AppLayout>{children}</AppLayout>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: "var(--panel,#1e1e1e)",
+            border: "1px solid var(--line-soft,rgba(255,255,255,.1))",
+            color: "var(--text-primary,rgba(255,255,255,.9))",
+            fontSize: 13,
+            borderRadius: 10,
+          },
+        }}
+        richColors
+      />
     </AppearanceProvider>
   );
 }

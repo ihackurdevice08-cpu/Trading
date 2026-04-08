@@ -711,18 +711,18 @@ export default function SettingsPage() {
                       if (!f) return;
                       try {
                       const user = firebaseAuth().currentUser;
-                        if (!user) { alert("로그인 필요"); return; }
+                        if (!user) { toast.error("로그인이 필요합니다"); return; }
                         const ext = (f.name.split(".").pop() || "bin").toLowerCase();
                         const path = `${user.uid}/bg.${ext}`;
                         const storage = getStorage(getFirebaseApp());
                         const fileRef = storageRef(storage, path);
                         const snap = await uploadBytes(fileRef, f);
-                        if (!snap) { alert("업로드 실패"); return; }
+                        if (!snap) { toast.error("업로드에 실패했습니다"); return; }
                         const url = await getDownloadURL(fileRef);
                         patchAppearance({ bg: { ...(appearance.bg || {}),
                           url, type: f.type.startsWith("video/") ? "video" : "image" } } as any);
-                        alert("업로드 완료");
-                      } catch (err: any) { alert(err?.message || String(err)); }
+                        toast.success("배경 이미지가 업로드되었습니다");
+                      } catch (err: any) { toast.error(err?.message || "오류가 발생했습니다"); }
                     }}
                     style={{ fontSize: 13 }}
                   />

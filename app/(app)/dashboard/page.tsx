@@ -14,6 +14,7 @@ import { MonthlyPnlTable }  from "@/components/dashboard/MonthlyPnlTable";
 import { CombinedPnlChart, DrawdownChart } from "@/components/dashboard/Charts";
 
 import type { DashboardResponse, Goal } from "@/types/dashboard";
+import { StatCardSkeleton, ChartSkeleton } from "@/components/ui/Skeleton";
 
 const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ssr: false });
 
@@ -93,7 +94,15 @@ export default function DashboardPage() {
       color: "var(--red,#c0392b)" }}>◬ 데이터 로드 실패</div>
   );
   if (!dashData?.ok) return (
-    <div style={{ padding: 20, opacity: .5, fontSize: 14 }}>불러오는 중…</div>
+    <div style={{ maxWidth: 1100 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 12 }}>
+        {[...Array(3)].map((_, i) => <StatCardSkeleton key={i} />)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8, marginBottom: 16 }}>
+        {[...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)}
+      </div>
+      <ChartSkeleton height={280} />
+    </div>
   );
 
   const s          = dashData.stats;

@@ -69,6 +69,12 @@ export default function RootLayout({ children }) {
           /* 갤럭시 폴드 초소형 대응 */
           @media (max-width: 320px) { html { font-size: 14px; } }
 
+          /* Skeleton 애니메이션 */
+          @keyframes skeleton-pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.35; }
+          }
+
           /* 스크롤바 얇게 (Webkit) */
           ::-webkit-scrollbar       { width: 5px; height: 5px; }
           ::-webkit-scrollbar-track { background: transparent; }
