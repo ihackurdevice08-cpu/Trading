@@ -41,21 +41,47 @@ export async function GET(req: Request) {
   const base = `users/${uid}`;
 
   // 병렬로 데이터 가져오기 (recentDocs는 allTradeDocs.slice로 대체)
-  const [allTradeDocs, wdDocs, rsDoc] = await Promise.all([
-    queryDocs(token, `${base}/manual_trades`, {
-      orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
-      limit: 10000,
-    }),
-    listDocs(token, `${base}/withdrawals`),
-    getDoc(token, `${base}/risk_settings/default`),
-  ]);
-
-  const seed   = Number(rsDoc?.seed_usd ?? 10000);
-  // URL 파라미터 없으면 risk_settings.pnl_from 적용
+  // 1단계: risk_settings 먼저 읽어서 pnl_from 확정
+  const rsDoc = await getDoc(token, `${base}/risk_settings/default`);
+  const seed  = Number(rsDoc?.seed_usd ?? 10000);
   if (!pnlFromParam && rsDoc?.pnl_from) {
     pnlFrom = String(rsDoc.pnl_from);
     pnlFromMs = new Date(pnlFrom).getTime();
   }
+
+  // 2단계: pnlFrom이 있으면 그 이후 데이터만 쿼리 (Firestore 레벨 필터 → 전송량 대폭 감소)
+  // totalCumPnl을 위해 전체 데이터도 pnl 필드만 경량 조회
+  const filteredQuery = pnlFromMs ? {
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "opened_at" },
+        op: "GREATER_THAN_OR_EQUAL",
+        value: { timestampValue: new Date(pnlFromMs).toISOString() },
+      },
+    },
+    orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
+    limit: 5000,
+  } : {
+    orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
+    limit: 5000,
+  };
+
+  // pnlFrom이 있을 때: 필터된 거래 + 전체 누적 PnL (pnl 필드만) 병렬 조회
+  // pnlFrom이 없을 때: 단일 쿼리로 처리
+  const fullQuery = {
+    orderBy: [{ field: { fieldPath: "opened_at" }, direction: "DESCENDING" }],
+    limit: 5000,
+  };
+
+  const [allTradeDocs, wdDocs, fullPnlDocs] = await Promise.all([
+    queryDocs(token, `${base}/manual_trades`, filteredQuery),
+    listDocs(token, `${base}/withdrawals`),
+    // equityNow 계산용 전체 PnL (pnlFrom 있을 때만 별도 조회)
+    pnlFromMs
+      ? queryDocs(token, `${base}/manual_trades`, fullQuery)
+          .catch(() => [] as any[])
+      : Promise.resolve(null),
+  ]);
   const wdList = wdDocs;
 
   const todayMs  = kstMs(0);
@@ -135,8 +161,12 @@ export async function GET(req: Request) {
     ? allTrades.filter(r => r.openMs >= pnlFromMsClamped)
     : allTrades;
 
-  const cumPnl      = filtered.reduce((s, r) => s + (r.pnl ?? 0), 0);
-  const totalCumPnl = allTrades.reduce((s, r) => s + (r.pnl ?? 0), 0);
+  // cumPnl: pnlFrom 이후 거래 기준
+  const cumPnl = filtered.reduce((s, r) => s + (r.pnl ?? 0), 0);
+  // totalCumPnl: 전체 기간 (equityNow 계산용)
+  const totalCumPnl = fullPnlDocs
+    ? fullPnlDocs.reduce((s: number, d: any) => s + Number(d.pnl ?? 0), 0)
+    : cumPnl; // pnlFrom 없을 때는 allTrades = 전체 기간
 
   // 드로다운
   const forDD = [...filtered].filter(r => r.pnl !== null).reverse();

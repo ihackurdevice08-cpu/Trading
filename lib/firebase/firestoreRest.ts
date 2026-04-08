@@ -78,42 +78,14 @@ export function docToObject(doc: any): Record<string, any> {
 
 /* ─── HTTP 헬퍼 ────────────────────────────────────────────────── */
 
-// GET 요청 in-flight 중복 제거 — 동일 URL+token의 병렬 요청을 단일 fetch로 합침
-const _inflight = new Map<string, Promise<any>>();
-
+// HTTP 헬퍼 — _inflight 제거 (Vercel 서버리스에서 글로벌 상태 공유 위험)
+// Next.js 내장 fetch 캐싱에 위임
 async function req(
   method: string,
   url: string,
   token: string,
   body?: unknown
 ): Promise<any> {
-  // GET 요청만 deduplication (쓰기는 중복 방지 불필요)
-  if (method === "GET" && !body) {
-    const key = url;
-    const existing = _inflight.get(key);
-    if (existing) return existing;
-
-    const promise = fetch(url, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      cache: "no-store",
-    }).then(async res => {
-      _inflight.delete(key);
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Firestore REST GET ${url} → ${res.status}: ${text}`);
-      }
-      return res.json().catch(() => null);
-    }).catch(err => {
-      _inflight.delete(key);
-      throw err;
-    });
-
-    _inflight.set(key, promise);
-    return promise;
-  }
-
-  // POST/PATCH/DELETE — 그대로 실행
   const res = await fetch(url, {
     method,
     headers: {
