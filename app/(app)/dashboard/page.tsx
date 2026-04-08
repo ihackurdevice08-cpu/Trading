@@ -43,7 +43,7 @@ function DailyBarChart({ data }: { data: { date: string; pnl: number }[] }) {
   const max = Math.max(...data.map(d => Math.abs(d.pnl)), 1);
   return (
     <div style={panel}>
-      <div style={sectionTitle}>◈ 이번 달 일별 PnL</div>
+      <div style={sectionTitle}>{`◈ 일별 PnL${pnlFrom ? " (사이클 기간)" : ""}`}</div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60, overflowX: "auto" as const }}>
         {data.map(d => {
           const h = Math.max(4, Math.abs(d.pnl) / max * 56);
@@ -283,7 +283,7 @@ function TradingKPI({ stats }: { stats: any }) {
   const kpis = [
     { label: "LONG / SHORT 비율", value: total > 0 ? `${longPct}% / ${shortPct}%` : "—",
       sub: `L ${longCount || 0}건 · S ${shortCount || 0}건` },
-    { label: "최장 연승 / 연패", value: `${maxConsecWin || 0}연승 / ${maxConsecLoss || 0}연패`, sub: "이번 달 기준" },
+    { label: "최장 연승 / 연패", value: `${maxConsecWin || 0}연승 / ${maxConsecLoss || 0}연패`, sub: pnlFrom ? "사이클 기준" : "전체 기준" },
     { label: "평균 보유 시간", value: fmtDur(avgDurationMin), sub: "closed_at 기준" },
   ];
 
@@ -371,7 +371,7 @@ function SymbolTable({ symbols }: { symbols: any[] }) {
   if (!symbols?.length) return null;
   return (
     <div style={panel}>
-      <div style={sectionTitle}>◉ 심볼별 분석 (이번 달)</div>
+      <div style={sectionTitle}>{`◉ 심볼별 분석 (${pnlFrom ? "사이클 기간" : "전체 기간"})`}</div>
       <div style={{ overflowX: "auto" as const }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
@@ -560,7 +560,7 @@ export default function DashboardPage() {
           sub={`시드 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
           color={pnlColor(s.equityNow - s.seed)} />
         <StatCard label="총 출금"      value={`${fmt(s.totalWithdrawal)} USDT`} />
-        <StatCard label="이번 달 승률" value={`${s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
+        <StatCard label={pnlFrom ? `사이클 승률` : "전체 승률"} value={`${s.cycleWinRate != null ? s.cycleWinRate.toFixed(1) : s.winRate != null ? s.winRate.toFixed(1) : "—"}%`}
           sub={`${s.wins}승 ${s.losses}패 / ${s.realizedTrades}건`} />
       </div>
 

@@ -72,6 +72,7 @@ export default function TradeRecordsPage() {
   const [loading,     setLoading]     = useState(true);
   const [fetchedFrom, setFetchedFrom] = useState("");
   const [syncing,     setSyncing]     = useState(false);
+  const [cycleFrom,   setCycleFrom]   = useState<string>("");
   const [syncLog,     setSyncLog]     = useState("");
 
   const [groupMode,      setGroupMode]      = useState(false);
@@ -113,6 +114,11 @@ export default function TradeRecordsPage() {
 
   useEffect(() => {
     load();
+    // 사이클 시작일 로드
+    fetch("/api/risk-settings", { cache: "no-store" })
+      .then(r => r.json())
+      .then(j => { if (j?.ok && j.settings?.pnl_from) setCycleFrom(j.settings.pnl_from); })
+      .catch(() => {});
     // 1분마다 자동 새로고침 (cron sync 반영)
     const id = setInterval(() => load(), 60_000);
     return () => clearInterval(id);
@@ -125,12 +131,10 @@ export default function TradeRecordsPage() {
 
   async function syncAndLoad() {
     setSyncing(true);
-    // UI에서 지정한 from 날짜 사용 (없으면 전체 기간)
-    const syncFrom = from || null;
-    setSyncLog(syncFrom ? `⏳ Bitget ${syncFrom} 이후 동기화 중…` : "⏳ Bitget 전체 기간 동기화 중…");
+    // sync는 항상 2026-02-24 이후 전체 기간 (UI 날짜 필터와 무관)
+    setSyncLog("⏳ Bitget 동기화 중…");
     try {
-      const body: any = {};
-      if (syncFrom) body.from = syncFrom;
+      const body: any = { from: "2026-02-24" };
       const r = await fetch("/api/sync-now", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -430,10 +434,11 @@ export default function TradeRecordsPage() {
           <div style={col}><span style={lbl}>심볼</span><input value={symFilter} placeholder="전체" onChange={e => setSymFilter(e.target.value)} style={{ ...inp, width: 100 }} /></div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {[
-              { label: "전체",   fn: () => { setFrom(""); setTo(""); localStorage.setItem("trades_from",""); localStorage.setItem("trades_to",""); } },
-              { label: "이번 달", fn: () => { const v=thisMonthStart(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
-              { label: "이번 주", fn: () => { const d=new Date(),day=d.getDay()||7,mon=new Date(d); mon.setDate(d.getDate()-day+1); const v=mon.toISOString().slice(0,10); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); }},
-              { label: "오늘",   fn: () => { const v=today(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
+              { label: "전체",       fn: () => { setFrom(""); setTo(""); localStorage.setItem("trades_from",""); localStorage.setItem("trades_to",""); } },
+              { label: "사이클 시작", fn: () => { if (cycleFrom) { setFrom(cycleFrom); setTo(""); localStorage.setItem("trades_from",cycleFrom); localStorage.setItem("trades_to",""); } } },
+              { label: "이번 달",    fn: () => { const v=thisMonthStart(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
+              { label: "이번 주",    fn: () => { const d=new Date(),day=d.getDay()||7,mon=new Date(d); mon.setDate(d.getDate()-day+1); const v=mon.toISOString().slice(0,10); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); }},
+              { label: "오늘",       fn: () => { const v=today(); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); } },
               { label: "3개월",  fn: () => { const d=new Date(); d.setMonth(d.getMonth()-3); const v=d.toISOString().slice(0,10); setFrom(v); setTo(""); localStorage.setItem("trades_from",v); localStorage.setItem("trades_to",""); }},
             ].map(({ label, fn }) => <button key={label} onClick={fn} style={chip}>{label}</button>)}
           </div>

@@ -80,6 +80,7 @@ export async function GET(req: Request) {
   // 오늘/주/월 PnL + 통계 (오름차순으로 순회)
   let sumToday = 0, sumWeek = 0, sumMonth = 0;
   let win = 0, loss = 0, realizedCount = 0;
+  let cycleWin = 0, cycleLoss = 0, cycleCount = 0; // 사이클 기준
   let longCount = 0, shortCount = 0;
   let maxConsecWin = 0, maxConsecLoss = 0, curWin = 0, curLoss = 0;
   let totalDurMs = 0, durCount = 0;
@@ -93,6 +94,11 @@ export async function GET(req: Request) {
     if (r.openMs >= todayMs) sumToday += r.pnl;
     if (r.pnl > 0) { win++; curWin++; curLoss = 0; maxConsecWin = Math.max(maxConsecWin, curWin); }
     else           { loss++; curLoss++; curWin = 0; maxConsecLoss = Math.max(maxConsecLoss, curLoss); }
+    // 사이클 기준 승률 (pnlFrom 이후 거래만)
+    if (!pnlFromMsClamped || r.openMs >= pnlFromMsClamped) {
+      cycleCount++;
+      if (r.pnl > 0) cycleWin++; else cycleLoss++;
+    }
     if (r.side === "long") longCount++; else shortCount++;
     if (r.closeMs && r.openMs) {
       const dur = r.closeMs - r.openMs;
@@ -104,7 +110,8 @@ export async function GET(req: Request) {
     else           symbolMap[r.symbol]._losses.push(r.pnl);
   }
 
-  const winRate        = realizedCount > 0 ? (win / realizedCount) * 100 : null;
+  const winRate      = realizedCount > 0 ? (win / realizedCount) * 100 : null;
+  const cycleWinRate = cycleCount > 0 ? (cycleWin / cycleCount) * 100 : null;
   const avgDurationMin = durCount > 0 ? Math.round(totalDurMs / durCount / 60000) : null;
 
   const topSymbols = Object.entries(symbolMap)
@@ -220,6 +227,7 @@ export async function GET(req: Request) {
       maxDD:     Number(maxDD.toFixed(2)),
       recoveryNeeded: Number(recoveryNeeded.toFixed(2)),
       longCount, shortCount, maxConsecWin, maxConsecLoss, avgDurationMin,
+      cycleWin, cycleLoss, cycleCount, cycleWinRate: cycleWinRate !== null ? Number(cycleWinRate.toFixed(1)) : null,
     },
     recent, topSymbols, dailyPnl, ddSeries, heatmapData, monthlyPnl,
   });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthInfo } from "@/lib/firebase/serverAuth";
-import { listDocs, addDoc, deleteDoc, setDoc } from "@/lib/firebase/firestoreRest";
+import { listDocs, addDoc, deleteDoc, setDoc, getDoc } from "@/lib/firebase/firestoreRest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +42,10 @@ export async function GET() {
     return (a.created_at ?? "").localeCompare(b.created_at ?? "");
   });
 
+  // 사이클 시작일 (risk_settings.pnl_from)
+  const rsDoc = await getDoc(token, `users/${uid}/risk_settings/default`);
+  const cycleFrom: string | null = rsDoc?.pnl_from ? String(rsDoc.pnl_from).slice(0, 10) : null;
+
   const totals = {
     total:  withdrawals.reduce((s, w) => s + w.amount, 0),
     profit: withdrawals.filter(w => w.source === "profit").reduce((s, w) => s + w.amount, 0),
@@ -49,7 +53,19 @@ export async function GET() {
     rebate: withdrawals.filter(w => w.source === "rebate").reduce((s, w) => s + w.amount, 0),
   };
 
-  return NextResponse.json({ ok: true, withdrawals, totals });
+  // 사이클 기준 합계 (cycleFrom 이후 출금만)
+  const cycleItems = cycleFrom
+    ? withdrawals.filter(w => (w.withdrawn_at ?? "") >= cycleFrom)
+    : withdrawals;
+
+  const cycleTotals = {
+    total:  cycleItems.reduce((s, w) => s + w.amount, 0),
+    profit: cycleItems.filter(w => w.source === "profit").reduce((s, w) => s + w.amount, 0),
+    seed:   cycleItems.filter(w => w.source === "seed").reduce((s, w) => s + w.amount, 0),
+    rebate: cycleItems.filter(w => w.source === "rebate").reduce((s, w) => s + w.amount, 0),
+  };
+
+  return NextResponse.json({ ok: true, withdrawals, totals, cycleTotals, cycleFrom });
 }
 
 export async function POST(req: Request) {

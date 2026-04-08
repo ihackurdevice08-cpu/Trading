@@ -32,7 +32,9 @@ type SortKey = "date_asc" | "date_desc" | "amount_asc" | "amount_desc";
 
 export default function WithdrawalsPage() {
   const [list,     setList]     = useState<any[]>([]);
-  const [totals,   setTotals]   = useState<any>({});
+  const [totals,      setTotals]      = useState<any>({});
+  const [cycleTotals, setCycleTotals] = useState<any>({});
+  const [cycleFrom,   setCycleFrom]   = useState<string | null>(null);
   const [busy,     setBusy]     = useState(false);
   const [err,      setErr]      = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -60,7 +62,12 @@ export default function WithdrawalsPage() {
   const load = useCallback(async () => {
     const r = await fetch("/api/withdrawals", { cache: "no-store" });
     const j = await r.json().catch(() => null);
-    if (j?.ok) { setList(j.withdrawals || []); setTotals(j.totals || {}); }
+    if (j?.ok) {
+      setList(j.withdrawals || []);
+      setTotals(j.totals || {});
+      setCycleTotals(j.cycleTotals || {});
+      setCycleFrom(j.cycleFrom ?? null);
+    }
     else setErr(j?.error || "불러오기 실패");
   }, []);
 
@@ -205,22 +212,53 @@ export default function WithdrawalsPage() {
         </div>
       )}
 
-      {/* 누적 요약 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 8, marginBottom: 16 }}>
-        {([
-          ["누적 출금 합계", totals.total,  "inherit"],
-          ["수익 출금",      totals.profit, "var(--green,#0b7949)"],
-          ["원금 회수",      totals.seed,   "#d97706"],
-          ["리베이트",       totals.rebate, "var(--accent,#B89A5A)"],
-        ] as [string, any, string][]).map(([label, val, color]) => (
-          <div key={label} style={{ padding: "12px 14px", borderRadius: 12,
-            border: "1px solid var(--line-soft)", background: "var(--panel)" }}>
-            <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>{label}</div>
-            <div style={{ fontWeight: 900, fontSize: 16, color }}>
-              {fmt(val || 0)} <span style={{ fontSize: 11, fontWeight: 500 }}>USDT</span>
+      {/* 합계 요약 — 전체 / 사이클 */}
+      <div style={{ marginBottom: 16 }}>
+        {/* 전체 합계 */}
+        <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.4, marginBottom: 6, letterSpacing: 1 }}>
+          전체 기간
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px,1fr))", gap: 6, marginBottom: 12 }}>
+          {([
+            ["합계",    totals.total,  "inherit"],
+            ["수익",    totals.profit, "var(--green,#0b7949)"],
+            ["원금",    totals.seed,   "#d97706"],
+            ["리베이트",totals.rebate, "var(--accent,#B89A5A)"],
+          ] as [string, any, string][]).map(([label, val, color]) => (
+            <div key={label} style={{ padding: "10px 12px", borderRadius: 10,
+              border: "1px solid var(--line-soft)", background: "var(--panel)" }}>
+              <div style={{ fontSize: 10, opacity: 0.45, marginBottom: 3 }}>{label}</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color }}>
+                {fmt(val || 0)} <span style={{ fontSize: 10, fontWeight: 500 }}>USDT</span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {/* 사이클 합계 */}
+        {cycleFrom && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.4, marginBottom: 6, letterSpacing: 1 }}>
+              사이클 기준 ({cycleFrom} 이후)
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px,1fr))", gap: 6, marginBottom: 12 }}>
+              {([
+                ["합계",    cycleTotals.total,  "inherit"],
+                ["수익",    cycleTotals.profit, "var(--green,#0b7949)"],
+                ["원금",    cycleTotals.seed,   "#d97706"],
+                ["리베이트",cycleTotals.rebate, "var(--accent,#B89A5A)"],
+              ] as [string, any, string][]).map(([label, val, color]) => (
+                <div key={`c-${label}`} style={{ padding: "10px 12px", borderRadius: 10,
+                  border: "1px solid var(--accent,#B89A5A)", background: "rgba(184,154,90,0.05)" }}>
+                  <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color }}>
+                    {fmt(val || 0)} <span style={{ fontSize: 10, fontWeight: 500 }}>USDT</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 입력 폼 */}

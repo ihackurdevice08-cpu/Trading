@@ -7,15 +7,24 @@ export const dynamic = "force-dynamic";
 
 function bad(m: string, s = 400) { return NextResponse.json({ ok: false, error: m }, { status: s }); }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await getAuthInfo();
   if (!auth) return bad("unauthorized", 401);
   const { uid, token } = auth;
+
+  const url = new URL(req.url);
+  const includeCompleted = url.searchParams.get("includeCompleted") === "1";
+
   const docs = await queryDocs(token, `users/${uid}/goals_v2`, {
     orderBy: [{ field: { fieldPath: "created_at" }, direction: "DESCENDING" }],
     limit: 100,
   });
-  return NextResponse.json({ ok: true, goals: docs.map(d=>({id:d.__id,...d,__id:undefined})) });
+
+  const goals = docs
+    .map(d => ({ id: d.__id, ...d, __id: undefined }))
+    .filter(g => includeCompleted || !g.completed);
+
+  return NextResponse.json({ ok: true, goals });
 }
 
 export async function POST(req: Request) {
