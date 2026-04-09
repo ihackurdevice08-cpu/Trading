@@ -6,6 +6,7 @@ import { useAppearance } from "../../../components/providers/AppearanceProvider"
 import { firebaseAuth } from "@/lib/firebase/client";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirebaseApp } from "@/lib/firebase/client";
+import { DataManagementSection } from "@/components/settings/DataManagementSection";
 
 // ─── 공통 스타일 (다른 탭과 동일한 체계) ───────────────────────
 const inp: React.CSSProperties = {
