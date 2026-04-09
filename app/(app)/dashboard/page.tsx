@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
   // 실시간 거래소 잔고 (dashboard와 병렬 — maxDuration 15s 분리)
   const { data: equityData, mutate: mutateEquity } = useSWR("/api/equity", fetcher, {
-    refreshInterval:      120_000,  // 2분마다 (Bitget API 부하 고려)
+    refreshInterval:      60_000,   // 1분마다 갱신
     revalidateOnFocus:    true,
   });
 
@@ -148,6 +148,18 @@ export default function DashboardPage() {
         marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>대시보드</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* 잔고 실시간 새로고침 */}
+          <button
+            onClick={() => mutateEquity()}
+            title="Bitget 잔고 즉시 갱신"
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
+              cursor: "pointer", border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
+              background: "transparent", color: "inherit",
+            }}>
+            ↻ 잔고 갱신
+          </button>
           <button onClick={() => patchAppearance({ riskWidget: { ...rw, dashboard: !rw.dashboard } })}
             style={{
               padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
@@ -197,9 +209,11 @@ export default function DashboardPage() {
                 fontFamily: "var(--font-mono,monospace)" }}>LIVE</span>
             )}
           </>}
-          sub={activeCycle
-            ? `사이클 시드 ${fmt(activeCycle.start_equity)} USDT`
-            : `시드 ${fmt(s.seed)} USDT`}
+          sub={
+            realEquity !== null
+              ? `${activeCycle ? `사이클 시드 ${fmt(activeCycle.start_equity)}` : `시드 ${fmt(s.seed)}`} USDT · ${equityData?.ts ? new Date(equityData.ts).toLocaleTimeString("ko-KR", {hour:"2-digit",minute:"2-digit"}) + " 기준" : ""}`
+              : `시드 ${fmt(s.seed)} USDT (추정)`
+          }
           color={pnlColor((realEquity ?? s.equityNow) - (activeCycle?.start_equity ?? s.seed))}
           sparkline={dailyVals7}
         />
