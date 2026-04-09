@@ -31,6 +31,8 @@ function NewCycleModal({
     if (!title.trim()) { toast.error("사이클 이름을 입력하세요"); return; }
     setBusy(true);
     try {
+      // start_equity는 서버에서 Bitget API로 직접 조회
+      // equityNow는 API 실패 시 fallback용으로만 전송
       const r = await fetch("/api/cycles", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -38,7 +40,8 @@ function NewCycleModal({
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      toast.success(`새 사이클 시작: ${title.trim()}`);
+      const startEquity = j.start_equity != null ? ` (시드: ${fmt(j.start_equity)} USDT)` : "";
+      toast.success(`새 사이클 시작: ${title.trim()}${startEquity}`);
       onCreated();
       onClose();
     } catch (e: any) {
@@ -66,8 +69,14 @@ function NewCycleModal({
     <div style={overlay} onClick={onClose}>
       <div style={modal} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>➕ 새 사이클 시작</div>
-        <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 20 }}>
-          현재 자산 <strong>{fmt(equityNow)} USDT</strong>를 시드(start_equity)로 스냅샷합니다.
+        <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 20, lineHeight: 1.6 }}>
+          사이클 시작 시 <strong>서버가 Bitget 잔고를 직접 조회</strong>하여<br />
+          시드(start_equity)로 정확하게 기록합니다.
+          {equityNow > 0 && (
+            <span style={{ display: "block", marginTop: 4, opacity: 0.7 }}>
+              현재 추정 잔고: <strong>{fmt(equityNow)} USDT</strong>
+            </span>
+          )}
           이전 사이클은 자동으로 종료됩니다.
         </div>
 

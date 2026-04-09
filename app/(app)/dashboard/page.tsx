@@ -68,6 +68,12 @@ export default function DashboardPage() {
     revalidateOnFocus: true,
   });
 
+  // 실시간 거래소 잔고 (dashboard와 병렬 — maxDuration 15s 분리)
+  const { data: equityData, mutate: mutateEquity } = useSWR("/api/equity", fetcher, {
+    refreshInterval:      120_000,  // 2분마다 (Bitget API 부하 고려)
+    revalidateOnFocus:    true,
+  });
+
   const { data: cyclesData, mutate: mutateCycles } = useSWR("/api/cycles", fetcher, {
     refreshInterval:   300_000,
     revalidateOnFocus: true,
@@ -120,8 +126,18 @@ export default function DashboardPage() {
   const heatmap    = dashData.heatmapData ?? [];
   const monthlyPnl = dashData.monthlyPnl ?? [];
   const goals      = (goalsData?.goals ?? []) as Goal[];
-  const cycles     = (cyclesData?.cycles ?? []) as Cycle[];
+  const cycles      = (cyclesData?.cycles ?? []) as Cycle[];
   const activeCycle = cycles.find(c => !c.end_date) ?? null;
+
+  // 실제 거래소 잔고 (Bitget API 응답)
+  const realEquity: number | null = equityData?.equity ?? null;
+
+  // 사이클 PnL: [실제 잔고] - [사이클 start_equity]
+  // → 수수료/펀딩비/출금 모두 반영된 정확한 수치
+  const cyclePnlReal: number | null =
+    realEquity !== null && activeCycle
+      ? Number((realEquity - activeCycle.start_equity).toFixed(2))
+      : null;
   const activeGoals = goals.filter(g => !g.completed);
 
   return (
@@ -172,10 +188,19 @@ export default function DashboardPage() {
       {/* ── Hero 위젯 — 핵심 지표 3개 크게 ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 10 }}>
         <StatCard
-          label="현재 자산"
-          value={<>{fmt(s.equityNow)} <span style={{ fontSize: 14, fontWeight: 500 }}>USDT</span></>}
-          sub={`시드 ${fmt(s.seed)} USDT 대비 ${sign(s.equityNow - s.seed)}${fmt(s.equityNow - s.seed)}`}
-          color={pnlColor(s.equityNow - s.seed)}
+          label={realEquity !== null ? "현재 자산 (실시간)" : "현재 자산 (추정)"}
+          value={<>
+            {fmt(realEquity ?? s.equityNow)}
+            <span style={{ fontSize: 14, fontWeight: 500 }}> USDT</span>
+            {realEquity !== null && (
+              <span style={{ fontSize: 9, opacity: 0.4, marginLeft: 6,
+                fontFamily: "var(--font-mono,monospace)" }}>LIVE</span>
+            )}
+          </>}
+          sub={activeCycle
+            ? `사이클 시드 ${fmt(activeCycle.start_equity)} USDT`
+            : `시드 ${fmt(s.seed)} USDT`}
+          color={pnlColor((realEquity ?? s.equityNow) - (activeCycle?.start_equity ?? s.seed))}
           sparkline={dailyVals7}
         />
         <StatCard
@@ -187,10 +212,17 @@ export default function DashboardPage() {
           sparkline={dailyVals7}
         />
         <StatCard
-          label={pnlFrom ? `누적 PnL (사이클)` : "누적 PnL"}
-          value={<>{sign(s.cumPnl)}{fmt(s.cumPnl)} <span style={{ fontSize: 14, fontWeight: 500 }}>USDT</span></>}
-          sub={pnlFrom ? `${pnlFrom} 이후` : "전체 기간"}
-          color={pnlColor(s.cumPnl)}
+          label={cyclePnlReal !== null ? "사이클 PnL (실제)" : pnlFrom ? "사이클 PnL" : "누적 PnL"}
+          value={<>
+            {sign(cyclePnlReal ?? s.cumPnl)}{fmt(cyclePnlReal ?? s.cumPnl)}
+            <span style={{ fontSize: 14, fontWeight: 500 }}> USDT</span>
+          </>}
+          sub={
+            cyclePnlReal !== null && activeCycle
+              ? `${activeCycle.start_date} 이후 · 실제 잔고 기준`
+              : pnlFrom ? `${pnlFrom} 이후` : "전체 기간"
+          }
+          color={pnlColor(cyclePnlReal ?? s.cumPnl)}
           sparkline={dailyVals7}
         />
       </div>
