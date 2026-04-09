@@ -162,3 +162,14 @@ export interface BitgetFill {
   baseVolume:string;
   feeDetail: Array<{ totalFee?: string; fee?: string }> | null;
 }
+
+// ── 사이클(Cycle) 타입 ────────────────────────────────────────
+export interface Cycle {
+  id:           string;
+  title:        string;           // 예: "4월의 도전"
+  start_date:   string;           // ISO 날짜 문자열
+  end_date:     string | null;    // 진행 중이면 null
+  start_equity: number;           // 사이클 시작 시 자산 스냅샷
+  end_equity:   number | null;
+  note:         string | null;
+}

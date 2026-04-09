@@ -15,6 +15,8 @@ import { CombinedPnlChart, DrawdownChart } from "@/components/dashboard/Charts";
 
 import type { DashboardResponse, Goal } from "@/types/dashboard";
 import { StatCardSkeleton, ChartSkeleton } from "@/components/ui/Skeleton";
+import { CycleSelector } from "@/components/dashboard/CycleSelector";
+import type { Cycle } from "@/types/dashboard";
 
 const RiskMiniWidget = dynamic(() => import("@/components/RiskMiniWidget"), { ssr: false });
 
@@ -66,6 +68,11 @@ export default function DashboardPage() {
     revalidateOnFocus: true,
   });
 
+  const { data: cyclesData, mutate: mutateCycles } = useSWR("/api/cycles", fetcher, {
+    refreshInterval:   300_000,
+    revalidateOnFocus: true,
+  });
+
   useEffect(() => {
     const handler = () => mutateDash();
     window.addEventListener("trades-updated", handler);
@@ -113,6 +120,8 @@ export default function DashboardPage() {
   const heatmap    = dashData.heatmapData ?? [];
   const monthlyPnl = dashData.monthlyPnl ?? [];
   const goals      = (goalsData?.goals ?? []) as Goal[];
+  const cycles     = (cyclesData?.cycles ?? []) as Cycle[];
+  const activeCycle = cycles.find(c => !c.end_date) ?? null;
   const activeGoals = goals.filter(g => !g.completed);
 
   return (
@@ -135,35 +144,28 @@ export default function DashboardPage() {
 
       {rw.dashboard && <RiskMiniWidget />}
 
-      {/* ── 글로벌 필터 (기준일) ── */}
+      {/* ── 사이클 선택기 ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
         padding: "10px 14px", borderRadius: 10, marginBottom: 14,
         border: "1px solid var(--line-soft,rgba(255,255,255,.06))",
         background: "var(--panel,rgba(255,255,255,0.03))",
       }}>
-        <span style={{ fontSize: 11, opacity: 0.5, fontWeight: 600, letterSpacing: 0.5 }}>기준일</span>
-        <input type="date" value={pnlFrom} max={new Date().toISOString().slice(0, 10)}
-          onChange={e => setPnlFrom(e.target.value)}
-          style={{
-            padding: "4px 10px", borderRadius: 7, fontSize: 12,
-            border: "1px solid var(--line-soft,rgba(0,0,0,.12))",
-            background: "rgba(255,255,255,0.06)", color: "inherit", outline: "none",
-          }} />
-        {pnlFrom ? (
-          <>
-            <span style={{ fontSize: 11, opacity: 0.55 }}>
-              📅 <strong>{pnlFrom}</strong> 부터 적용 중
-            </span>
-            <button onClick={() => setPnlFrom("")}
-              style={{
-                padding: "3px 8px", borderRadius: 6, fontSize: 11,
-                border: "1px solid var(--line-soft,rgba(0,0,0,.1))",
-                background: "transparent", cursor: "pointer", opacity: 0.5, color: "inherit",
-              }}>✕ 초기화</button>
-          </>
-        ) : (
-          <span style={{ fontSize: 11, opacity: 0.35 }}>전체 기간 기준</span>
+        <span style={{ fontSize: 11, opacity: 0.55, fontWeight: 600, letterSpacing: 0.5, whiteSpace: "nowrap" as const }}>
+          사이클
+        </span>
+        <CycleSelector
+          cycles={cycles}
+          activeCycle={activeCycle}
+          pnlFrom={pnlFrom}
+          onSelect={val => setPnlFrom(val)}
+          onCreated={() => { mutateCycles(); mutateDash(); }}
+          equityNow={s?.equityNow ?? 0}
+        />
+        {pnlFrom && (
+          <span style={{ fontSize: 11, opacity: 0.55, fontVariantNumeric: "tabular-nums" }}>
+            📅 <strong>{pnlFrom}</strong> 부터 적용 중
+          </span>
         )}
       </div>
 

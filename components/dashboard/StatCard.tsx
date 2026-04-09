@@ -34,7 +34,7 @@ export function StatCard({ label, value, sub, color, trend, sparkline }: Props) 
       {/* 레이블 + 트렌드 배지 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div style={{
-          fontSize: 10, opacity: 0.4, fontWeight: 600,
+          fontSize: 10, opacity: 0.55, fontWeight: 600,
           letterSpacing: 0.8, textTransform: "uppercase" as const,
           fontFamily: "var(--font-mono,monospace)",
         }}>{label}</div>
@@ -61,7 +61,7 @@ export function StatCard({ label, value, sub, color, trend, sparkline }: Props) 
 
       {sub && (
         <div style={{
-          fontSize: 11, opacity: 0.38, marginTop: 5,
+          fontSize: 11, opacity: 0.52, marginTop: 5,
           fontFamily: "var(--font-mono,monospace)",
           position: "relative",
         }}>{sub}</div>

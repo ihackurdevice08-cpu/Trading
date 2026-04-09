@@ -51,7 +51,18 @@ export function CombinedPnlChart({
   dd:       DdSeriesPoint[];
   pnlFrom?: string;
 }) {
-  if (!daily?.length) return null;
+  if (!daily?.length) return (
+    <div style={{...panel, display: "flex", flexDirection: "column" as const,
+      alignItems: "center", justifyContent: "center", minHeight: 200, textAlign: "center" as const}}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
+        새로운 사이클이 시작되었습니다!
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.5 }}>
+        첫 거래를 기록하면 차트가 채워집니다
+      </div>
+    </div>
+  );
 
   // 날짜 기준으로 daily PnL과 누적 PnL 병합
   const ddMap  = Object.fromEntries(dd.map(d => [d.date, d.cumPnl]));
@@ -158,7 +169,13 @@ export function CombinedPnlChart({
 
 // ── 드로다운 차트 ──────────────────────────────────────────────
 export function DrawdownChart({ data }: { data: DdSeriesPoint[] }) {
-  if (!data?.length || data.length < 2) return null;
+  if (!data?.length || data.length < 2) return (
+    <div style={{...panel, display: "flex", flexDirection: "column" as const,
+      alignItems: "center", justifyContent: "center", minHeight: 140, textAlign: "center" as const}}>
+      <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.5 }}>📉</div>
+      <div style={{ fontSize: 12, opacity: 0.45 }}>드로다운 데이터가 없습니다</div>
+    </div>
+  );
   return (
     <div style={panel}>
       <div style={sectionTitle}>◈ 드로다운 추이</div>

@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
             --panel:         rgba(255,255,255,0.72);
             --text-primary:  rgba(0,0,0,0.88);
             --text:          rgba(0,0,0,0.88);
-            --text-secondary:rgba(0,0,0,0.65);
+            --text-secondary:rgba(0,0,0,0.70);
             --text-muted:    rgba(0,0,0,0.45);
             --line-soft:     rgba(0,0,0,0.09);
             --line-hard:     rgba(0,0,0,0.18);

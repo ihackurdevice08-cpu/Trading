@@ -19,7 +19,18 @@ const sign = (v: number) => v > 0 ? "+" : "";
 const pnlColor = (v: number) => v > 0 ? "var(--green,#0b7949)" : v < 0 ? "var(--red,#c0392b)" : "inherit";
 
 export function SymbolTable({ symbols, pnlFrom }: { symbols: SymbolStat[]; pnlFrom?: string }) {
-  if (!symbols?.length) return null;
+  if (!symbols?.length) return (
+    <div style={{
+      border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
+      borderRadius: 14, padding: "32px 18px",
+      background: "var(--panel,rgba(255,255,255,0.04))",
+      display: "flex", flexDirection: "column" as const,
+      alignItems: "center", textAlign: "center" as const,
+    }}>
+      <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}>📊</div>
+      <div style={{ fontSize: 12, opacity: 0.45 }}>심볼별 분석 데이터가 없습니다</div>
+    </div>
+  );
   return (
     <div style={panel}>
       <div style={sectionTitle}>{`◉ 심볼별 분석 (${pnlFrom ? "사이클 기간" : "전체 기간"})`}</div>

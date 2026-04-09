@@ -752,6 +752,9 @@ export default function SettingsPage() {
         </Section>
 
         {/* ── 노션 연동 ── */}
+        {/* ── 데이터 관리 탭 ── */}
+        <DataManagementSection />
+
         <Section title="노션 저널 연동" icon="📓">
           <div style={{ display: "grid", gap: 14 }}>
             <div style={{ fontSize: 12, opacity: .55, lineHeight: 1.6,

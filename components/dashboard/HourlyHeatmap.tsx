@@ -27,7 +27,18 @@ function cellColor(wr: number | null, total: number) {
 const fmt = (v: number) => v.toLocaleString("ko-KR", { maximumFractionDigits: 2 });
 
 export function HourlyHeatmap({ data }: { data: HeatmapCell[] }) {
-  if (!data?.length) return null;
+  if (!data?.length) return (
+    <div style={{
+      border: "1px solid var(--line-soft,rgba(255,255,255,.08))",
+      borderRadius: 14, padding: "32px 18px",
+      background: "var(--panel,rgba(255,255,255,0.04))",
+      display: "flex", flexDirection: "column" as const,
+      alignItems: "center", textAlign: "center" as const,
+    }}>
+      <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}>⏱️</div>
+      <div style={{ fontSize: 12, opacity: 0.45 }}>시간대별 거래 데이터가 없습니다</div>
+    </div>
+  );
 
   // 거래가 있는 시간대만 표시 (빈 시간대 제거)
   const activeHours = Array.from(new Set(

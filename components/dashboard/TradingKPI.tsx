@@ -44,12 +44,12 @@ export function TradingKPI({ stats, pnlFrom }: { stats: DashboardStats; pnlFrom?
             padding: "12px 14px", borderRadius: 10,
             border: "1px solid var(--line-soft)", background: "rgba(255,255,255,0.03)",
           }}>
-            <div style={{ fontSize: 10, opacity: 0.4, fontWeight: 600, letterSpacing: 0.8,
+            <div style={{ fontSize: 10, opacity: 0.55, fontWeight: 600, letterSpacing: 0.8,
               textTransform: "uppercase" as const, fontFamily: "var(--font-mono,monospace)", marginBottom: 6 }}>
               {k.label}
             </div>
             <div style={{ fontWeight: 800, fontSize: 18, fontFamily: "var(--font-mono,monospace)" }}>{k.value}</div>
-            {k.sub && <div style={{ fontSize: 10, opacity: 0.4, marginTop: 4 }}>{k.sub}</div>}
+            {k.sub && <div style={{ fontSize: 10, opacity: 0.52, marginTop: 4 }}>{k.sub}</div>}
           </div>
         ))}
       </div>
