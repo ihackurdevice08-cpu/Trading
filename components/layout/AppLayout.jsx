@@ -10,6 +10,7 @@ import RiskBanner from "@/components/RiskBanner";
 const Icons = {
   dashboard: (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>),
   trades:    (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>),
+  prop:      (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19V5"/><path d="M4 7h10l-1.5 4L14 15H4"/><path d="M18 9v10"/><path d="M15 16h6"/></svg>),
   goals:     (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>),
   risk:      (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>),
 
@@ -22,6 +23,7 @@ const Icons = {
 const NAV = [
   { href: "/dashboard",     label: "대시보드",  icon: Icons.dashboard    },
   { href: "/manual-trades", label: "거래기록",  icon: Icons.trades       },
+  { href: "/prop",          label: "프랍",      icon: Icons.prop         },
   { href: "/goals",         label: "목표",      icon: Icons.goals        },
   { href: "/risk",          label: "리스크",    icon: Icons.risk         },
   { href: "/withdrawals",   label: "출금",      icon: Icons.withdrawals  },
