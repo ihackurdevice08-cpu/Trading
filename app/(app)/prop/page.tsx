@@ -23,7 +23,21 @@ export default function PropPage() {
       <div style={{ maxWidth: 1120 }}>
         <Header onRefresh={() => mutate()} updatedAt={null} />
         <div style={notice("var(--panel,rgba(255,255,255,.04))", "var(--line-soft,rgba(255,255,255,.08))")}>
-          아직 Firestore에 프랍 거래 데이터가 없습니다. Oracle VPS 봇에서 `prop_snapshots`, `prop_trades`, `prop_summary` 업로드를 붙이면 이 화면이 채워집니다.
+          {data?.error === "unauthorized"
+            ? "로그인 세션을 확인하지 못했습니다. 새로고침 후 다시 로그인해주세요."
+            : "프랍 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요."}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data.hasData) {
+    return (
+      <div style={{ maxWidth: 1120 }}>
+        <Header onRefresh={() => mutate()} updatedAt={null} />
+        <div style={notice("var(--panel,rgba(255,255,255,.04))", "var(--line-soft,rgba(255,255,255,.08))")}>
+          아직 프랍 데이터가 들어오지 않았습니다.<br />
+          Oracle VPS 봇의 Firebase 업로드를 켜면 이 화면에 DD 여유, 포지션 규모, 종료 거래 통계가 표시됩니다.
         </div>
       </div>
     );

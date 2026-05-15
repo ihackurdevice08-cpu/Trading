@@ -44,6 +44,7 @@ export async function GET() {
   ]);
 
   const latestSnapshot = snapshotDocs[0] ?? null;
+  const hasData = Boolean(summaryDoc || latestSnapshot);
   const account = {
     accountKey: String(summaryDoc?.account_key ?? latestSnapshot?.account_key ?? "fastpro_1"),
     accountLabel: String(summaryDoc?.account_label ?? latestSnapshot?.account_label ?? "ForTraders FAST PRO"),
@@ -114,6 +115,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    hasData,
     account,
     stats: {
       balance: Number(n(snapshotSource.balance).toFixed(2)),
