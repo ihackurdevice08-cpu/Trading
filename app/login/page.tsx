@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, type User } from "firebase/auth";
 import { ensurePersistence } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 
@@ -10,21 +10,65 @@ export default function LoginPage() {
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    ensurePersistence()
-      .then(auth => getRedirectResult(auth))
-      .then(async result => {
-        if (!result?.user) { setLoading(false); return; }
-        const idToken = await result.user.getIdToken();
-        await fetch("/auth/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ idToken }),
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    async function createSession(user: User) {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error || "세션 생성 실패");
+      }
+      sessionStorage.setItem("__session_ts", String(Date.now()));
+      router.replace("/dashboard");
+    }
+
+    async function boot() {
+      setLoading(true);
+      try {
+        const auth = await ensurePersistence();
+        const result = await getRedirectResult(auth);
+        const user = result?.user ?? auth.currentUser;
+        if (user) {
+          await createSession(user);
+          return;
+        }
+
+        unsubscribe = onAuthStateChanged(auth, async currentUser => {
+          unsubscribe?.();
+          if (cancelled) return;
+          if (!currentUser) {
+            setLoading(false);
+            return;
+          }
+          try {
+            await createSession(currentUser);
+          } catch (e: any) {
+            if (!cancelled) {
+              setError(e?.message ?? "로그인 오류");
+              setLoading(false);
+            }
+          }
         });
-        router.replace("/dashboard");
-      })
-      .catch(e => { setError(e?.message ?? "로그인 오류"); setLoading(false); });
-  }, []);
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.message ?? "로그인 오류");
+          setLoading(false);
+        }
+      }
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [router]);
 
   async function signInWithGoogle() {
     setLoading(true);
