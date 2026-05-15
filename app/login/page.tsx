@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { GoogleAuthProvider, signInWithRedirect, getRedirectResult } from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase/client";
+import { ensurePersistence } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -11,7 +11,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     setLoading(true);
-    getRedirectResult(firebaseAuth)
+    ensurePersistence()
+      .then(auth => getRedirectResult(auth))
       .then(async result => {
         if (!result?.user) { setLoading(false); return; }
         const idToken = await result.user.getIdToken();
@@ -29,9 +30,10 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      const auth = await ensurePersistence();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithRedirect(firebaseAuth, provider);
+      await signInWithRedirect(auth, provider);
     } catch (e: any) {
       setError(e?.message ?? "로그인 실패");
       setLoading(false);
